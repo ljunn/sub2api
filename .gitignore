@@ -127,7 +127,7 @@ scripts
 .code-review-state
 #openspec/
 code-reviews/
-AGENTS.md
+# Keep the host's maintenance entry point with its source.
 backend/cmd/server/server
 deploy/docker-compose.override.yml
 .gocache/
