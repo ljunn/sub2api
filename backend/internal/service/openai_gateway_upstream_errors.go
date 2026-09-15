@@ -282,7 +282,8 @@ func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(account *Acc
 	if s.shouldFailoverUpstreamError(statusCode) {
 		return true
 	}
-	return isOpenAITransientProcessingError(statusCode, upstreamMsg, upstreamBody)
+	return isOpenAITransientProcessingError(statusCode, upstreamMsg, upstreamBody) ||
+		isOpenAIRetryLaterUpstreamError(statusCode, upstreamBody)
 }
 
 func isOpenAICompatibleModelNotFound400(respBody []byte) bool {
