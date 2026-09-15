@@ -5,6 +5,7 @@
 - 本机维护仓库：<https://github.com/ljunn/sub2api>，分支 `host-production`。
 - 上游：`upstream` → <https://github.com/Wei-Shaw/sub2api>。
 - 初始源码基线：`5de5e2bed035d43591a2e10e51f420ef6a84eb98`，对应迁移前二进制记录的提交。
+- `backend/cmd/server/VERSION` 保留线上版本 `0.2.4`。上游 release 工作流会在打包时更新此文件，提交里的旧值是 `0.2.3`，不能直接据此让本机版本号倒退。
 - 生产仍由 `sub2api.service` 管理，工作目录 `/opt/sub2api`，端口 **7654**。
 - 配置 `/opt/sub2api/config.yaml`、安装标记、现有 PostgreSQL/Redis 和业务数据沿用现有部署，不进入 Git。
 - `/opt/image2api` 是独立项目，不要为了修 Sub2API 修改它或切换其 6555 预览。
