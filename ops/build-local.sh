@@ -35,7 +35,7 @@ build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 )
 "$stage/sub2api" -version
 python3 - "$stage" "$commit" "$version" "$build_date" <<'PY'
-import json, pathlib, subprocess, sys
+import json, pathlib, sys
 stage, commit, version, built_at = sys.argv[1:]
 manifest = dict(commit=commit, version=version, built_at=built_at, build_type="source",
                 source_directory="/opt/sub2api/source", repository="https://github.com/ljunn/sub2api",

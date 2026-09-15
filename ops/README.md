@@ -18,7 +18,7 @@ git status
 # 修改源码，运行与改动相关的测试
 cd backend
 go test -p 2 -tags=unit ./internal/service ./internal/handler \
-  -run 'TestForwardImagesRetryLater400|TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhenExhausted'
+  -run 'TestForwardImagesRetryLater400|TestOpenAIGatewayHandlerImages_(RetryLater400SwitchesAccounts|ServerErrorFailsOverAndReturnsClearErrorWhenExhausted)'
 cd ..
 git add <本次修改的文件>
 git commit -m '说明本次修改'
@@ -29,6 +29,14 @@ git push origin host-production
 `build-local.sh` 从已提交的 `HEAD` 导出源码，在本机用锁定的 pnpm 9.15.9 和 `pnpm-lock.yaml` 构建前端，再以 `-tags embed` 将前端嵌入 Go 二进制。Go 版本由 `backend/go.mod` 指定。构建标记为 `source`，包含完整 commit 和构建时间。
 
 产物固定放在 `/opt/sub2api/releases/<版本>-<提交前12位>/`：`sub2api`、`manifest.json`、`SHA256SUMS`。构建不切换线上进程。已构建的同一提交复用其经过校验的产物。
+
+## 2026-09-15：上游 400 换渠道修复
+
+`400` 响应中的泛化错误 `Upstream request failed. Please retry later.` 会触发现有渠道切换流程。只读取响应的 `error.message` 等明确错误字段，接受空类型或 `api_error`、`upstream_error`、`server_error`；明确的内容拒绝、参数错误码或 `param` 字段优先，仍然停止请求。
+
+修复复用现有渠道排除和最大切换次数，不在同一请求中无限重试。HTTP 入口回归测试使用本地桩渠道：修复前仅调用渠道 1，修复后调用渠道 1、2；内容拒绝仍只调用渠道 1。所有测试不访问生产数据库、不向真实上游发起生成。
+
+本次只修改 Sub2API。image2api 的临时修复已经撤回，其原 6555 预览已恢复。
 
 ## 生产发布
 

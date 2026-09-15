@@ -11,6 +11,11 @@ target=$(realpath -e -- "$target")
 exec 9>"$runtime_dir/.release.lock"
 flock -n 9 || { echo 'Another release is running.' >&2; exit 1; }
 
+if [[ -L "$runtime_dir/current" && $(readlink -f "$runtime_dir/current") == "$target" ]]; then
+  echo "Already active: $target"
+  exit 0
+fi
+
 if [[ -L "$runtime_dir/current" ]]; then
   previous=$(readlink -f "$runtime_dir/current")
 else
