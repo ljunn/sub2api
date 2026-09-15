@@ -9,6 +9,7 @@
 - 生产仍由 `sub2api.service` 管理，工作目录 `/opt/sub2api`，端口 **7654**。
 - 配置 `/opt/sub2api/config.yaml`、安装标记、现有 PostgreSQL/Redis 和业务数据沿用现有部署，不进入 Git。
 - `/opt/image2api` 是独立项目，不要为了修 Sub2API 修改它或切换其 6555 预览。
+- 后续各个 custom 渠道的账号池、模型路由、失败切换、重试、熔断、限流和健康调度统一放在 Sub2API；image2api 的 custom 适配层主要负责连接 Sub2API、转发请求和处理统一响应。
 
 ## 日常修改与构建
 

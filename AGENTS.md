@@ -9,3 +9,6 @@
 - 配置与数据仍在 `/opt/sub2api`，生产端口为 7654；不得重建或删除数据库、Redis、业务存储。
 - Sub2API 与 `/opt/image2api` 是不同项目。用户未要求时，不修改 image2api，也不更换其 6555 预览。
 - 不使用后台二进制下载更新或上游安装脚本覆盖源码构建的版本。
+- 各个 custom 渠道的账号池、模型路由、失败切换、重试、熔断、限流和健康调度统一由 Sub2API 负责；image2api 的 custom 适配层主要连接 Sub2API、转发请求和处理统一响应，避免在两个项目重复实现调度策略。
+- 当前修复：上游返回 HTTP 400 且明确错误为 `Upstream request failed. Please retry later.` 时触发换渠道；内容拒绝、参数错误和带 `param` 的错误仍保持终止请求。
+- image2api 的固定源码目录是 `/opt/image2api`，不要为了 custom 调度在该项目重复实现 Sub2API 的渠道策略。
