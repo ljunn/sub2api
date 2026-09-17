@@ -26,7 +26,15 @@ func isOpenAIRetryLaterUpstreamError(status int, body []byte) bool {
 		if json.Unmarshal(body, &response) != nil || response.Error.Param != "" {
 			return false
 		}
-		for _, marker := range []string{response.Error.Type, response.Error.Code} {
+		// Compatible gateways sometimes label every 400 invalid_request_error.
+		// An explicit transient code disambiguates that wrapper; absent such a
+		// code, continue treating invalid_request_error as a caller error.
+		errType := strings.ToLower(strings.TrimSpace(response.Error.Type))
+		code := strings.ToLower(strings.TrimSpace(response.Error.Code))
+		if errType == "invalid_request_error" && (code == "upstream_error" || code == "server_error") {
+			errType = ""
+		}
+		for _, marker := range []string{errType, code} {
 			switch strings.ToLower(strings.TrimSpace(marker)) {
 			case "", "api_error", "upstream_error", "server_error":
 			default:

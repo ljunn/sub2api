@@ -26,6 +26,8 @@ func TestForwardImagesRetryLater400(t *testing.T) {
 		{"plain text", "Upstream request failed. Please retry later.", true},
 		{"case and whitespace", `{"error":{"message":"  UPSTREAM REQUEST FAILED. PLEASE RETRY LATER  "}}`, true},
 		{"content refusal", `{"error":{"message":"Upstream request failed. Please retry later.","type":"upstream_error","code":"content_policy_violation"}}`, false},
+		{"mislabelled transient", `{"error":{"message":"Upstream request failed. Please retry later.","type":"invalid_request_error","code":"upstream_error"}}`, true},
+		{"mislabelled transient with param", `{"error":{"message":"Upstream request failed. Please retry later.","type":"invalid_request_error","code":"upstream_error","param":"size"}}`, false},
 		{"invalid request", `{"error":{"message":"Upstream request failed. Please retry later.","type":"invalid_request_error"}}`, false},
 		{"specific parameter", `{"error":{"message":"Upstream request failed. Please retry later.","type":"api_error","param":"size"}}`, false},
 		{"validation code", `{"error":{"message":"Upstream request failed. Please retry later.","type":"api_error","code":"validation_error"}}`, false},

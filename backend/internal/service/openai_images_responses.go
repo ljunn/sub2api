@@ -822,6 +822,12 @@ func openAIImagesUpstreamErrorFromGJSON(errorObj gjson.Result, upstreamRequestID
 	if !errorObj.Exists() {
 		return nil
 	}
+	wrapped := []byte(`{"error":` + errorObj.Raw + `}`)
+	if openAIContentPolicyCode(wrapped) != "" {
+		err := openAIImagesUpstreamErrorFromHTTP(http.StatusBadRequest, nil, wrapped)
+		err.UpstreamRequestID = strings.TrimSpace(upstreamRequestID)
+		return err
+	}
 	code := strings.TrimSpace(errorObj.Get("code").String())
 	errType := strings.TrimSpace(errorObj.Get("type").String())
 	message := strings.TrimSpace(errorObj.Get("message").String())
@@ -870,6 +876,19 @@ func openAIImagesUpstreamErrorFromHTTP(statusCode int, header http.Header, body 
 	code := strings.TrimSpace(extractUpstreamErrorCode(body))
 	param := strings.TrimSpace(gjson.GetBytes(body, "error.param").String())
 	message := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(body)))
+	if contentCode := openAIContentPolicyCode(body); contentCode != "" {
+		code = contentCode
+		if errType != "image_generation_user_error" {
+			errType = "content_policy_error"
+		}
+		// Content refusals are terminal even when a gateway wraps them in 5xx.
+		if statusCode != http.StatusUnavailableForLegalReasons {
+			statusCode = http.StatusBadRequest
+		}
+		if message == "" || strings.Contains(strings.ToLower(message), "upstream request failed") || strings.Contains(message, "{") {
+			message = "The request was rejected by the content safety filter. Please modify the prompt or reference images."
+		}
+	}
 	if message == "" {
 		message = fmt.Sprintf("Upstream request failed (status %d)", statusCode)
 	}
@@ -952,9 +971,19 @@ func (s *OpenAIGatewayService) handleOpenAIImagesErrorResponse(
 		return nil, upErr
 	}
 
-	// If the account is not configured to handle this status code, fall back to
-	// a generic gateway error without exposing upstream internals (mirrors
-	// handleCompatErrorResponse).
+	// Content refusals belong to the request, not account health or capacity.
+	if openAIContentPolicyCode(body) != "" {
+		upErr := openAIImagesUpstreamErrorFromHTTP(resp.StatusCode, resp.Header, body)
+		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+			ProxyID: opsUpstreamProxyID(account), ProxyName: opsUpstreamProxyName(account),
+			Platform: account.Platform, AccountID: account.ID, AccountName: account.Name,
+			UpstreamRequestID:  resp.Header.Get("x-request-id"),
+			UpstreamStatusCode: resp.StatusCode, Kind: "http_error", Message: upstreamMsg, Detail: upstreamDetail,
+		})
+		writeOpenAIImagesUpstreamErrorResponse(c, upErr)
+		return nil, upErr
+	}
+	// Respect account status filtering for other upstream failures.
 	if !account.ShouldHandleErrorCode(resp.StatusCode) {
 		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 			ProxyID:            opsUpstreamProxyID(account),

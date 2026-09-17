@@ -40,6 +40,8 @@ func TestOpenAIGatewayHandlerImages_RetryLater400SwitchesAccounts(t *testing.T) 
 		wantStatus int
 	}{
 		{"generic upstream failure", `{"error":{"type":"api_error","message":"Upstream request failed. Please retry later."}}`, []int64{1, 2}, http.StatusBadGateway},
+		{"mislabelled transient switches", `{"error":{"type":"invalid_request_error","code":"upstream_error","message":"Upstream request failed. Please retry later."}}`, []int64{1, 2}, http.StatusBadGateway},
+		{"wrapped unsafe is terminal", `{"error":{"type":"api_error","message":"poll failed: 451 {\"error_code\":\"image_unsafe\",\"message\":\"The generated images appear to be unsafe.\"}"}}`, []int64{1}, http.StatusBadRequest},
 		{"content refusal is terminal", `{"error":{"type":"upstream_error","code":"content_policy_violation","message":"Upstream request failed. Please retry later."}}`, []int64{1}, http.StatusBadRequest},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
