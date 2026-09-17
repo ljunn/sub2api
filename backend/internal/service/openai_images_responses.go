@@ -101,9 +101,10 @@ func (e *OpenAIImagesUpstreamError) clientMessage() string {
 }
 
 // IsOpenAIImagesRetryableUpstreamError reports whether an Images error is an
-// upstream server failure that may be retried on another account.
+// upstream server or model-availability failure that another account may handle.
 func IsOpenAIImagesRetryableUpstreamError(err *OpenAIImagesUpstreamError) bool {
-	return err != nil && err.StatusCode >= http.StatusInternalServerError
+	return err != nil && (err.StatusCode >= http.StatusInternalServerError ||
+		isOpenAIModelUnavailableResponse(err.StatusCode, openAIImagesUpstreamErrorResponseBody(err)))
 }
 
 func openAIImagesSSEErrorStatus(errType, code string) int {

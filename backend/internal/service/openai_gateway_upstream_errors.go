@@ -272,14 +272,15 @@ func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(account *Acc
 	// A missing model is account/provider availability, not a malformed client
 	// request. Keep this unconditional exception inside the OpenAI-compatible
 	// gateway and require an eligible account so Anthropic/Gemini paths retain
-	// their existing opt-in 400 behavior.
+	// their existing opt-in behavior. Explicit 404 model failures must also
+	// switch when account cooldown handling is disabled or unavailable.
 	// A bare forwarding service has no account-selection owner to consume a
 	// failover sentinel. In that mode (used by direct/single-account callers),
 	// preserve the deterministic upstream 400 instead of returning an unwritten
 	// retry signal. Managed gateway instances always have an account repository;
 	// their handler can exclude this account and actually select another one.
-	if s != nil && s.accountRepo != nil && account != nil && account.IsOpenAICompatible() && statusCode == http.StatusBadRequest &&
-		isOpenAICompatibleModelNotFound400(upstreamBody) {
+	if s != nil && s.accountRepo != nil && account != nil && account.IsOpenAICompatible() &&
+		isOpenAIModelUnavailableResponse(statusCode, upstreamBody) {
 		return true
 	}
 	if s.shouldFailoverUpstreamError(statusCode) {
@@ -290,18 +291,7 @@ func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(account *Acc
 }
 
 func isOpenAICompatibleModelNotFound400(respBody []byte) bool {
-	code := strings.TrimSpace(extractUpstreamErrorCode(respBody))
-	if code != "" {
-		return strings.EqualFold(code, "model_not_found")
-	}
-
-	msg := strings.ToLower(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
-	if msg == "" && !gjson.ValidBytes(respBody) {
-		msg = strings.ToLower(strings.TrimSpace(string(respBody)))
-	}
-	return strings.Contains(msg, "unknown provider for model") ||
-		strings.Contains(msg, "model not found") ||
-		strings.Contains(msg, "model is not supported")
+	return isOpenAIModelUnavailablePayload(respBody, 0)
 }
 
 // IsOpenAICompatibleModelNotFound400 reports whether an OpenAI-compatible 400
@@ -334,6 +324,12 @@ func newOpenAIUpstreamFailoverError(
 		ResponseHeaders:        responseHeaders.Clone(),
 		RetryableOnSameAccount: retryableOnSameAccount || requestScopedCapacity,
 		RequestScopedTransient: requestScopedCapacity,
+	}
+	if isOpenAIModelUnavailableResponse(statusCode, responseBody) {
+		failoverErr.RetryableOnSameAccount = false
+		failoverErr.RequestScopedTransient = false
+		failoverErr.Scope = GatewayFailureScopeAccount
+		failoverErr.NextAccountAction = NextAccountRetry
 	}
 	if isOpenAIRequestBodyTooLargeError(statusCode, upstreamMsg, responseBody) {
 		failoverErr.RetryableOnSameAccount = false
