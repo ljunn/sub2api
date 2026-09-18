@@ -103,8 +103,12 @@ func (e *OpenAIImagesUpstreamError) clientMessage() string {
 // IsOpenAIImagesRetryableUpstreamError reports whether an Images error is an
 // upstream server or model-availability failure that another account may handle.
 func IsOpenAIImagesRetryableUpstreamError(err *OpenAIImagesUpstreamError) bool {
-	return err != nil && (err.StatusCode >= http.StatusInternalServerError ||
-		isOpenAIModelUnavailableResponse(err.StatusCode, openAIImagesUpstreamErrorResponseBody(err)))
+	// A wrapper's status must never make an explicit refusal retryable.
+	if err == nil || openAIContentPolicyCode(openAIImagesUpstreamErrorResponseBody(err)) != "" {
+		return false
+	}
+	return err.StatusCode >= http.StatusInternalServerError ||
+		isOpenAIModelUnavailableResponse(err.StatusCode, openAIImagesUpstreamErrorResponseBody(err))
 }
 
 func openAIImagesSSEErrorStatus(errType, code string) int {
@@ -952,7 +956,19 @@ func (s *OpenAIGatewayService) handleOpenAIImagesErrorResponse(
 		)
 	}
 
-	// Honor admin-configured error passthrough rules first.
+	// Content refusals belong to the request, not account health or capacity.
+	if openAIContentPolicyCode(body) != "" {
+		upErr := openAIImagesUpstreamErrorFromHTTP(resp.StatusCode, resp.Header, body)
+		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+			ProxyID: opsUpstreamProxyID(account), ProxyName: opsUpstreamProxyName(account),
+			Platform: account.Platform, AccountID: account.ID, AccountName: account.Name,
+			UpstreamRequestID:  resp.Header.Get("x-request-id"),
+			UpstreamStatusCode: resp.StatusCode, Kind: "http_error", Message: upstreamMsg, Detail: upstreamDetail,
+		})
+		writeOpenAIImagesUpstreamErrorResponse(c, upErr)
+		return nil, upErr
+	}
+	// Apply configurable error rewriting only after preserving safety refusals.
 	if status, errType, errMsg, matched := applyErrorPassthroughRule(
 		c,
 		account.Platform,
@@ -972,18 +988,6 @@ func (s *OpenAIGatewayService) handleOpenAIImagesErrorResponse(
 		return nil, upErr
 	}
 
-	// Content refusals belong to the request, not account health or capacity.
-	if openAIContentPolicyCode(body) != "" {
-		upErr := openAIImagesUpstreamErrorFromHTTP(resp.StatusCode, resp.Header, body)
-		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-			ProxyID: opsUpstreamProxyID(account), ProxyName: opsUpstreamProxyName(account),
-			Platform: account.Platform, AccountID: account.ID, AccountName: account.Name,
-			UpstreamRequestID:  resp.Header.Get("x-request-id"),
-			UpstreamStatusCode: resp.StatusCode, Kind: "http_error", Message: upstreamMsg, Detail: upstreamDetail,
-		})
-		writeOpenAIImagesUpstreamErrorResponse(c, upErr)
-		return nil, upErr
-	}
 	// Respect account status filtering for other upstream failures.
 	if !account.ShouldHandleErrorCode(resp.StatusCode) {
 		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{

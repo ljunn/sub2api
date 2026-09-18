@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/model"
@@ -15,6 +16,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestOpenAIImagesContentRefusalPrecedesErrorRewriting(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	rules := &ErrorPassthroughService{}
+	rules.setLocalCache([]*model.ErrorPassthroughRule{newNonFailoverPassthroughRule(503, "content_policy_violation", 502, "temporary upstream failure")})
+	BindErrorPassthroughService(c, rules)
+	resp := &http.Response{StatusCode: 503, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":"content_policy_violation","message":"blocked"}}`))}
+	account := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	_, err := (&OpenAIGatewayService{}).handleOpenAIImagesErrorResponse(context.Background(), resp, c, account)
+	var refusal *OpenAIImagesUpstreamError
+	require.ErrorAs(t, err, &refusal)
+	require.False(t, IsOpenAIImagesRetryableUpstreamError(refusal))
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Contains(t, rec.Body.String(), "content_policy_violation")
+	require.NotContains(t, rec.Body.String(), "temporary upstream failure")
+}
 
 func TestApplyErrorPassthroughRule_NoBoundService(t *testing.T) {
 	gin.SetMode(gin.TestMode)
