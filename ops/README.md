@@ -41,6 +41,18 @@ git push origin host-production
 
 ## 生产发布
 
+### v0.2.7 与已有 fork 迁移的兼容
+
+本机数据库在 2026-09-17 已执行 fork 版本的 `238_opencode_go_platform.sql`
+及 `239_fork_platform_constraints_superset.sql`。前者记录的 checksum 为
+`d310f134e119bd0b01c36e048841d04e1adc04a117c5c516ccdbbc8800742414`，
+而 v0.2.7 上游文件为 `6f987e251519bd3759e60da44620a5d777494cceb333b6ce394aa0ea536ef5a2`。
+四个实际 CHECK 约束已逐一核对，均包含上游的 OpenCode/MiniMax 平台集合，并保留 Kiro/Adobe 扩展。
+迁移执行器沿用现有的精确 checksum 兼容机制，仅接受这两个已核对版本；不重写迁移账本，
+不重新执行旧迁移，也不收窄已有平台约束。其余 checksum 仍严格校验。
+
+### 发布命令
+
 先完成本地验证并向用户提供改动和测试结果，**获得明确上线确认后**再执行：
 
 ```bash
