@@ -51,6 +51,9 @@ git push origin host-production
 迁移执行器沿用现有的精确 checksum 兼容机制，仅接受这两个已核对版本；不重写迁移账本，
 不重新执行旧迁移，也不收窄已有平台约束。其余 checksum 仍严格校验。
 
+内嵌前端对 Seedance 的 `/api/v3`、`/v3`、`/v1` 及无版本前缀任务路由全部放行，
+避免 `/v3` 和 `/contents/generations/tasks` 被 SPA 回退页面截获。
+
 ### 发布命令
 
 先完成本地验证并向用户提供改动和测试结果，**获得明确上线确认后**再执行：

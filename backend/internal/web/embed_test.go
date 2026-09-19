@@ -509,6 +509,34 @@ func TestOverrideFilesNeverReceiveImmutableCacheHeaders(t *testing.T) {
 	})
 }
 
+func TestSeedanceTaskRoutesBypassEmbeddedFrontend(t *testing.T) {
+	server, err := NewFrontendServer(&mockSettingsProvider{settings: map[string]string{}})
+	require.NoError(t, err)
+	for _, frontend := range []struct {
+		name    string
+		handler gin.HandlerFunc
+	}{{"settings", server.Middleware()}, {"legacy", ServeEmbeddedFrontend()}} {
+		for _, prefix := range []string{"/api/v3", "/v3", "/v1", ""} {
+			for _, method := range []string{http.MethodPost, http.MethodGet, http.MethodDelete} {
+				t.Run(frontend.name+prefix+method, func(t *testing.T) {
+					path := prefix + "/contents/generations/tasks"
+					if method != http.MethodPost {
+						path += "/task-1"
+					}
+					router := gin.New()
+					router.Use(frontend.handler)
+					router.Handle(method, path, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+					w := httptest.NewRecorder()
+					router.ServeHTTP(w, httptest.NewRequest(method, path, nil))
+					require.Equal(t, http.StatusNoContent, w.Code, "task endpoint must reach the API handler")
+					require.Empty(t, w.Body.String())
+				})
+			}
+		}
+	}
+	require.False(t, shouldBypassEmbeddedFrontend("/contents/generations/tasks-help"))
+}
+
 func TestFrontendServer_Middleware(t *testing.T) {
 	t.Run("skips_api_routes", func(t *testing.T) {
 		provider := &mockSettingsProvider{
