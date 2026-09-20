@@ -2,6 +2,8 @@
 
 在 OpenAI / API Key 账号中启用 **VividAI 上游协议**，填写 `https://vividai.run`（也可带 `/v1`）、客户 Key 和模型映射。账号支持图片及 Seedance（Ark）视频任务入口，不参与聊天/Responses/Embeddings 调度；LongXia 与 VividAI 不能同时启用。
 
+账号必须绑定客户端 API Key 所属的分组，并为该分组开启“允许图片生成”：当前视频任务也使用这个媒体权限开关，关闭时返回 403 `permission_error`。仅“测试连接”成功不代表分组权限、绑定和模型调度已经配置完成。
+
 ## 图片
 
 对外沿用 `/v1/images/generations` 和 `/v1/images/edits`。编辑接口支持原有 multipart 文件，以及 JSON `images: [{"image_url":"https://..."}]` 或 data URL。适配器按实际文件格式申请 `/v1/uploads`，使用签名 URL PUT 上传，再将返回的 key 放入 `/v1/generate` 的 `refs`。签名上传、参考下载和成品下载均不携带上游 API Key。
