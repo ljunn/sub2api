@@ -123,6 +123,35 @@ func TestVividAIErrorRetryBoundaries(t *testing.T) {
 	}
 }
 
+func TestVividAIInventoryRefusalIsUnavailableWithoutResubmission(t *testing.T) {
+	for _, tc := range []struct {
+		name, response string
+		status         int
+		code           string
+	}{
+		{"inventory", `{"error":{"code":"4001","message":"该渠道暂无可用账号，请稍后再试"}}`, http.StatusServiceUnavailable, "upstream_capacity_unavailable"},
+		{"parameters", `{"error":{"code":"4001","message":"quality 不在白名单"}}`, http.StatusBadRequest, "4001"},
+		{"receipt", `{"jobId":"already-accepted","error":{"code":"4001","message":"该渠道暂无可用账号，请稍后再试"}}`, http.StatusBadRequest, "4001"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			svc := newOpenAIImagesTestService(&vividAIUpstream{call: func(req *http.Request) (*http.Response, error) {
+				calls++
+				return vividAIResponse(http.StatusBadRequest, tc.response), nil
+			}})
+			body := []byte(`{"model":"video","content":[{"type":"text","text":"waves"}],"resolution":"720p","duration":15}`)
+			c, rec := newOpenAIImagesTestContext(t, body)
+			_, err := svc.ForwardSeedance(context.Background(), c, vividAIAccount(), SeedanceEndpointCreate, "", body)
+			require.Error(t, err)
+			var failover *UpstreamFailoverError
+			require.NotErrorAs(t, err, &failover)
+			require.Equal(t, 1, calls)
+			require.Equal(t, tc.status, rec.Code)
+			require.Equal(t, tc.code, gjson.Get(rec.Body.String(), "error.code").String())
+		})
+	}
+}
+
 func TestVividAIAmbiguousCreateAndAcceptedFailureNeverFailover(t *testing.T) {
 	for _, response := range []string{"", `{"jobId":"j","status":"failed","error":"policy rejected","refunded":true}`, `{"jobId":"j","status":"succeeded","result":"https://cdn.example/result.png"}`} {
 		t.Run(response, func(t *testing.T) {

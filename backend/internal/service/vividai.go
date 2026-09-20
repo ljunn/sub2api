@@ -228,6 +228,12 @@ func (s *OpenAIGatewayService) vividAIForwardError(ctx context.Context, c *gin.C
 		case "unsupported_operation":
 			status = http.StatusMethodNotAllowed
 		}
+		// VividAI also uses its business-rejection code for exhausted channel
+		// inventory. Report that explicit refusal as availability, not bad input.
+		if code == "4001" && upstreamErr.Status == http.StatusBadRequest && upstreamErr.Rejected &&
+			strings.Contains(message, "该渠道暂无可用账号") {
+			status, code = http.StatusServiceUnavailable, "upstream_capacity_unavailable"
+		}
 		// These codes explicitly guarantee no task was accepted. Generic 5001 or
 		// HTTP errors do not, and may not trigger a second billable create.
 		if allowFailover && upstreamErr.Rejected && (code == "4011" || code == "4002" || code == "4293") {
