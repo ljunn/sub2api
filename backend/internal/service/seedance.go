@@ -73,6 +73,12 @@ func buildSeedanceURL(base string, endpoint GrokMediaEndpoint, taskID string) (s
 // ForwardSeedance preserves the Ark protocol, including multimodal content and
 // future fields. Only model is rewritten using the account's configured mapping.
 func (s *OpenAIGatewayService) ForwardSeedance(ctx context.Context, c *gin.Context, account *Account, endpoint GrokMediaEndpoint, taskID string, body []byte) (*OpenAIForwardResult, error) {
+	if account.IsLongXia() {
+		return s.forwardLongXiaVideo(ctx, c, account, endpoint, taskID, body)
+	}
+	if account.IsVividAI() {
+		return s.forwardVividAIVideo(ctx, c, account, endpoint, taskID, body)
+	}
 	if !account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilitySeedance) || !endpoint.IsSeedance() {
 		return nil, fmt.Errorf("seedance requires an OpenAI API key account with a custom base URL")
 	}

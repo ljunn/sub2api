@@ -31,6 +31,43 @@ git push origin host-production
 
 产物固定放在 `/opt/sub2api/releases/<版本>-<提交前12位>/`：`sub2api`、`manifest.json`、`SHA256SUMS`。构建不切换线上进程。已构建的同一提交复用其经过校验的产物。
 
+## 6556 审阅预览：共用 Sub2API 生产数据库
+
+用户于 **2026-09-20** 明确要求：Sub2API 也必须构建并运行独立的预览环境，固定审阅入口为 **`0.0.0.0:6556`**。每次生产发布前，先完成测试、提交、推送和本机源码构建，将待发布版本在此端口运行，供用户审阅；用户确认预览并明确同意上线后，才能执行生产发布。
+
+- 预览直接连接 **Sub2API 自身的生产 PostgreSQL 数据库**，使用原有生产账号和业务数据。启动或更新前，核对数据库连接与 `/opt/sub2api/config.yaml` 及 `sub2api.service` 的实际环境一致；不能误用 image2api 的 `vivid_ai` 数据库。
+- 未经用户明确要求，不另建 review/test 数据库，不创建替代预览账号。自动化集成测试使用专用测试库，不向共享生产库写入测试夹具。
+- 使用独立预览进程和本机私有配置；生产服务继续运行在 `7654`。启动预览不得覆盖 `/opt/sub2api/config.yaml`、切换 `current` 或重启 `sub2api.service`。预览配置中的凭据不提交 Git，也不打印到终端。
+- 检查预览健康状态、页面、原有账号登录及生产数据是否可读；预览中保存账号、模型、价格和设置会直接修改生产数据。
+- image2api 的 `6555` 及既有预览拓扑保持不变。Sub2API 使用 `6556`，不得借用或替换 `6555`。
+- 预览与发布均不得重建、恢复或删除 PostgreSQL、Redis、业务存储或其数据卷。
+
+### 本机预览进程
+
+- 独立 systemd 临时服务：`sub2api-preview.service`，监听 `0.0.0.0:6556`。
+- 私有工作目录：`/opt/sub2api/preview`，其中 `config.yaml` 和 `.installed` 仅服务用户可读；配置不进入 Git。数据库、Redis 和 JWT 配置复用生产，启动前同时核对生产进程的环境变量覆盖。预览禁用自动 token 刷新、用量清理、仪表盘聚合、Ops 后台和批量图片队列。
+- ExecStart 直接指向已提交并推送版本的 `/opt/sub2api/releases/<版本>-<提交>/sub2api`，不修改生产 `current`。新预览替换时只停止/启动 `sub2api-preview`。
+
+完成配置核对、测试、提交和推送后：
+
+```bash
+./ops/build-local.sh
+release_dir="/opt/sub2api/releases/$(tr -d '\r\n' < backend/cmd/server/VERSION)-$(git rev-parse --short=12 HEAD)"
+# 如果旧预览仍在运行，只停止旧预览；生产 sub2api.service 不受影响。
+systemctl stop sub2api-preview.service 2>/dev/null || true
+systemd-run --unit=sub2api-preview --collect \
+  --property=User=sub2api --property=Group=sub2api \
+  --property=WorkingDirectory=/opt/sub2api/preview \
+  --property=Restart=on-failure \
+  --setenv=DATA_DIR=/opt/sub2api/preview \
+  --setenv=CONFIG_FILE=/opt/sub2api/preview/config.yaml \
+  "$release_dir/sub2api"
+curl -fsS http://127.0.0.1:6556/health
+systemctl status sub2api-preview --no-pager
+```
+
+两种新增媒体协议的配置和计费说明分别见 [VIVIDAI.md](VIVIDAI.md) 和 [LONGXIA.md](LONGXIA.md)。验证使用模拟上游，没有实际客户 Key 时不把模拟测试视作真实上游生成验证。
+
 ## 2026-09-15：上游 400 换渠道修复
 
 `400` 响应中的泛化错误 `Upstream request failed. Please retry later.` 会触发现有渠道切换流程。只读取响应的 `error.message` 等明确错误字段，接受空类型或 `api_error`、`upstream_error`、`server_error`；明确的内容拒绝、参数错误码或 `param` 字段优先，仍然停止请求。
@@ -56,7 +93,7 @@ git push origin host-production
 
 ### 发布命令
 
-先完成本地验证并向用户提供改动和测试结果，**获得明确上线确认后**再执行：
+先完成本地验证，将待发布版本运行在 **6556** 供用户审阅并提供改动和测试结果，**用户确认预览并明确同意上线后**再执行：
 
 ```bash
 cd /opt/sub2api/source

@@ -676,6 +676,10 @@ export default {
       },
       // OpenAI specific hints
       openai: {
+        longXia: 'LongXia 视频协议',
+        longXiaDesc: '使用龙虾视频接口，通过 Seedance（Ark）任务入口调用。填写龙虾地址、API Key 和完整模型映射，并配置模型的按次或视频按秒价格；参考素材须在提示词中按序引用。',
+        vividAI: 'VividAI 上游协议',
+        vividAIDesc: '用于 vividai.run 或兼容服务，须填写服务地址和 API Key。支持 Images 图片接口和 Seedance (Ark) 视频任务接口，自动处理素材上传及断线续等；不支持聊天。视频按上游积分折算计费，详见 VividAI 接入文档。',
         baseUrlHint: '留空使用官方 OpenAI API',
         apiKeyHint: '您的 OpenAI API Key',
         oauthPassthrough: '自动透传（仅替换认证）',

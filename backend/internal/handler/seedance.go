@@ -41,6 +41,9 @@ func (h *OpenAIGatewayHandler) SeedanceTasks(c *gin.Context) {
 // Ark reports actual completion tokens. Never infer tokens from duration or use
 // Grok's per-second video tariff. Repeated polls share the durable task dedup key.
 func prepareSeedanceCompletionBilling(ctx context.Context, h *OpenAIGatewayHandler, key *service.APIKey, subject middleware.AuthSubject, taskID string, result *service.OpenAIForwardResult) *service.OpenAIForwardResult {
+	if result != nil && service.IsLongXiaTask(taskID) {
+		return prepareLongXiaCompletionBilling(ctx, h, key, subject, taskID, result)
+	}
 	if result == nil || result.Usage.OutputTokens <= 0 {
 		return nil
 	}

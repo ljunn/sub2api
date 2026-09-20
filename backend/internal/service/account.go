@@ -1828,6 +1828,12 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	if a == nil {
 		return false
 	}
+	if a.IsLongXia() {
+		return (capability == "" || capability == OpenAIEndpointCapabilitySeedance) && !a.getExtraBool("vividai_enabled") && strings.TrimSpace(a.GetCredential("base_url")) != ""
+	}
+	if a.IsVividAI() {
+		return capability == "" || capability == OpenAIEndpointCapabilitySeedance
+	}
 	if capability == OpenAIEndpointCapabilitySeedance {
 		configured, _ := a.openAIEndpointCapabilitySet()
 		return configured["seedance"] && a.Platform == PlatformOpenAI && a.Type == AccountTypeAPIKey &&
@@ -2015,6 +2021,9 @@ func (a *Account) openAIEndpointCapabilitySet() (map[string]bool, bool) {
 func (a *Account) SupportsOpenAIImageCapability(capability OpenAIImagesCapability) bool {
 	if capability == "" {
 		return true
+	}
+	if a.IsLongXia() {
+		return false
 	}
 	if !a.IsOpenAI() {
 		return false

@@ -324,6 +324,22 @@ function mountModal(account = buildAccount(), renderGroupSelector = false) {
 }
 
 describe('EditAccountModal', () => {
+  it('restores LongXia and removes it when switching to VividAI', async () => {
+    const account = buildAccount()
+    account.extra = { longxia_enabled: true, unrelated: 'keep' }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+    const wrapper = mountModal(account)
+    expect((wrapper.get('[data-testid="longxia-enabled"]').element as HTMLInputElement).checked).toBe(true)
+    await wrapper.get('[data-testid="vividai-enabled"]').setValue(true)
+    expect((wrapper.get('[data-testid="longxia-enabled"]').element as HTMLInputElement).checked).toBe(false)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.longxia_enabled).toBeUndefined()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.vividai_enabled).toBe(true)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.unrelated).toBe('keep')
+    wrapper.unmount()
+  })
+
   beforeEach(() => {
     authIsSimpleMode.value = true
   })

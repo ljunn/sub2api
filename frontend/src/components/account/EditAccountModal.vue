@@ -1881,9 +1881,25 @@
         </div>
       </div>
 
+      <div v-if="account?.platform === 'openai' && account?.type === 'apikey'" class="space-y-2 border-t border-gray-200 pt-4 dark:border-dark-600">
+        <label class="flex items-center gap-2 text-sm font-medium">
+          <input v-model="vividAIEnabled" type="checkbox" data-testid="vividai-enabled" class="rounded border-gray-300 text-primary-600" />
+          {{ t('admin.accounts.openai.vividAI') }}
+        </label>
+        <p class="input-hint">{{ t('admin.accounts.openai.vividAIDesc') }}</p>
+      </div>
+
+      <div v-if="account?.platform === 'openai' && account?.type === 'apikey'" class="space-y-2 border-t border-gray-200 pt-4 dark:border-dark-600">
+        <label class="flex items-center gap-2 text-sm font-medium">
+          <input v-model="longXiaEnabled" type="checkbox" data-testid="longxia-enabled" class="rounded border-gray-300 text-primary-600" />
+          {{ t('admin.accounts.openai.longXia') }}
+        </label>
+        <p class="input-hint">{{ t('admin.accounts.openai.longXiaDesc') }}</p>
+      </div>
+
       <!-- OpenAI APIKey Responses API support mode -->
       <div
-        v-if="account?.platform === 'openai' && account?.type === 'apikey'"
+        v-if="account?.platform === 'openai' && account?.type === 'apikey' && !vividAIEnabled && !longXiaEnabled"
         class="space-y-4 border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <div class="flex items-center justify-between gap-4">
@@ -3519,9 +3535,13 @@ const openAILongContextBillingEnabled = ref(false)
 // 存于 credentials.plan_type;'' 表示清空/自动识别
 const editPlanType = ref<string>('')
 const openAICompactMode = ref<OpenAICompactMode>('auto')
+const longXiaEnabled = ref(false)
 const openAIResponsesMode = ref<OpenAIResponsesMode>('auto')
 // Images 非流式响应缺 b64_json 时由网关下载 url 回填（仅 OpenAI API Key）。
 const openAIImagesUrlToB64JsonEnabled = ref(false)
+const vividAIEnabled = ref(false)
+watch(longXiaEnabled, (enabled) => { if (enabled) vividAIEnabled.value = false })
+watch(vividAIEnabled, (enabled) => { if (enabled) longXiaEnabled.value = false })
 const openAIEndpointCapabilities = ref<OpenAIEndpointCapability[]>(['chat_completions', 'embeddings'])
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
@@ -3985,6 +4005,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 	allowOverages.value = extra?.allow_overages === true
 	upstreamRequestIdHeader.value = readUpstreamRequestIdHeader(extra)
 	openAIImagesUrlToB64JsonEnabled.value = extra?.images_url_to_b64_json === true
+  longXiaEnabled.value = extra?.longxia_enabled === true
+  vividAIEnabled.value = extra?.vividai_enabled === true
 	autoPause5hThreshold.value = typeof extra?.auto_pause_5h_threshold === 'number' ? extra.auto_pause_5h_threshold * 100 : null
 	autoPause7dThreshold.value = typeof extra?.auto_pause_7d_threshold === 'number' ? extra.auto_pause_7d_threshold * 100 : null
 	autoPause5hDisabled.value = extra?.auto_pause_5h_disabled === true
@@ -5528,6 +5550,17 @@ const handleSubmit = async () => {
           delete newExtra.openai_responses_mode
         } else {
           newExtra.openai_responses_mode = openAIResponsesMode.value
+        }
+        if (longXiaEnabled.value) {
+          newExtra.longxia_enabled = true
+          delete newExtra.vividai_enabled
+        } else {
+          delete newExtra.longxia_enabled
+        }
+        if (vividAIEnabled.value) {
+          newExtra.vividai_enabled = true
+        } else {
+          delete newExtra.vividai_enabled
         }
         if (openAIImagesUrlToB64JsonEnabled.value) {
           newExtra.images_url_to_b64_json = true

@@ -589,6 +589,10 @@ export default {
       },
       // OpenAI specific hints
       openai: {
+        longXia: 'LongXia video protocol',
+        longXiaDesc: 'Use LongXia through the Seedance (Ark) task API. Set the upstream URL, API key, full model mapping and per-request or per-second video model pricing. Reference each asset by its numbered prompt marker.',
+        vividAI: 'VividAI upstream protocol',
+        vividAIDesc: 'For vividai.run or compatible services. Set the base URL and API key. Supports Images and Seedance (Ark) video tasks with reference uploads and job resumption; chat is unavailable. Video billing uses upstream credit equivalents; see the VividAI integration guide.',
         baseUrlHint: 'Leave default for official OpenAI API',
         apiKeyHint: 'Your OpenAI API Key',
         oauthPassthrough: 'Auto passthrough (auth only)',
