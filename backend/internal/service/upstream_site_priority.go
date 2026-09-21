@@ -259,8 +259,8 @@ func siteEffectivePriorities(ctx context.Context, accounts []Account) []Account 
 	}
 	request, _ := ctx.Value(siteRequestKey{}).(SitePriceRequest)
 	type poolKey struct {
-		GroupID               int64
-		Platform, Model, Tier string
+		GroupID         int64
+		Platform, Model string
 	}
 	type leader struct {
 		index int
@@ -290,7 +290,10 @@ func siteEffectivePriorities(ctx context.Context, accounts []Account) []Account 
 		}
 		result[i].Priority = score.Priority
 		result[i].sitePriority = true
-		key := poolKey{p.LocalGroupID, account.Platform, p.LocalModel, tier}
+		// All candidates for this request compete together, even when providers
+		// resolve an omitted size to different procurement tiers (2K vs auto).
+		// Costs and performance samples above remain specific to each tier.
+		key := poolKey{p.LocalGroupID, account.Platform, p.LocalModel}
 		best, exists := leaders[key]
 		if !exists || score.Score > best.score || (score.Score == best.score && account.ID < accounts[best.index].ID) {
 			leaders[key] = leader{i, score.Score}

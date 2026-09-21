@@ -383,6 +383,19 @@ func (s *defaultOpenAIAccountScheduler) Select(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
 ) (selection *AccountSelectionResult, decision OpenAIAccountScheduleDecision, err error) {
+	if s != nil && s.service != nil && !s.service.StickySessionsEnabled() {
+		req.SessionHash = ""
+		req.StickyAccountID = 0
+		req.GuardianParentAccountID = 0
+		req.StickyPreviousAccountID = 0
+		req.StickyWeighted = false
+		req.PreserveStickyBinding = false
+		// A movable continuation has its history available and needs no affinity.
+		if req.PreviousResponseCanMove {
+			req.PreviousResponseID = ""
+		}
+	}
+
 	if s != nil && s.service != nil && s.service.openAIGroupRequiresPrivacySet(ctx, req.GroupID) {
 		req.RequirePrivacySet = true
 	}
@@ -2032,6 +2045,9 @@ func (s *OpenAIGatewayService) openAIOAuthSchedulingRateMultiplier(ctx context.C
 }
 
 func (s *OpenAIGatewayService) isOpenAIAdvancedSchedulerStickyWeightedEnabled(ctx context.Context) bool {
+	if !s.StickySessionsEnabled() {
+		return false
+	}
 	settings := s.openAIAdvancedSchedulerRuntimeSettings(ctx)
 	return settings.enabled && settings.stickyWeightedEnabled
 }

@@ -76,10 +76,13 @@ systemd-run --unit=sub2api-preview --collect \
   --setenv=DATA_DIR=/opt/sub2api/preview \
   --setenv=CONFIG_FILE=/opt/sub2api/preview/config.yaml \
   --setenv=UPSTREAM_SITES_PREVIEW=false \
+  --setenv=GATEWAY_SCHEDULING_DISABLE_STICKY_SESSIONS=true \
   "$release_dir/sub2api"
 curl -fsS http://127.0.0.1:6556/health
 systemctl status sub2api-preview --no-pager
 ```
+
+2026-09-21 按用户要求，6556 使用 `gateway.scheduling.disable_sticky_sessions: true`（或上述环境变量）全局关闭自动会话粘性，覆盖 Gemini 原生/兼容、Claude/Antigravity 和 OpenAI 兼容调度。已有 Redis 绑定、预取绑定及内容摘要回退均不再决定账号，不写入或续期绑定；同一个调用账号/会话每次重新按当前优先级与可用性调度，单次请求故障仍正常换渠道，下一次请求重新排序，无须清 Redis。并发、会话数量限制与已生成响应/媒体任务的归属校验继续生效。此配置是实例级覆盖，默认关闭覆盖以兼容其他部署；后续生产上线须在用户确认完整预览后同步设置该项，不能只更新二进制而遗漏配置。
 
 站点管理、价格口径及预览托管账号的行为见 [UPSTREAM_SITES.md](UPSTREAM_SITES.md)。用户于 2026-09-21 明确要求通过新分组隔离测试、允许符合条件的账号参与调度，因此预览设置 `UPSTREAM_SITES_PREVIEW=false`，恢复每 5 分钟的模型/价格自动同步；新建托管账号正常启用，原先带待上线标记的账号在同步时解除统一停用。仍执行分组、模型、档位价格、有效期及手动调度开关检查，不得再仅因运行于 6556 而统一停用账号。已核对测试分组 10、11 独立于历史分组，启用时没有 API Key、调用记录或路由引用；这不改变共用生产 PostgreSQL 的约定，也不代表允许发布或重启生产。余额每 5 分钟自动扫描与系统邮件提醒继续运行；它们与价格同步独立，配置和收件人统一复用系统邮件管理，见 [UPSTREAM_SITE_BALANCE.md](UPSTREAM_SITE_BALANCE.md)。
 

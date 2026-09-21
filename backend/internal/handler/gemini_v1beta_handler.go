@@ -469,7 +469,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	var geminiPrefixHash string
 	var geminiSessionUUID string
 	var matchedDigestChain string
-	useDigestFallback := sessionBoundAccountID == 0
+	useDigestFallback := h.gatewayService.StickySessionsEnabled() && sessionBoundAccountID == 0
 
 	if useDigestFallback {
 		// 解析 Gemini 请求体

@@ -107,6 +107,22 @@ func TestSitePriorityWindowColdStartAndPriceGate(t *testing.T) {
 	}
 }
 
+func TestSitePriorityProviderDefaultTiersShareRequestPool(t *testing.T) {
+	pricing, _ := siteTestPricing()
+	ctx := WithSitePriceRequest(context.WithValue(context.Background(), sitePricingKey{}, pricing),
+		[]byte(`{"contents":[{"role":"user","parts":[{"text":"draw an image"}]}]}`))
+	accounts := []Account{sitePriorityTestAccount(31, "gemini-image", .02), sitePriorityTestAccount(38, "gemini-image", .1)}
+	accounts[0].Extra[SitePolicyExtraKey].(map[string]any)["site_kind"] = "kongfang"
+	request := ctx.Value(siteRequestKey{}).(SitePriceRequest)
+	p, _ := accounts[0].SitePolicy()
+	require.Equal(t, "2K", sitePerformanceTier(p, request))
+	p, _ = accounts[1].SitePolicy()
+	require.Equal(t, "auto", sitePerformanceTier(p, request))
+	ranked := siteEffectivePriorities(ctx, accounts)
+	require.Equal(t, 200, ranked[0].Priority)
+	require.Greater(t, ranked[1].Priority, 200, "one request must not elect a second leader for a provider's different default tier")
+}
+
 func TestSitePriorityAdvancedSchedulerRetainsAndOrdersEveryBackup(t *testing.T) {
 	pricing, _ := siteTestPricing()
 	ctx := WithSiteImageSize(context.WithValue(context.Background(), sitePricingKey{}, pricing), "2K")
@@ -184,14 +200,17 @@ func TestSitePriorityGeminiSnapshotSelectsBestAndFailsOver(t *testing.T) {
 			accounts[0].LastUsedAt = &now // LRU alone would choose the more expensive backup.
 			cfg := testConfig()
 			cfg.Gateway.Scheduling.LoadBatchEnabled = loadBatch
+			cfg.Gateway.Scheduling.DisableStickySessions = true
+			stickyCache := &stickyPolicyCache{stubGatewayCache: stubGatewayCache{sessionBindings: map[string]int64{"gemini:same-client": 37}}}
+			ctx = WithPrefetchedStickySession(ctx, 37, groups.group.ID, true)
 			groupRepo := &mockGroupRepoForGateway{groups: map[int64]*Group{groups.group.ID: groups.group}}
 			svc := &GatewayService{
-				cfg: cfg, groupRepo: groupRepo,
+				cfg: cfg, groupRepo: groupRepo, cache: stickyCache,
 				schedulerSnapshot:  NewSchedulerSnapshotService(cache, nil, nil, groupRepo, cfg),
 				concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
 			}
-			for _, excluded := range []map[int64]struct{}{nil, {31: {}}} {
-				selected, err := svc.SelectAccountWithLoadAwareness(ctx, &groups.group.ID, "", model, excluded, "", 0)
+			for _, excluded := range []map[int64]struct{}{nil, {31: {}}, nil} {
+				selected, err := svc.SelectAccountWithLoadAwareness(ctx, &groups.group.ID, "gemini:same-client", model, excluded, "", 0)
 				require.NoError(t, err)
 				require.NotNil(t, selected)
 				want := int64(31)
@@ -203,6 +222,7 @@ func TestSitePriorityGeminiSnapshotSelectsBestAndFailsOver(t *testing.T) {
 					selected.ReleaseFunc()
 				}
 			}
+			require.Zero(t, stickyCache.reads+stickyCache.writes+stickyCache.refreshes)
 			require.Equal(t, 50, accounts[0].Priority, "request scores must not mutate cached manual priorities")
 		})
 	}

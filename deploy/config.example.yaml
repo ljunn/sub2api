@@ -528,6 +528,9 @@ gateway:
   # Scheduling configuration
   # 调度配置
   scheduling:
+    # 全局关闭自动会话粘性；每次请求重新参与正常调度，忽略既有绑定且不写入/续期。
+    # 环境变量：GATEWAY_SCHEDULING_DISABLE_STICKY_SESSIONS=true
+    disable_sticky_sessions: false
     # Sticky session max waiting queue size
     # 粘性会话最大排队长度
     sticky_session_max_waiting: 3

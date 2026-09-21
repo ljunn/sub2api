@@ -955,7 +955,7 @@ func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
 
 // BindStickySession sets session -> account binding with standard TTL.
 func (s *GatewayService) BindStickySession(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
-	if sessionHash == "" || accountID <= 0 || s.cache == nil {
+	if !s.StickySessionsEnabled() || sessionHash == "" || accountID <= 0 || s.cache == nil {
 		return nil
 	}
 	return s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, accountID, stickySessionTTL)
@@ -979,7 +979,7 @@ func (s *GatewayService) bindGatewayStickySessionDuringSelection(ctx context.Con
 // account remains bound and automatically becomes eligible again if its
 // account rate recovers.
 func (s *GatewayService) BindStickySessionAfterProfitAdmission(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
-	if sessionHash == "" || accountID <= 0 || s.cache == nil {
+	if !s.StickySessionsEnabled() || sessionHash == "" || accountID <= 0 || s.cache == nil {
 		return nil
 	}
 	if !gatewayProfitControlGateActive(ctx) {
@@ -1000,7 +1000,7 @@ func (s *GatewayService) BindStickySessionAfterProfitAdmission(ctx context.Conte
 // GetCachedSessionAccountID retrieves the account ID bound to a sticky session.
 // Returns 0 if no binding exists or on error.
 func (s *GatewayService) GetCachedSessionAccountID(ctx context.Context, groupID *int64, sessionHash string) (int64, error) {
-	if sessionHash == "" || s.cache == nil {
+	if !s.StickySessionsEnabled() || sessionHash == "" || s.cache == nil {
 		return 0, nil
 	}
 	accountID, err := s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
@@ -1013,7 +1013,7 @@ func (s *GatewayService) GetCachedSessionAccountID(ctx context.Context, groupID 
 // FindGeminiSession 查找 Gemini 会话（基于内容摘要链的 Fallback 匹配）
 // 返回最长匹配的会话信息（uuid, accountID）
 func (s *GatewayService) FindGeminiSession(_ context.Context, groupID int64, prefixHash, digestChain string) (uuid string, accountID int64, matchedChain string, found bool) {
-	if digestChain == "" || s.digestStore == nil {
+	if !s.StickySessionsEnabled() || digestChain == "" || s.digestStore == nil {
 		return "", 0, "", false
 	}
 	return s.digestStore.Find(groupID, prefixHash, digestChain)
@@ -1021,7 +1021,7 @@ func (s *GatewayService) FindGeminiSession(_ context.Context, groupID int64, pre
 
 // SaveGeminiSession 保存 Gemini 会话。oldDigestChain 为 Find 返回的 matchedChain，用于删旧 key。
 func (s *GatewayService) SaveGeminiSession(_ context.Context, groupID int64, prefixHash, digestChain, uuid string, accountID int64, oldDigestChain string) error {
-	if digestChain == "" || s.digestStore == nil {
+	if !s.StickySessionsEnabled() || digestChain == "" || s.digestStore == nil {
 		return nil
 	}
 	s.digestStore.Save(groupID, prefixHash, digestChain, uuid, accountID, oldDigestChain)
@@ -1030,7 +1030,7 @@ func (s *GatewayService) SaveGeminiSession(_ context.Context, groupID int64, pre
 
 // FindAnthropicSession 查找 Anthropic 会话（基于内容摘要链的 Fallback 匹配）
 func (s *GatewayService) FindAnthropicSession(_ context.Context, groupID int64, prefixHash, digestChain string) (uuid string, accountID int64, matchedChain string, found bool) {
-	if digestChain == "" || s.digestStore == nil {
+	if !s.StickySessionsEnabled() || digestChain == "" || s.digestStore == nil {
 		return "", 0, "", false
 	}
 	return s.digestStore.Find(groupID, prefixHash, digestChain)
@@ -1038,7 +1038,7 @@ func (s *GatewayService) FindAnthropicSession(_ context.Context, groupID int64, 
 
 // SaveAnthropicSession 保存 Anthropic 会话
 func (s *GatewayService) SaveAnthropicSession(_ context.Context, groupID int64, prefixHash, digestChain, uuid string, accountID int64, oldDigestChain string) error {
-	if digestChain == "" || s.digestStore == nil {
+	if !s.StickySessionsEnabled() || digestChain == "" || s.digestStore == nil {
 		return nil
 	}
 	s.digestStore.Save(groupID, prefixHash, digestChain, uuid, accountID, oldDigestChain)
