@@ -73,6 +73,7 @@ type UpstreamSite struct {
 	Models      []SiteModel       `json:"models"`
 	Bindings    []SiteBinding     `json:"bindings"`
 	History     []SitePriceChange `json:"history"`
+	CreditUSD   float64           `json:"usd_per_credit,omitempty"`
 	Secret      string            `json:"-"`
 }
 
@@ -93,19 +94,21 @@ type SiteCredentials struct {
 }
 
 type SiteInput struct {
-	Name         string `json:"name"`
-	BaseURL      string `json:"base_url"`
-	Kind         string `json:"kind"`
-	AuthMode     string `json:"auth_mode"`
-	Username     string `json:"username"`
-	UserID       int64  `json:"user_id"`
-	Enabled      bool   `json:"enabled"`
-	Password     string `json:"password"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	CreditUSD    float64 `json:"usd_per_credit,omitempty"`
+	Name         string  `json:"name"`
+	BaseURL      string  `json:"base_url"`
+	Kind         string  `json:"kind"`
+	AuthMode     string  `json:"auth_mode"`
+	Username     string  `json:"username"`
+	UserID       int64   `json:"user_id"`
+	Enabled      bool    `json:"enabled"`
+	Password     string  `json:"password"`
+	AccessToken  string  `json:"access_token"`
+	RefreshToken string  `json:"refresh_token"`
 }
 
 type SiteAccountPolicy struct {
+	SiteKind      string          `json:"site_kind,omitempty"`
 	LocalGroupID  int64           `json:"local_group_id"`
 	Image         bool            `json:"image"`
 	SiteID        string          `json:"site_id"`

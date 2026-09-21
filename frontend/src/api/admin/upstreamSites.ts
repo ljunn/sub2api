@@ -45,10 +45,11 @@ export interface SitePriceChange {
   after: SitePriceTier[]
 }
 export interface UpstreamSite {
+  usd_per_credit?: number
   id: string
   name: string
   base_url: string
-  kind: 'sub2api' | 'newapi'
+  kind: 'sub2api' | 'newapi' | 'kongfang'
   auth_mode: 'password' | 'token'
   username: string
   user_id: number
@@ -63,9 +64,10 @@ export interface UpstreamSite {
   history: SitePriceChange[]
 }
 export interface SiteInput {
+  usd_per_credit?: number
   name: string
   base_url: string
-  kind: 'sub2api' | 'newapi'
+  kind: 'sub2api' | 'newapi' | 'kongfang'
   auth_mode: 'password' | 'token'
   username: string
   user_id: number

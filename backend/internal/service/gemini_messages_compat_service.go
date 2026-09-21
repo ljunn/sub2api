@@ -1664,6 +1664,9 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 
 	// 图片生成计费
 	imageInputSize := s.extractImageInputSize(body)
+	if policy, managed := account.SitePolicy(); managed && policy.SiteKind == "kongfang" {
+		imageInputSize = kongfangRequestTier(body)
+	}
 	imageSize := normalizeOpenAIImageSizeTier(imageInputSize)
 	imageCount := resolveGeminiImageCount(c, originalModel, mappedModel)
 

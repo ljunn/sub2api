@@ -43,6 +43,9 @@ func newSiteAdapter(site *UpstreamSite, credentials *SiteCredentials) *siteAdapt
 	return &siteAdapter{site: site, credentials: credentials, client: &http.Client{Timeout: 20 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 func (a *siteAdapter) request(ctx context.Context, method, path string, input any) (gjson.Result, error) {
+	return a.requestWithHeaders(ctx, method, path, input, nil)
+}
+func (a *siteAdapter) requestWithHeaders(ctx context.Context, method, path string, input any, headers map[string]string) (gjson.Result, error) {
 	var body io.Reader
 	if input != nil {
 		raw, err := json.Marshal(input)
@@ -71,6 +74,9 @@ func (a *siteAdapter) request(ctx context.Context, method, path string, input an
 	}
 	if a.site.Kind == "newapi" && a.credentials.RefreshToken != "" {
 		req.AddCookie(&http.Cookie{Name: "new_api_refresh", Value: a.credentials.RefreshToken})
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 	resp, err := a.client.Do(req)
 	if err != nil {
@@ -116,6 +122,9 @@ func (a *siteAdapter) acceptAuth(result gjson.Result) error {
 	if token := data.Get("refresh_token").String(); token != "" {
 		a.credentials.RefreshToken = token
 	}
+	if a.site.Kind == "kongfang" {
+		a.credentials.AccessToken = data.Get("token").String()
+	}
 	id := data.Get("user.id").Int()
 	if id == 0 {
 		id = data.Get("id").Int()
@@ -133,6 +142,9 @@ func (a *siteAdapter) acceptAuth(result gjson.Result) error {
 }
 func (a *siteAdapter) authenticate(ctx context.Context) error {
 	selfPath := "/api/v1/auth/me"
+	if a.site.Kind == "kongfang" {
+		selfPath = "/api/v1/user/profile"
+	}
 	if a.site.Kind == "newapi" {
 		selfPath = "/api/user/self"
 	}
@@ -152,7 +164,7 @@ func (a *siteAdapter) authenticate(ctx context.Context) error {
 			return err
 		}
 	}
-	if a.credentials.RefreshToken != "" {
+	if a.credentials.RefreshToken != "" && a.site.Kind != "kongfang" {
 		path := "/api/v1/auth/refresh"
 		var payload any = map[string]string{"refresh_token": a.credentials.RefreshToken}
 		if a.site.Kind == "newapi" {
@@ -173,6 +185,10 @@ func (a *siteAdapter) authenticate(ctx context.Context) error {
 	}
 	payload := map[string]string{"email": a.site.Username, "password": a.credentials.Password}
 	path := "/api/v1/auth/login"
+	if a.site.Kind == "kongfang" {
+		path = "/api/v1/admin/auth/login"
+		payload = map[string]string{"username": a.site.Username, "password": a.credentials.Password}
+	}
 	if a.site.Kind == "newapi" {
 		path = "/api/user/login"
 		payload = map[string]string{"username": a.site.Username, "password": a.credentials.Password}
@@ -217,6 +233,9 @@ func (a *siteAdapter) authenticate(ctx context.Context) error {
 func (a *siteAdapter) catalog(ctx context.Context) ([]SiteModel, error) {
 	if err := a.authenticate(ctx); err != nil {
 		return nil, err
+	}
+	if a.site.Kind == "kongfang" {
+		return a.kongfangCatalog(ctx)
 	}
 	if a.site.Kind == "newapi" {
 		result, err := a.request(ctx, http.MethodGet, "/api/pricing", nil)
@@ -511,7 +530,13 @@ func (a *siteAdapter) ensureKey(ctx context.Context, b *SiteBinding) (string, er
 	}
 	name := "s2site-" + b.ID
 	var key string
-	if a.site.Kind == "sub2api" {
+	if a.site.Kind == "kongfang" {
+		var err error
+		key, err = a.ensureKongfangKey(ctx, name)
+		if err != nil {
+			return "", err
+		}
+	} else if a.site.Kind == "sub2api" {
 		path := "/api/v1/keys?search=" + url.QueryEscape(name) + "&page_size=100"
 		result, err := a.request(ctx, http.MethodGet, path, nil)
 		if err != nil {

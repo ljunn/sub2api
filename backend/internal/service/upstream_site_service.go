@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/url"
 	"os"
 	"reflect"
@@ -128,11 +129,17 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return nil, errors.New("请输入有效站点地址，不要包含凭据、查询参数或 API 路径")
 	}
-	if input.Name == "" || len(input.Name) > 120 || (input.Kind != "sub2api" && input.Kind != "newapi") || (input.AuthMode != "password" && input.AuthMode != "token") {
+	if input.Name == "" || len(input.Name) > 120 || (input.Kind != "sub2api" && input.Kind != "newapi" && input.Kind != "kongfang") || (input.AuthMode != "password" && input.AuthMode != "token") {
 		return nil, errors.New("站点名称、格式或登录方式无效")
 	}
 	if strings.HasSuffix(u.Path, "/v1") || strings.HasSuffix(u.Path, "/api") {
 		return nil, errors.New("请填写站点首页地址，不要填写 /v1 或 /api 地址")
+	}
+	if math.IsNaN(input.CreditUSD) || math.IsInf(input.CreditUSD, 0) || input.CreditUSD < 0 {
+		return nil, errors.New("每积分美元成本必须为非负有限数；留空或 0 时暂停价格调度")
+	}
+	if input.Kind == "kongfang" && u.Path != "" {
+		return nil, errors.New("空凡请填写站点首页地址，不要包含 /user/balance 等路径")
 	}
 	fresh := id == ""
 	if fresh {
@@ -180,6 +187,11 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	if input.AuthMode == "token" && credentials.AccessToken == "" && credentials.RefreshToken == "" {
 		return nil, errors.New("请至少填写一个 Access Token 或 Refresh Token")
 	}
+	if input.Kind == "kongfang" && input.AuthMode == "token" && credentials.AccessToken == "" {
+		return nil, errors.New("空凡需要后台 Access Token，不支持仅使用 Refresh Token")
+	}
+	priceChanged := site.CreditUSD != input.CreditUSD
+	site.CreditUSD = input.CreditUSD
 	site.Name = input.Name
 	site.BaseURL = input.BaseURL
 	site.Kind = input.Kind
@@ -187,7 +199,7 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	site.Username = input.Username
 	site.UserID = input.UserID
 	site.Enabled = input.Enabled
-	if authChanged {
+	if authChanged || priceChanged {
 		site.LastSuccess = nil
 		site.Models = []SiteModel{}
 		site.NextSync = nil
@@ -321,7 +333,7 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 	if site.LastSuccess == nil || time.Since(*site.LastSuccess) > 10*time.Minute {
 		return nil, errors.New("价格目录已过期，请先同步")
 	}
-	if model.Platform != "" && site.Kind == "sub2api" && model.Platform != group.Platform {
+	if model.Platform != "" && (site.Kind == "sub2api" || site.Kind == "kongfang") && model.Platform != group.Platform {
 		return nil, errors.New("本地分组与上游模型的平台不匹配")
 	}
 	s.refreshBindingPrice(ctx, site, &input)
@@ -417,7 +429,7 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 	return site, nil
 }
 func BuildSiteAccountPolicy(site *UpstreamSite, b *SiteBinding) SiteAccountPolicy {
-	p := SiteAccountPolicy{LocalGroupID: b.LocalGroupID, SiteID: site.ID, SiteName: site.Name, BindingID: b.ID, LocalModel: b.LocalModel, UpstreamModel: b.Model, Enabled: site.Enabled && b.Enabled, Limits: b.Limits, Tiers: []SitePriceTier{}}
+	p := SiteAccountPolicy{SiteKind: site.Kind, LocalGroupID: b.LocalGroupID, SiteID: site.ID, SiteName: site.Name, BindingID: b.ID, LocalModel: b.LocalModel, UpstreamModel: b.Model, Enabled: site.Enabled && b.Enabled, Limits: b.Limits, Tiers: []SitePriceTier{}}
 	if site.LastSuccess != nil {
 		p.FreshUntil = site.LastSuccess.Add(10 * time.Minute)
 	}

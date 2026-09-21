@@ -1,5 +1,10 @@
 export default {
   sites: {
+    kongfang: '空凡',
+    kongfangAuthHint: '使用空凡后台账号密码或登录 Access Token。模型调用 Key 会在绑定时独立创建；空凡不支持 Refresh Token。首版支持图片生成，暂不接入视频和 Images Edits。',
+    usdPerCredit: '每积分美元成本（USD / 积分）',
+    usdPerCreditHint: '填写实际充值人民币金额 ÷ 到账积分 ÷ 美元兑人民币汇率。VIP 折扣自动读取，不要在此重复折算。留空或 0 仍可同步模型，但暂停价格调度；修改后重新同步生效。',
+
     title: '站点管理',
     description:
       '连接上游、绑定模型，并按采购价格控制调度。价格每 5 分钟自动同步。',
@@ -7,7 +12,7 @@ export default {
     edit: '编辑站点',
     empty: '接入你的第一个上游站点',
     emptyHint:
-      '支持 Sub2API 和 New API。连接后选择上游分组与模型，绑定到本地分组，系统按本地售价自动计算各档位采购上限。',
+      '支持 Sub2API、New API 和空凡。连接后选择上游分组与模型，绑定到本地分组，系统按本地售价自动计算各档位采购上限。',
     bindingCount: '{count} 个绑定',
     lastSync: '最近成功同步：',
     sync: '立即同步',

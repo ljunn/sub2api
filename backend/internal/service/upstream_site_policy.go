@@ -16,6 +16,8 @@ import (
 
 type siteRequestKey struct{}
 type SitePriceRequest struct {
+	KongfangTier        string
+	KongfangBillingTier string
 	Tier                string
 	Model               string
 	UnpricedServiceTier bool
@@ -23,6 +25,8 @@ type SitePriceRequest struct {
 
 func WithSitePriceRequest(ctx context.Context, body []byte) context.Context {
 	request := SitePriceRequest{Model: gjson.GetBytes(body, "model").String()}
+	request.KongfangTier = kongfangRequestTier(body)
+	request.KongfangBillingTier = kongfangLocalBillingTier(body)
 	if tier := gjson.GetBytes(body, "service_tier").String(); tier != "" && tier != "default" && tier != "auto" {
 		request.UnpricedServiceTier = true
 	}
@@ -40,6 +44,9 @@ func WithSitePriceRequest(ctx context.Context, body []byte) context.Context {
 func WithSiteImageSize(ctx context.Context, size string) context.Context {
 	request, _ := ctx.Value(siteRequestKey{}).(SitePriceRequest)
 	request.Tier = siteRequestTier(size)
+	if request.KongfangTier == "" {
+		request.KongfangTier = kongfangSizeTier(size)
+	}
 	return context.WithValue(ctx, siteRequestKey{}, request)
 }
 func siteRequestTier(size string) string {
@@ -154,6 +161,9 @@ func SitePriceVeto(ctx context.Context, a *Account) (bool, string) {
 	if request.UnpricedServiceTier {
 		return true, "site_price_unknown"
 	}
+	if p.SiteKind == "kongfang" {
+		return kongfangPriceVeto(p, request)
+	}
 	for _, tier := range p.Tiers {
 		if tier.Key == "default" {
 			reason := siteTierReason(p, "default", time.Now())
@@ -225,6 +235,11 @@ func (s *sitePriceHTTPUpstream) check(req *http.Request) error {
 	// Retrieving an already-paid result or model metadata must remain possible.
 	if req.Method == http.MethodGet || req.Method == http.MethodHead {
 		return nil
+	}
+	if p, ok := s.account.SitePolicy(); ok && p.SiteKind == "kongfang" {
+		if err := prepareKongfangRequest(req); err != nil {
+			return err
+		}
 	}
 	return CheckSitePriceBeforeSend(req.Context(), s.account, s.repo)
 }

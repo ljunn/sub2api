@@ -66,7 +66,7 @@
               <span class="font-semibold">{{ site.name }}</span
               ><span
                 class="rounded bg-gray-100 px-2 py-0.5 text-xs dark:bg-dark-700"
-                >{{ site.kind === 'sub2api' ? 'Sub2API' : 'New API' }}</span
+                >{{ site.kind === 'kongfang' ? t('admin.sites.kongfang') : site.kind === 'sub2api' ? 'Sub2API' : 'New API' }}</span
               >
             </div>
             <div class="mt-1 truncate text-xs text-gray-500">
@@ -375,6 +375,7 @@
             >
               <option value="sub2api">Sub2API</option>
               <option value="newapi">New API</option>
+              <option value="kongfang">{{ t('admin.sites.kongfang') }}</option>
             </select></label
           ><label class="text-sm"
             >{{ t('admin.sites.auth')
@@ -386,7 +387,7 @@
               <option value="password">
                 {{ t('admin.sites.passwordLogin') }}
               </option>
-              <option value="token">Access / Refresh Token</option>
+              <option value="token">{{ siteForm.kind === 'kongfang' ? 'Access Token' : 'Access / Refresh Token' }}</option>
             </select></label
           >
         </div>
@@ -420,7 +421,7 @@
               autocomplete="off"
               :placeholder="editingId ? t('admin.sites.keepSecret') : ''"
             /></label
-          ><label class="block text-sm"
+          ><label v-if="siteForm.kind !== 'kongfang'" class="block text-sm"
             >Refresh Token<input
               v-model="siteForm.refresh_token"
               class="input mt-1"
@@ -438,7 +439,12 @@
               min="0"
               :disabled="identityLocked" /></label
         ></template>
-        <p class="text-xs text-gray-500">{{ t('admin.sites.authHint') }}</p>
+        <p class="text-xs text-gray-500">{{ t(siteForm.kind === 'kongfang' ? 'admin.sites.kongfangAuthHint' : 'admin.sites.authHint') }}</p>
+        <label v-if="siteForm.kind === 'kongfang'" class="block text-sm">
+          {{ t('admin.sites.usdPerCredit') }}
+          <input v-model.number="siteForm.usd_per_credit" data-testid="usd-per-credit" class="input mt-1" type="number" min="0" step="any" />
+          <span class="mt-1 block text-xs text-gray-500">{{ t('admin.sites.usdPerCreditHint') }}</span>
+        </label>
         <label class="flex items-center gap-2 text-sm"
           ><input v-model="siteForm.enabled" type="checkbox" />{{
             t('admin.sites.enabled')
@@ -761,6 +767,7 @@ async function syncSite(site: UpstreamSite) {
   }
 }
 const emptySite = (): SiteInput => ({
+  usd_per_credit: 0,
   name: '',
   base_url: '',
   kind: 'sub2api',
@@ -783,6 +790,7 @@ function editSite(site?: UpstreamSite) {
   siteForm.value = site
     ? {
         ...emptySite(),
+        usd_per_credit: site.usd_per_credit || 0,
         name: site.name,
         base_url: site.base_url,
         kind: site.kind,
@@ -803,7 +811,7 @@ function closeSite() {
 async function saveSite() {
   busy.value = true
   try {
-    const result = await upstreamSitesApi.save(editingId.value, siteForm.value)
+    const result = await upstreamSitesApi.save(editingId.value, { ...siteForm.value, usd_per_credit: Number(siteForm.value.usd_per_credit) || 0, refresh_token: siteForm.value.kind === 'kongfang' ? '' : siteForm.value.refresh_token })
     replace(result)
     siteDialog.value = false
     siteForm.value = emptySite()
@@ -853,7 +861,7 @@ const compatibleGroups = computed(() =>
   groups.value.filter(
     (g) =>
       ['openai', 'anthropic', 'gemini'].includes(g.platform) &&
-      (selected.value?.kind !== 'sub2api' ||
+      (!['sub2api', 'kongfang'].includes(selected.value?.kind || '') ||
         !chosenModel.value?.platform ||
         chosenModel.value.platform === g.platform),
   ),

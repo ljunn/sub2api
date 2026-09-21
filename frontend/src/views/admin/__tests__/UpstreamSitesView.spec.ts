@@ -89,6 +89,35 @@ async function click(text: string) {
 }
 
 describe('upstream sites', () => {
+  it('saves Kongfang conversion and hides unsupported refresh tokens', async () => {
+    site.kind = 'kongfang'
+    site.usd_per_credit = 0.12
+    site.auth_mode = 'token'
+    wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('admin.sites.kongfang')
+    await click('common.edit')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="usd-per-credit"]').element.value).toBe('0.12')
+    expect(wrapper.get('#site-form').text()).not.toContain('Refresh Token')
+    expect(wrapper.get<HTMLTextAreaElement>('#site-form textarea').element.value).toBe('')
+    await wrapper.get('[data-testid="usd-per-credit"]').setValue('0.15')
+    await wrapper.get('#site-form').trigger('submit')
+    await flushPromises()
+    expect(mocks.save).toHaveBeenCalledWith('site', expect.objectContaining({ kind: 'kongfang', usd_per_credit: 0.15, refresh_token: '' }))
+  })
+  it('does not offer an OpenAI local group for a Kongfang Gemini model', async () => {
+    site.kind = 'kongfang'
+    site.models[0]!.platform = 'gemini'
+    wrapper = mountView()
+    await flushPromises()
+    await click('admin.sites.bind')
+    const selects = wrapper.findAll('#binding-form select')
+    await selects[0]!.setValue('2')
+    await selects[1]!.setValue('upstream-image')
+    await flushPromises()
+    expect(selects[2]!.find('option[value="9"]').exists()).toBe(false)
+  })
+
   it('derives read-only prices from the local model and saves only tier enablement', async () => {
     mocks.bind.mockResolvedValue(site)
     wrapper = mountView()

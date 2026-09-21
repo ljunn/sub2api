@@ -1,12 +1,17 @@
 export default {
   sites: {
+    kongfang: 'Kongfang',
+    kongfangAuthHint: 'Use the Kongfang console password or Access Token. Each binding creates a separate API key. Refresh Tokens are unsupported. This version supports image generation; videos and Images Edits are not supported.',
+    usdPerCredit: 'Cost per credit (USD / credit)',
+    usdPerCreditHint: 'Enter CNY paid ÷ credits received ÷ CNY per USD. The account VIP discount is applied automatically; do not include it twice. Empty or 0 allows model sync but pauses price routing. Sync again after changing this value.',
+
     title: 'Upstream sites',
     description:
       'Connect upstreams, bind models and control routing by purchase price. Prices refresh every 5 minutes.',
     add: 'Add site',
     edit: 'Edit site',
     empty: 'Connect your first upstream site',
-    emptyHint: 'Connect Sub2API or New API, bind an upstream group and model to a local group, and derive purchase ceilings automatically from local selling prices.',
+    emptyHint: 'Connect Sub2API, New API or Kongfang, bind an upstream group and model to a local group, and derive purchase ceilings automatically from local selling prices.',
     bindingCount: '{count} bindings',
     lastSync: 'Last successful sync:',
     sync: 'Sync now',
