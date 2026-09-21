@@ -23,6 +23,8 @@
 
 余额功能细节见 [UPSTREAM_SITE_BALANCE.md](UPSTREAM_SITE_BALANCE.md)，空凡接入见 [KONGFANG.md](KONGFANG.md)。此前仅含空凡适配的预览不能作为本次完整功能的发布依据。
 
+2026-09-21 后续整合新增：多站点总览直接展示余额和新增模型数，支持异常筛选与搜索；上游新增模型按管理员保存已读状态，实际查看后清除未读提示，绑定仍由管理员决定。此功能与上述余额、空凡、价格调度、紧凑布局及命名修改合入同一个完整 HEAD，详见 [UPSTREAM_SITES.md](UPSTREAM_SITES.md)。
+
 ## 日常修改与构建
 
 ```bash

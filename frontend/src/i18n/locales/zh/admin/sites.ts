@@ -1,5 +1,15 @@
 export default {
   sites: {
+    overview: {
+      all: '全部站点', new: '有新模型', low: '余额不足', error: '连接异常',
+      search: '搜索站点名称或地址', updates: '模型动态', connection: '连接状态',
+      newCount: '{count} 个新模型', noNew: '无未读更新', balancePending: '余额待更新', noResults: '暂无符合条件的结果',
+    },
+    discovery: {
+      onlyNew: '只看本次新增', new: '新增', bound: '已绑定',
+      hint: '新增模型优先显示，查看后自动标为已读；是否绑定由你决定。首次接入的现有模型不算新增。',
+      readFailed: '已读状态保存失败，提示暂时保留。', retry: '重试保存',
+    },
     kongfang: '空凡',
     kongfangAuthHint: '使用空凡后台账号密码或登录 Access Token。模型调用 Key 会在绑定时独立创建；空凡不支持 Refresh Token。首版支持图片生成，暂不接入视频和 Images Edits。',
     usdPerCredit: '每积分美元成本（USD / 积分）',

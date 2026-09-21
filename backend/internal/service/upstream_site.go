@@ -23,13 +23,16 @@ type SitePriceTier struct {
 }
 
 type SiteModel struct {
-	Image     bool            `json:"image"`
-	GroupID   string          `json:"group_id"`
-	GroupName string          `json:"group_name"`
-	Model     string          `json:"model"`
-	Platform  string          `json:"platform"`
-	Tiers     []SitePriceTier `json:"tiers"`
-	Reason    string          `json:"reason,omitempty"`
+	DiscoveryID  string          `json:"discovery_id,omitempty"`
+	DiscoveredAt *time.Time      `json:"discovered_at,omitempty"`
+	Unread       bool            `json:"unread,omitempty"`
+	Image        bool            `json:"image"`
+	GroupID      string          `json:"group_id"`
+	GroupName    string          `json:"group_name"`
+	Model        string          `json:"model"`
+	Platform     string          `json:"platform"`
+	Tiers        []SitePriceTier `json:"tiers"`
+	Reason       string          `json:"reason,omitempty"`
 }
 
 type SiteTierLimit struct {
@@ -57,25 +60,26 @@ type SiteBinding struct {
 }
 
 type UpstreamSite struct {
-	Balance     *SiteBalance      `json:"balance,omitempty"`
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	BaseURL     string            `json:"base_url"`
-	Kind        string            `json:"kind"`
-	AuthMode    string            `json:"auth_mode"`
-	Username    string            `json:"username"`
-	UserID      int64             `json:"user_id"`
-	Enabled     bool              `json:"enabled"`
-	Status      string            `json:"status"`
-	Error       string            `json:"error,omitempty"`
-	LastAttempt *time.Time        `json:"last_attempt,omitempty"`
-	LastSuccess *time.Time        `json:"last_success,omitempty"`
-	NextSync    *time.Time        `json:"next_sync,omitempty"`
-	Models      []SiteModel       `json:"models"`
-	Bindings    []SiteBinding     `json:"bindings"`
-	History     []SitePriceChange `json:"history"`
-	CreditUSD   float64           `json:"usd_per_credit,omitempty"`
-	Secret      string            `json:"-"`
+	ModelCatalogue *SiteModelCatalogue `json:"model_catalogue,omitempty"`
+	Balance        *SiteBalance        `json:"balance,omitempty"`
+	ID             string              `json:"id"`
+	Name           string              `json:"name"`
+	BaseURL        string              `json:"base_url"`
+	Kind           string              `json:"kind"`
+	AuthMode       string              `json:"auth_mode"`
+	Username       string              `json:"username"`
+	UserID         int64               `json:"user_id"`
+	Enabled        bool                `json:"enabled"`
+	Status         string              `json:"status"`
+	Error          string              `json:"error,omitempty"`
+	LastAttempt    *time.Time          `json:"last_attempt,omitempty"`
+	LastSuccess    *time.Time          `json:"last_success,omitempty"`
+	NextSync       *time.Time          `json:"next_sync,omitempty"`
+	Models         []SiteModel         `json:"models"`
+	Bindings       []SiteBinding       `json:"bindings"`
+	History        []SitePriceChange   `json:"history"`
+	CreditUSD      float64             `json:"usd_per_credit,omitempty"`
+	Secret         string              `json:"-"`
 }
 
 type SitePriceChange struct {

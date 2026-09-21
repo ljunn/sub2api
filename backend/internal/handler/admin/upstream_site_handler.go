@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -21,7 +22,39 @@ func (h *UpstreamSiteHandler) List(c *gin.Context) {
 		response.InternalError(c, "读取站点失败")
 		return
 	}
+	subject, _ := middleware.GetAuthSubjectFromContext(c)
+	if err := h.service.AnnotateUnreadModels(c.Request.Context(), sites, subject.UserID); err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
 	response.Success(c, sites)
+}
+
+func (h *UpstreamSiteHandler) respondSite(c *gin.Context, site *service.UpstreamSite) {
+	subject, _ := middleware.GetAuthSubjectFromContext(c)
+	sites := []service.UpstreamSite{*site}
+	if err := h.service.AnnotateUnreadModels(c.Request.Context(), sites, subject.UserID); err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, sites[0])
+}
+
+func (h *UpstreamSiteHandler) MarkModelsRead(c *gin.Context) {
+	var input struct {
+		IDs []string `json:"discovery_ids"`
+	}
+	if c.ShouldBindJSON(&input) != nil {
+		response.BadRequest(c, "模型已读参数无效")
+		return
+	}
+	subject, _ := middleware.GetAuthSubjectFromContext(c)
+	ids, err := h.service.MarkModelsRead(c.Request.Context(), c.Param("id"), subject.UserID, input.IDs)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"discovery_ids": ids})
 }
 func (h *UpstreamSiteHandler) Save(c *gin.Context) {
 	var input service.SiteInput
@@ -34,7 +67,7 @@ func (h *UpstreamSiteHandler) Save(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	response.Success(c, site)
+	h.respondSite(c, site)
 }
 func (h *UpstreamSiteHandler) Sync(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
@@ -44,7 +77,7 @@ func (h *UpstreamSiteHandler) Sync(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	response.Success(c, site)
+	h.respondSite(c, site)
 }
 func (h *UpstreamSiteHandler) Bind(c *gin.Context) {
 	var input service.SiteBinding
@@ -60,7 +93,7 @@ func (h *UpstreamSiteHandler) Bind(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	response.Success(c, site)
+	h.respondSite(c, site)
 }
 func (h *UpstreamSiteHandler) Unbind(c *gin.Context) {
 	site, err := h.service.Unbind(c.Request.Context(), c.Param("id"), c.Param("binding_id"))
@@ -68,7 +101,7 @@ func (h *UpstreamSiteHandler) Unbind(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	response.Success(c, site)
+	h.respondSite(c, site)
 }
 func (h *UpstreamSiteHandler) Delete(c *gin.Context) {
 	if err := h.service.Delete(c.Request.Context(), c.Param("id")); err != nil {

@@ -181,6 +181,7 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	authChanged := identityChanged || input.Password != "" || input.AccessToken != "" || input.RefreshToken != ""
 	if identityChanged {
 		site.Balance = nil
+		site.ModelCatalogue = nil
 		credentials = &SiteCredentials{Keys: map[string]string{}}
 	}
 	if input.Password != "" {
@@ -214,6 +215,9 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	site.UserID = input.UserID
 	site.Enabled = input.Enabled
 	if authChanged || priceChanged {
+		if !identityChanged {
+			seedSiteModelCatalogue(site)
+		}
 		site.LastSuccess = nil
 		site.Models = []SiteModel{}
 		site.NextSync = nil
@@ -269,6 +273,7 @@ func (s *UpstreamSiteService) sync(ctx context.Context, id string, dueOnly bool)
 		if len(site.History) > 100 {
 			site.History = site.History[:100]
 		}
+		trackSiteModelDiscoveries(site, models, now)
 		site.Models = models
 		site.LastSuccess = &now
 		site.Status = "connected"

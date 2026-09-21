@@ -20,6 +20,9 @@ export interface SiteAccountScheduling {
   tiers: SiteSchedulingTier[]
 }
 export interface SiteModel {
+ discovery_id?: string
+ discovered_at?: string
+ unread?: boolean
   group_id: string
   group_name: string
   model: string
@@ -102,6 +105,8 @@ export interface SiteAccountPolicy {
 }
 const base = '/admin/upstream-sites'
 export const upstreamSitesApi = {
+  markModelsRead: async (id: string, discovery_ids: string[]) =>
+  (await apiClient.post<{ discovery_ids: string[] }>(`${base}/${id}/models/read`, { discovery_ids })).data,
   list: async () => (await apiClient.get<UpstreamSite[]>(base)).data,
   save: async (id: string, input: SiteInput) =>
     (

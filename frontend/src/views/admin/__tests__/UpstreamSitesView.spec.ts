@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import UpstreamSitesView from '../UpstreamSitesView.vue'
 import SitePriceSummary from '@/components/admin/sites/SitePriceSummary.vue'
+import SiteOverview from '@/components/admin/sites/SiteOverview.vue'
+import SiteModelCatalogue from '@/components/admin/sites/SiteModelCatalogue.vue'
 import type { UpstreamSite } from '@/api/admin/upstreamSites'
 
 const mocks = vi.hoisted(() => ({
@@ -38,6 +40,7 @@ const mountView = () =>
     global: {
       stubs: {
         SitePriceSummary,
+        SiteOverview,
         AppLayout: { template: '<div><slot /></div>' },
         RouterLink: { template: '<a><slot /></a>' },
         BaseDialog: {
@@ -93,6 +96,23 @@ async function click(text: string) {
 }
 
 describe('upstream sites', () => {
+  it('opens new models without binding and preserves read receipts across an older poll response', async () => {
+    site.models[0]!.discovery_id = 'new-one'
+    site.models[0]!.unread = true
+    const staleResponse = JSON.parse(JSON.stringify(site))
+    wrapper = mountView()
+    await flushPromises()
+    wrapper.findComponent(SiteOverview).vm.$emit('models', site.id)
+    await flushPromises()
+    const catalogue = wrapper.findComponent(SiteModelCatalogue)
+    expect(catalogue.props('initialOnlyNew')).toBe(true)
+    catalogue.vm.$emit('read', site.id, ['new-one'])
+    await flushPromises()
+    mocks.list.mockResolvedValue([staleResponse])
+    await click('common.refresh')
+    expect(wrapper.findComponent(SiteOverview).props('sites')[0].models[0].unread).toBe(false)
+    expect(mocks.bind).not.toHaveBeenCalled()
+  })
   it('shows per-tier price vetoes even when the managed account awaits release', async () => {
     site.models[0]!.tiers = ['1K', '2K', '4K'].map((key, i) => ({
       key, unit: 'USD/image', prices: { request: i === 0 ? 0.03 : 0.045 },

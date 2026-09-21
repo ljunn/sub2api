@@ -47,46 +47,8 @@
         v-else
         class="space-y-4"
       >
-        <div class="flex gap-3 overflow-x-auto pb-1">
-          <button
-            v-for="site in sites"
-            :key="site.id"
-            class="w-60 shrink-0 rounded-xl border bg-white px-4 py-3 text-left transition dark:bg-dark-800"
-            :class="
-              selectedId === site.id
-                ? 'border-primary-500 ring-1 ring-primary-500'
-                : 'border-gray-200 dark:border-dark-700'
-            "
-            @click="selectedId = site.id"
-          >
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-semibold">{{ site.name }}</span
-              ><span
-                class="rounded bg-gray-100 px-2 py-0.5 text-xs dark:bg-dark-700"
-                >{{ site.kind === 'kongfang' ? t('admin.sites.kongfang') : site.kind === 'sub2api' ? 'Sub2API' : 'New API' }}</span
-              >
-            </div>
-            <div class="mt-1 truncate text-xs text-gray-500">
-              {{ site.base_url }}
-            </div>
-            <div class="mt-2 flex items-center justify-between text-xs">
-              <span
-                :class="
-                  site.status === 'connected' && site.enabled
-                    ? 'text-green-600'
-                    : 'text-amber-600'
-                "
-                >{{
-                  t(
-                    `admin.sites.status.${site.enabled ? site.status : 'disabled'}`,
-                  )
-                }}</span
-              ><span class="text-gray-500">{{
-                t('admin.sites.bindingCount', { count: site.bindings.length })
-              }}</span>
-            </div>
-          </button>
-        </div>
+        <SiteOverview :sites="sites" :selected-id="selectedId" :threshold="balanceSettings?.threshold ?? 20" :now="now"
+          @select="selectSite" @models="openNewModels" />
         <section
           v-if="selected"
           class="min-w-0 rounded-xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800"
@@ -146,9 +108,10 @@
                     ? 'border-primary-500 text-primary-600'
                     : 'border-transparent text-gray-500'
                 "
-                @click="activeTab = tab"
+                @click="selectTab(tab)"
               >
                 {{ t(`admin.sites.${tab}`) }}
+                <span v-if="tab === 'models' && selected.models.some(model => model.unread)" class="ml-1 rounded-full bg-blue-50 px-1.5 text-xs text-blue-700">{{ selected.models.filter(model => model.unread).length }}</span>
               </button>
             </div>
           </div>
@@ -187,49 +150,8 @@
               </tbody>
             </table>
           </div>
-          <div v-else-if="activeTab === 'models'" class="p-5">
-            <input
-              v-model="modelSearch"
-              class="input mb-4"
-              :placeholder="t('admin.sites.searchModels')"
-            />
-            <div class="max-h-[600px] space-y-2 overflow-auto">
-              <div
-                v-for="model in filteredModels"
-                :key="`${model.group_id}:${model.model}`"
-                class="flex items-start justify-between gap-3 rounded-lg border border-gray-100 p-3 dark:border-dark-700"
-              >
-                <div class="min-w-0">
-                  <div class="break-all text-sm font-medium">
-                    {{ model.model }}
-                  </div>
-                  <div class="mt-1 text-xs text-gray-500">
-                    {{ model.group_name }} · {{ model.platform }}
-                  </div>
-                  <div v-if="model.reason" class="mt-1 text-xs text-amber-700">
-                    {{ model.reason }}
-                  </div>
-                  <div
-                    v-for="tier in model.tiers"
-                    :key="tier.key"
-                    class="mt-1 text-xs text-gray-500"
-                  >
-                    {{ tier.key }} · {{ prices(tier.prices) }} · {{ tier.unit }}
-                    <div v-if="tier.note" class="text-amber-600">
-                      {{ tier.note }}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  class="shrink-0 text-sm text-primary-600"
-                  :disabled="busy || !model.tiers.length"
-                  @click="openBinding(undefined, model)"
-                >
-                  {{ t('admin.sites.bind') }}
-                </button>
-              </div>
-            </div>
-          </div>
+          <SiteModelCatalogue v-else-if="activeTab === 'models'" :key="selected.id" :site="selected" :busy="busy" :initial-only-new="onlyNewModels"
+            @bind="model => openBinding(undefined, model)" @read="modelsRead" />
           <div v-else class="space-y-3 p-5">
             <p
               v-if="!selected.history.length"
@@ -579,6 +501,8 @@ import { useRoute } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import SiteBalanceCard from '@/components/admin/sites/SiteBalanceCard.vue'
 import SitePriceSummary from '@/components/admin/sites/SitePriceSummary.vue'
+import SiteOverview from '@/components/admin/sites/SiteOverview.vue'
+import SiteModelCatalogue from '@/components/admin/sites/SiteModelCatalogue.vue'
 import { upstreamSiteBalanceApi, type SiteBalanceSettings } from '@/api/admin/upstreamSiteBalance'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import { useAppStore } from '@/stores/app'
@@ -604,7 +528,9 @@ const loading = ref(false)
 const busy = ref(false)
 const activeTab = ref('bindings')
 const tabs = ['bindings', 'models', 'history']
-const modelSearch = ref('')
+const onlyNewModels = ref(false)
+const now = ref(Date.now())
+const acknowledgedDiscoveries = new Map<string, Set<string>>()
 const selected = computed(() =>
   sites.value.find((s) => s.id === selectedId.value),
 )
@@ -616,14 +542,35 @@ const stats = computed(() => [
   },
   { label: t('admin.sites.syncInterval'), value: t('admin.sites.fiveMinutes') },
 ])
-const filteredModels = computed(
-  () =>
-    selected.value?.models.filter((m) =>
-      `${m.model} ${m.group_name}`
-        .toLowerCase()
-        .includes(modelSearch.value.toLowerCase()),
-    ) || [],
-)
+function selectSite(id: string) {
+  selectedId.value = id
+  activeTab.value = 'bindings'
+  onlyNewModels.value = false
+}
+function openNewModels(id: string) {
+  selectedId.value = id
+  onlyNewModels.value = true
+  activeTab.value = 'models'
+}
+function selectTab(tab: string) {
+  onlyNewModels.value = false
+  activeTab.value = tab
+}
+// Merge exact discovery IDs only. A concurrent sync may have found other models.
+function modelsRead(siteId: string, ids: string[]) {
+  const acknowledged = acknowledgedDiscoveries.get(siteId) || new Set<string>()
+  for (const id of ids) acknowledged.add(id)
+  acknowledgedDiscoveries.set(siteId, acknowledged)
+  const site = sites.value.find(item => item.id === siteId)
+  if (!site) return
+  const read = new Set(ids)
+  for (const model of site.models) if (model.discovery_id && read.has(model.discovery_id)) model.unread = false
+}
+function applyReadState(site: UpstreamSite) {
+  const acknowledged = acknowledgedDiscoveries.get(site.id)
+  for (const model of site.models) if (model.discovery_id && acknowledged?.has(model.discovery_id)) model.unread = false
+  return site
+}
 const date = (value?: string) =>
   value ? new Date(value).toLocaleString() : '—'
 const prices = (values: Record<string, number>) =>
@@ -678,15 +625,17 @@ function error(e: unknown) {
   )
 }
 function replace(site: UpstreamSite) {
+  applyReadState(site)
   const i = sites.value.findIndex((s) => s.id === site.id)
   if (i < 0) sites.value.push(site)
   else sites.value[i] = site
   selectedId.value = site.id
 }
 async function load() {
+  now.value = Date.now()
   loading.value = true
   try {
-    sites.value = await upstreamSitesApi.list()
+    sites.value = (await upstreamSitesApi.list()).map(applyReadState)
     if (!sites.value.some((s) => s.id === selectedId.value))
       selectedId.value = sites.value[0]?.id || ''
   } catch (e) {

@@ -17,7 +17,7 @@ func (h *UpstreamSiteHandler) Balance(c *gin.Context) {
 		response.BadRequest(c, "查询或保存站点余额失败")
 		return
 	}
-	response.Success(c, site)
+	h.respondSite(c, site)
 }
 
 func (h *UpstreamSiteHandler) BalanceSettings(c *gin.Context) {

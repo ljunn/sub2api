@@ -1,5 +1,15 @@
 export default {
   sites: {
+    overview: {
+      all: 'All sites', new: 'New models', low: 'Low balance', error: 'Connection issues',
+      search: 'Search site name or address', updates: 'Model updates', connection: 'Connection',
+      newCount: '{count} new models', noNew: 'No unread updates', balancePending: 'Balance awaiting update', noResults: 'No matching results',
+    },
+    discovery: {
+      onlyNew: 'New in this visit', new: 'New', bound: 'Bound',
+      hint: 'New models appear first and are marked read when viewed. You choose whether to bind them. The initial catalogue is not considered new.',
+      readFailed: 'Could not save read status. Notifications are retained.', retry: 'Retry saving',
+    },
     kongfang: 'Kongfang',
     kongfangAuthHint: 'Use the Kongfang console password or Access Token. Each binding creates a separate API key. Refresh Tokens are unsupported. This version supports image generation; videos and Images Edits are not supported.',
     usdPerCredit: 'Cost per credit (USD / credit)',
