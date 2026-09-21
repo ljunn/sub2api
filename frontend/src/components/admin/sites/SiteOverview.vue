@@ -9,7 +9,7 @@
       </button>
     </div>
     <input v-model="search" class="input" :placeholder="t('admin.sites.overview.search')" :aria-label="t('admin.sites.overview.search')" />
-    <div class="max-h-72 overflow-auto rounded-xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800">
+    <div class="max-h-[65vh] overflow-auto rounded-xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800">
       <table class="w-full text-left text-sm">
         <thead class="sticky top-0 z-10 bg-gray-50 text-xs text-gray-500 dark:bg-dark-900"><tr>
           <th class="px-4 py-2">{{ t('admin.sites.name') }}</th>

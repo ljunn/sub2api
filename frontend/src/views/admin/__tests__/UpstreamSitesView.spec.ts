@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   bind: vi.fn(),
   pricePreview: vi.fn(),
   showError: vi.fn(),
+  routeQuery: {} as Record<string, string>,
 }))
 vi.mock('@/api/admin/upstreamSiteBalance', () => ({ upstreamSiteBalanceApi: { settings: async () => ({ enabled: true, threshold: 20, recipients: [], smtp_configured: true }) } }))
 vi.mock('@/api/client', () => ({ default: {} }))
@@ -31,7 +32,7 @@ vi.mock('@/api/admin/groups', () => ({
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({ showError: mocks.showError, showSuccess: vi.fn() }),
 }))
-vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }) }))
+vi.mock('vue-router', () => ({ useRoute: () => ({ query: mocks.routeQuery }) }))
 vi.mock('vue-i18n', async () => ({
   ...(await vi.importActual<typeof import('vue-i18n')>('vue-i18n')),
   useI18n: () => ({ t: (key: string) => key }),
@@ -45,8 +46,8 @@ const mountView = () =>
         AppLayout: { template: '<div><slot /></div>' },
         RouterLink: { template: '<a><slot /></a>' },
         BaseDialog: {
-          props: ['show'],
-          template: '<div v-if="show"><slot /><slot name="footer" /></div>',
+          props: ['show', 'title'],
+          template: '<div v-if="show" role="dialog"><h3>{{ title }}</h3><button aria-label="Close modal" @click="$emit(\'close\')">Close</button><slot /><slot name="footer" /></div>',
         },
       },
     },
@@ -55,6 +56,7 @@ let wrapper: ReturnType<typeof mountView>
 let site: UpstreamSite
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.routeQuery = { site: 'site' }
   site = {
     id: 'site',
     name: 'Upstream',
@@ -97,6 +99,33 @@ async function click(text: string) {
 }
 
 describe('upstream sites', () => {
+  it('shows only the list until a site is opened and keeps details closed during refresh', async () => {
+    mocks.routeQuery = {}
+    const second = { ...site, id: 'second', name: 'Second site' }
+    mocks.list.mockResolvedValue([site, second])
+    wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[role=dialog]').exists()).toBe(false)
+    expect(wrapper.findComponent(SiteBalanceCard).exists()).toBe(false)
+    expect(wrapper.findComponent(SiteModelCatalogue).exists()).toBe(false)
+    await wrapper.get('[data-site=site]').trigger('click')
+    expect(wrapper.get('[role=dialog] h3').text()).toBe('Upstream')
+    await wrapper.get('[aria-label="Close modal"]').trigger('click')
+    await click('common.refresh')
+    expect(wrapper.find('[role=dialog]').exists()).toBe(false)
+    await wrapper.get('[data-site=second] td:nth-child(4)').trigger('click')
+    expect(wrapper.get('[role=dialog] h3').text()).toBe('Second site')
+    await click('common.edit')
+    expect(wrapper.findAll('[role=dialog]')).toHaveLength(1)
+    expect(wrapper.findComponent(SiteBalanceCard).exists()).toBe(false)
+    await wrapper.get('[aria-label="Close modal"]').trigger('click')
+    expect(wrapper.get('[role=dialog] h3').text()).toBe('Second site')
+    await click('admin.sites.bind')
+    expect(wrapper.findAll('[role=dialog]')).toHaveLength(1)
+    await click('common.cancel')
+    expect(wrapper.get('[role=dialog] h3').text()).toBe('Second site')
+  })
+
   it('switches site details from row cells and keeps the choice when prior requests finish', async () => {
     const second = { ...site, id: 'second', name: 'Second site' }
     mocks.list.mockResolvedValue([site, second])
@@ -106,19 +135,19 @@ describe('upstream sites', () => {
     await flushPromises()
     await wrapper.findAll('button').find(button => button.text() === 'admin.sites.sync')!.trigger('click')
     await wrapper.get('[data-site=second] td:first-child div').trigger('click')
-    expect(wrapper.get('section.min-w-0 h2').text()).toBe('Second site')
+    expect(wrapper.get('[role=dialog] h3').text()).toBe('Second site')
     finishSync({ ...site })
     await flushPromises()
-    expect(wrapper.get('section.min-w-0 h2').text()).toBe('Second site')
+    expect(wrapper.get('[role=dialog] h3').text()).toBe('Second site')
     wrapper.findComponent(SiteBalanceCard).vm.$emit('updated', { ...site })
     await flushPromises()
-    expect(wrapper.get('section.min-w-0 h2').text()).toBe('Second site')
+    expect(wrapper.get('[role=dialog] h3').text()).toBe('Second site')
     await click('common.refresh')
-    expect(wrapper.get('section.min-w-0 h2').text()).toBe('Second site')
+    expect(wrapper.get('[role=dialog] h3').text()).toBe('Second site')
     await wrapper.get('[data-site=site] td:nth-child(4)').trigger('click')
-    expect(wrapper.get('section.min-w-0 h2').text()).toBe('Upstream')
+    expect(wrapper.get('[role=dialog] h3').text()).toBe('Upstream')
     await wrapper.get('[data-site=second]').trigger('keydown', { key: 'Enter' })
-    expect(wrapper.get('section.min-w-0 h2').text()).toBe('Second site')
+    expect(wrapper.get('[role=dialog] h3').text()).toBe('Second site')
   })
   it('opens new models without binding and preserves read receipts across an older poll response', async () => {
     site.models[0]!.discovery_id = 'new-one'

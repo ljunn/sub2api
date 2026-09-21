@@ -246,7 +246,11 @@ func (a *siteAdapter) catalog(ctx context.Context) ([]SiteModel, error) {
 	}
 	result, err := a.request(ctx, http.MethodGet, "/api/v1/model-plaza", nil)
 	if err != nil {
-		return nil, fmt.Errorf("读取模型价格失败；请确认上游已启用模型广场：%w", err)
+		var remote *siteRemoteError
+		if errors.As(err, &remote) && remote.Status == http.StatusNotFound {
+			return a.publicPricingCatalog(ctx)
+		}
+		return nil, fmt.Errorf("读取模型价格失败：%w", err)
 	}
 	// Fetch personal rates separately: model-plaza deliberately falls back to
 	// public rates when its personal-rate lookup fails, which is unsafe here.

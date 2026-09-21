@@ -49,15 +49,22 @@
       >
         <SiteOverview :sites="sites" :selected-id="selectedId" :threshold="balanceSettings?.threshold ?? 20" :now="now"
           @select="selectSite" @models="openNewModels" />
+      </div>
+    </div>
+    <BaseDialog
+      v-if="selected && detailsOpen && !siteDialog && !bindingDialog && !confirmAction"
+      key="site-details"
+      :show="true"
+      :title="selected.name"
+      width="extra-wide"
+      @close="detailsOpen = false"
+    >
         <section
-          v-if="selected"
-          ref="siteDetails"
-          class="min-w-0 rounded-xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800"
+          class="min-w-0"
         >
           <div class="border-b border-gray-200 p-5 dark:border-dark-700">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 class="text-lg font-semibold">{{ selected.name }}</h2>
                 <p class="mt-1 text-xs text-gray-500">
                   {{ t('admin.sites.lastSync') }}
                   {{ date(selected.last_success) }}
@@ -187,10 +194,11 @@
             </div>
           </div>
         </section>
-      </div>
-    </div>
+    </BaseDialog>
     <BaseDialog
-      :show="siteDialog"
+      v-else-if="siteDialog"
+      key="site-edit"
+      :show="true"
       :title="t(editingId ? 'admin.sites.edit' : 'admin.sites.add')"
       @close="closeSite"
     >
@@ -313,7 +321,9 @@
       >
     </BaseDialog>
     <BaseDialog
-      :show="bindingDialog"
+      v-else-if="bindingDialog"
+      key="site-binding"
+      :show="true"
       :title="t('admin.sites.bind')"
       width="wide"
       @close="!busy && (bindingDialog = false)"
@@ -465,7 +475,9 @@
       >
     </BaseDialog>
     <BaseDialog
-      :show="!!confirmAction"
+      v-else-if="confirmAction"
+      key="site-confirm"
+      :show="true"
       :title="t('common.delete')"
       @close="!busy && (confirmAction = null)"
       ><p class="text-sm">
@@ -496,7 +508,7 @@
   </AppLayout>
 </template>
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -531,7 +543,7 @@ const activeTab = ref('bindings')
 const tabs = ['bindings', 'models', 'history']
 const onlyNewModels = ref(false)
 const now = ref(Date.now())
-const siteDetails = ref<HTMLElement>()
+const detailsOpen = ref(Boolean(route.query.site))
 const acknowledgedDiscoveries = new Map<string, Set<string>>()
 const selected = computed(() =>
   sites.value.find((s) => s.id === selectedId.value),
@@ -545,15 +557,16 @@ const stats = computed(() => [
   { label: t('admin.sites.syncInterval'), value: t('admin.sites.fiveMinutes') },
 ])
 function selectSite(id: string) {
+  detailsOpen.value = true
   selectedId.value = id
   activeTab.value = 'bindings'
   onlyNewModels.value = false
 }
 function openNewModels(id: string) {
+  detailsOpen.value = true
   selectedId.value = id
   onlyNewModels.value = true
   activeTab.value = 'models'
-  void nextTick(() => siteDetails.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }))
 }
 function selectTab(tab: string) {
   onlyNewModels.value = false
@@ -638,8 +651,10 @@ async function load() {
   loading.value = true
   try {
     sites.value = (await upstreamSitesApi.list()).map(applyReadState)
-    if (!sites.value.some((s) => s.id === selectedId.value))
-      selectedId.value = sites.value[0]?.id || ''
+    if (!sites.value.some((s) => s.id === selectedId.value)) {
+      selectedId.value = ''
+      detailsOpen.value = false
+    }
   } catch (e) {
     error(e)
   } finally {
@@ -707,7 +722,7 @@ async function saveSite() {
   try {
     const result = await upstreamSitesApi.save(editingId.value, { ...siteForm.value, usd_per_credit: Number(siteForm.value.usd_per_credit) || 0, refresh_token: siteForm.value.kind === 'kongfang' ? '' : siteForm.value.refresh_token })
     replace(result)
-    if (selectedId.value === selectedWhenSaving) selectedId.value = result.id
+    if (selectedId.value === selectedWhenSaving) selectSite(result.id)
     siteDialog.value = false
     siteForm.value = emptySite()
     const synced = await upstreamSitesApi.sync(result.id)
