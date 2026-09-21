@@ -958,7 +958,9 @@ func filterSchedulerCredentials(credentials map[string]any) map[string]any {
 	// the full account. Dropping it silently falls back to the platform threshold.
 	// Media capability checks also run before hydration: Ark requires its base
 	// URL and explicit capabilities, and LongXia requires its configured URL.
-	keys := []string{"model_mapping", "compact_model_mapping", "api_key", "base_url", "openai_capabilities", "project_id", "oauth_type", "plan_type", "account_scheduling_threshold"}
+	// SitePolicy validates the policy's binding against the credential before
+	// candidate price admission and dynamic priority scoring.
+	keys := []string{"model_mapping", "compact_model_mapping", "api_key", "base_url", "openai_capabilities", "project_id", "oauth_type", "plan_type", "account_scheduling_threshold", service.SiteBindingCredentialKey}
 	filtered := make(map[string]any)
 	for _, key := range keys {
 		if value, ok := credentials[key]; ok && value != nil {
@@ -976,6 +978,13 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		return nil
 	}
 	keys := []string{
+		// Candidate selection reads this projection before full-account hydration.
+		// Retain site identity and pricing so cached accounts use the same gates
+		// and dynamic priorities as the admin view and uncached candidates.
+		service.SiteBindingCredentialKey,
+		service.SitePolicyExtraKey,
+		"upstream_site_id",
+		"upstream_site_preview_pending",
 		// Anthropic shared-window and Fable-only threshold checks run on this
 		// projection. UpdateExtra refreshes both payloads without a bucket rebuild.
 		"session_window_utilization",

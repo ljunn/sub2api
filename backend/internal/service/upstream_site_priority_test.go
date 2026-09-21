@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -158,6 +159,51 @@ func TestSitePriorityOpenAISchedulerSelectsBestAndFailsOverInBothModes(t *testin
 					selected.ReleaseFunc()
 				}
 			}
+		})
+	}
+}
+
+func TestSitePriorityGeminiSnapshotSelectsBestAndFailsOver(t *testing.T) {
+	for _, loadBatch := range []bool{false, true} {
+		t.Run(fmt.Sprintf("load_batch_%t", loadBatch), func(t *testing.T) {
+			pricing, groups := siteTestPricing()
+			groups.group.Platform = PlatformGemini
+			groups.group.Hydrated = true
+			const model = "gemini-3-pro-image-preview"
+			ctx := WithSitePriceRequest(context.WithValue(context.Background(), sitePricingKey{}, pricing), []byte(`{"generationConfig":{"imageConfig":{"imageSize":"2K"}}}`))
+			accounts := []Account{sitePriorityTestAccount(31, model, .05), sitePriorityTestAccount(37, model, .15)}
+			cache := &openAISnapshotCacheStub{accountsByID: map[int64]*Account{}}
+			for i := range accounts {
+				accounts[i].Platform = PlatformGemini
+				accounts[i].GroupIDs = []int64{groups.group.ID}
+				accounts[i].Credentials["model_mapping"] = map[string]any{model: model}
+				cache.snapshotAccounts = append(cache.snapshotAccounts, &accounts[i])
+				cache.accountsByID[accounts[i].ID] = &accounts[i]
+			}
+			now := time.Now()
+			accounts[0].LastUsedAt = &now // LRU alone would choose the more expensive backup.
+			cfg := testConfig()
+			cfg.Gateway.Scheduling.LoadBatchEnabled = loadBatch
+			groupRepo := &mockGroupRepoForGateway{groups: map[int64]*Group{groups.group.ID: groups.group}}
+			svc := &GatewayService{
+				cfg: cfg, groupRepo: groupRepo,
+				schedulerSnapshot:  NewSchedulerSnapshotService(cache, nil, nil, groupRepo, cfg),
+				concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+			}
+			for _, excluded := range []map[int64]struct{}{nil, {31: {}}} {
+				selected, err := svc.SelectAccountWithLoadAwareness(ctx, &groups.group.ID, "", model, excluded, "", 0)
+				require.NoError(t, err)
+				require.NotNil(t, selected)
+				want := int64(31)
+				if excluded != nil {
+					want = 37
+				}
+				require.Equal(t, want, selected.Account.ID)
+				if selected.ReleaseFunc != nil {
+					selected.ReleaseFunc()
+				}
+			}
+			require.Equal(t, 50, accounts[0].Priority, "request scores must not mutate cached manual priorities")
 		})
 	}
 }
