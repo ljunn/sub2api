@@ -463,7 +463,7 @@ func AccountListItemFromAccount(a *Account) *AccountListItem {
 		Concurrency: a.Concurrency, LoadFactor: a.LoadFactor, Priority: a.Priority, RateMultiplier: a.RateMultiplier,
 		Status: a.Status, ErrorMessage: a.ErrorMessage, LastUsedAt: a.LastUsedAt, ExpiresAt: a.ExpiresAt,
 		AutoPauseOnExpired: a.AutoPauseOnExpired, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt,
-		Schedulable: a.Schedulable, RateLimitedAt: a.RateLimitedAt, RateLimitResetAt: a.RateLimitResetAt,
+		Schedulable: a.Schedulable, SiteScheduling: a.SiteScheduling, RateLimitedAt: a.RateLimitedAt, RateLimitResetAt: a.RateLimitResetAt,
 		OverloadUntil: a.OverloadUntil, TempUnschedulableUntil: a.TempUnschedulableUntil,
 		TempUnschedulableReason: a.TempUnschedulableReason, SessionWindowStart: a.SessionWindowStart,
 		SessionWindowEnd: a.SessionWindowEnd, SessionWindowStatus: a.SessionWindowStatus,

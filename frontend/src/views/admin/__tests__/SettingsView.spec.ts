@@ -8,6 +8,10 @@ import zhCommon from "@/i18n/locales/zh/common";
 import zhSettings from "@/i18n/locales/zh/admin/settings";
 import SettingsView from "../SettingsView.vue";
 
+vi.mock("@/components/admin/sites/SiteBalanceSettingsCard.vue", () => ({
+  default: { template: '<section data-testid="site-balance-settings" />' },
+}));
+
 const {
   getSettings,
   updateSettings,
@@ -718,6 +722,16 @@ describe("admin SettingsView payment visible method controls", () => {
     });
     fetchPublicSettings.mockResolvedValue(undefined);
     adminSettingsFetch.mockResolvedValue(undefined);
+  });
+
+  it("keeps upstream balance notification controls in the email settings tab", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    const card = wrapper.get('[data-testid="site-balance-settings"]');
+    expect(card.element.parentElement?.style.display).toBe('none');
+    await wrapper.get('#settings-tab-email').trigger('click');
+    expect(card.element.parentElement?.style.display).not.toBe('none');
+    wrapper.unmount();
   });
 
   it("loads and saves the open button visibility for each custom menu", async () => {

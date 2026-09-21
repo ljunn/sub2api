@@ -66,6 +66,7 @@ type AccountHandler struct {
 	upstreamBillingProbe    *service.UpstreamBillingProbeService
 	ollamaCloudUsage        *service.OllamaCloudUsageService
 	cfg                     *config.Config
+	sitePricing             *service.UpstreamSitePricing
 }
 
 // SetUpstreamBillingProbeService attaches the optional remote billing probe service.
@@ -367,6 +368,7 @@ func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, ac
 	if account == nil {
 		return item
 	}
+	item.Account.SiteScheduling = h.sitePricing.AccountScheduling(ctx, account)
 
 	if h.concurrencyService != nil {
 		if counts, err := h.concurrencyService.GetAccountConcurrencyBatch(ctx, []int64{account.ID}); err == nil {
@@ -793,6 +795,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 				accountResponse.GroupIDs = filterSimpleModeGroupIDs(accountResponse.GroupIDs, simpleModeCompositeServiceGroupIDs(acc))
 			}
 		}
+		accountResponse.SiteScheduling = h.sitePricing.AccountScheduling(c.Request.Context(), acc)
 		item := AccountWithConcurrency{
 			Account:            accountResponse,
 			simpleMode:         h.isSimpleMode(),

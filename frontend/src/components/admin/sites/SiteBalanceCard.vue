@@ -1,23 +1,13 @@
 <template>
-  <div class="mt-4 rounded-lg border border-gray-200 p-4 dark:border-dark-700" data-testid="site-balance">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <p class="text-sm text-gray-500">{{ t('admin.siteBalance.balance') }}</p>
-        <p class="mt-1 text-xl font-semibold" :class="fresh && low ? 'text-red-600' : ''" data-testid="balance-amount">
-          {{ amount }} <span class="text-sm">{{ site.balance?.currency }}</span>
-        </p>
-        <p class="mt-1 text-xs" :class="fresh && low ? 'text-red-600' : 'text-gray-500'">
-          {{ t(`admin.siteBalance.${fresh ? (low ? 'low' : 'normal') : 'stale'}`) }}
-        </p>
-      </div>
-      <button class="btn btn-secondary" type="button" :disabled="disabled || querying" @click="refresh">
-        {{ t(querying ? 'common.loading' : 'admin.siteBalance.query') }}
-      </button>
+  <div class="mt-3 rounded-lg bg-gray-50 px-3 py-2 dark:bg-dark-900/40" data-testid="site-balance">
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+      <span class="text-gray-500">{{ t('admin.siteBalance.balance') }}</span>
+      <strong class="text-base" :class="fresh && low ? 'text-red-600' : ''" data-testid="balance-amount">{{ amount }} {{ site.balance?.currency }}</strong>
+      <span :class="fresh && low ? 'text-red-600' : 'text-gray-500'">{{ t(`admin.siteBalance.${fresh ? (low ? 'low' : 'normal') : 'stale'}`) }}</span>
+      <span class="text-gray-500">{{ t('admin.siteBalance.lastCheck') }} {{ date(site.balance?.last_success) }}</span>
+      <button class="ml-auto shrink-0 text-primary-600 disabled:opacity-50" type="button" :disabled="disabled || querying" @click="refresh">{{ t(querying ? 'common.loading' : 'admin.siteBalance.query') }}</button>
     </div>
-    <p class="mt-3 text-xs text-gray-500">{{ t('admin.siteBalance.lastCheck') }} {{ date(site.balance?.last_success) }}</p>
-    <p v-if="site.balance?.last_notified" class="mt-1 text-xs text-gray-500">
-      {{ t('admin.siteBalance.lastNotified') }} {{ date(site.balance.last_notified) }}
-    </p>
+    <p v-if="site.balance?.last_notified" class="mt-1 text-xs text-gray-500">{{ t('admin.siteBalance.lastNotified') }} {{ date(site.balance.last_notified) }}</p>
     <p v-if="site.balance?.error || queryError" class="mt-2 text-sm text-amber-700" role="alert">{{ site.balance?.error || queryError }}</p>
     <p v-if="site.balance?.notify_error" class="mt-2 text-sm text-amber-700" role="alert">{{ site.balance.notify_error }}</p>
   </div>

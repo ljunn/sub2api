@@ -51,6 +51,19 @@ function makeAccount(overrides: Partial<Account>): Account {
 }
 
 describe('AccountStatusIndicator', () => {
+  it('shows the actual site price gate even when the manual switch is on', async () => {
+    const account = makeAccount({ platform: 'openai', type: 'apikey', site_scheduling: {
+      status: 'blocked', reason: 'exceeded', checked_at: new Date().toISOString(), tiers: [],
+    } })
+    const wrapper = mount(AccountStatusIndicator, { props: { account }, global: { stubs: { Icon: true } } })
+    expect(wrapper.text()).toContain('admin.sites.status.blocked')
+    expect(wrapper.text()).not.toContain('admin.accounts.status.active')
+    expect(wrapper.get('.badge').attributes('title')).toBe('admin.sites.status.exceeded')
+    await wrapper.setProps({ account: { ...account, site_scheduling: { ...account.site_scheduling!, status: 'ready', reason: '' } } })
+    expect(wrapper.text()).toContain('admin.sites.status.ready')
+    wrapper.unmount()
+  })
+
   it('Claude 5 模型限流时显示 Opus 和 Sonnet 的短别名', () => {
     const wrapper = mount(AccountStatusIndicator, {
       props: {

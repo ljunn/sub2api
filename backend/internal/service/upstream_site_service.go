@@ -20,6 +20,7 @@ import (
 type UpstreamSiteService struct {
 	balanceSettings SettingRepository
 	balanceMailer   siteBalanceMailer
+	balanceUsers    UserRepository
 	pricing         *UpstreamSitePricing
 	repo            UpstreamSiteRepository
 	accounts        AccountRepository
@@ -33,13 +34,12 @@ type UpstreamSiteService struct {
 func NewUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor) *UpstreamSiteService {
 	return &UpstreamSiteService{repo: repo, accounts: accounts, admin: admin, encryptor: encryptor, preview: os.Getenv("UPSTREAM_SITES_PREVIEW") == "true"}
 }
-func ProvideUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor, pricing *UpstreamSitePricing, settings SettingRepository, email *EmailService) *UpstreamSiteService {
+func ProvideUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor, pricing *UpstreamSitePricing, settings SettingRepository, email *NotificationEmailService, users UserRepository) *UpstreamSiteService {
 	s := NewUpstreamSiteService(repo, accounts, admin, encryptor)
 	s.pricing = pricing
 	s.balanceSettings, s.balanceMailer = settings, email
-	if !s.preview {
-		s.Start()
-	}
+	s.balanceUsers = users
+	s.Start()
 	return s
 }
 func (s *UpstreamSiteService) Start() {
@@ -84,7 +84,9 @@ func (s *UpstreamSiteService) runDue(ctx context.Context) {
 				slog.Warn("upstream_site_balance_failed", "site_id", site.ID)
 			}
 		}
-		if !site.Enabled || (site.NextSync != nil && site.NextSync.After(time.Now())) {
+		// Preview scans balances against the shared database, but never publishes
+		// scheduled catalogue/account changes before the release is approved.
+		if s.preview || !site.Enabled || (site.NextSync != nil && site.NextSync.After(time.Now())) {
 			continue
 		}
 		task, cancel := context.WithTimeout(ctx, 2*time.Minute)
@@ -417,7 +419,7 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 			raw, _ := json.Marshal(policy)
 			var policyMap map[string]any
 			_ = json.Unmarshal(raw, &policyMap)
-			account := &Account{Name: truncateUTF8(fmt.Sprintf("%s / %s / %s → %s", site.Name, model.GroupName, binding.Model, binding.LocalModel), 100), Platform: group.Platform, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 50, Credentials: map[string]any{"base_url": site.BaseURL, "api_key": key, "model_mapping": map[string]any{binding.LocalModel: binding.Model}, SiteBindingCredentialKey: binding.ID}, Extra: map[string]any{"upstream_site_binding_id": binding.ID, "upstream_site_id": site.ID, SitePolicyExtraKey: policyMap, UpstreamBillingProbeEnabledExtraKey: false}}
+			account := &Account{Name: siteManagedAccountName(site.Name, binding.Model, model.GroupName), Platform: group.Platform, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 50, Credentials: map[string]any{"base_url": site.BaseURL, "api_key": key, "model_mapping": map[string]any{binding.LocalModel: binding.Model}, SiteBindingCredentialKey: binding.ID}, Extra: map[string]any{"upstream_site_binding_id": binding.ID, "upstream_site_id": site.ID, SitePolicyExtraKey: policyMap, UpstreamBillingProbeEnabledExtraKey: false}}
 			if s.preview {
 				account.Status = StatusDisabled
 				account.Extra["upstream_site_preview_pending"] = true
@@ -440,6 +442,10 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 	}
 	return site, nil
 }
+func siteManagedAccountName(siteName, model, upstreamGroup string) string {
+	return truncateUTF8(fmt.Sprintf("【%s】%s（%s）", siteName, model, upstreamGroup), 100)
+}
+
 func BuildSiteAccountPolicy(site *UpstreamSite, b *SiteBinding) SiteAccountPolicy {
 	p := SiteAccountPolicy{SiteKind: site.Kind, LocalGroupID: b.LocalGroupID, SiteID: site.ID, SiteName: site.Name, BindingID: b.ID, LocalModel: b.LocalModel, UpstreamModel: b.Model, Enabled: site.Enabled && b.Enabled, Limits: b.Limits, Tiers: []SitePriceTier{}}
 	if site.LastSuccess != nil {
@@ -495,15 +501,24 @@ func (s *UpstreamSiteService) updatePolicies(ctx context.Context, site *Upstream
 		if err != nil {
 			return err
 		}
+		nameChanged := false
+		if model := findSiteModel(site, b.GroupID, b.Model); model != nil {
+			name := siteManagedAccountName(site.Name, b.Model, model.GroupName)
+			nameChanged = account.Name != name
+			account.Name = name
+		}
 		if pending, _ := account.Extra["upstream_site_preview_pending"].(bool); pending {
 			if s.preview {
 				b.Status = "preview"
 			} else {
 				account.Status = StatusActive
 				account.Extra["upstream_site_preview_pending"] = false
-				if err = s.accounts.Update(ctx, account); err != nil {
-					return err
-				}
+				nameChanged = true
+			}
+		}
+		if nameChanged {
+			if err = s.accounts.Update(ctx, account); err != nil {
+				return err
 			}
 		}
 	}

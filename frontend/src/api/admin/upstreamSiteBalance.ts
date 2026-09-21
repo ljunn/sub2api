@@ -18,7 +18,7 @@ export interface SiteBalance {
 export interface SiteBalanceSettings {
   enabled: boolean
   threshold: number
-  admin_email: string
+  recipients: string[]
   smtp_configured: boolean
 }
 
@@ -26,7 +26,7 @@ const base = '/admin/upstream-sites'
 export const upstreamSiteBalanceApi = {
   settings: async () =>
     (await apiClient.get<SiteBalanceSettings>(`${base}/balance-settings`)).data,
-  saveSettings: async (input: SiteBalanceSettings) =>
+  saveSettings: async (input: Pick<SiteBalanceSettings, 'enabled' | 'threshold'>) =>
     (await apiClient.put<SiteBalanceSettings>(`${base}/balance-settings`, input)).data,
   refresh: async (id: string) =>
     (await apiClient.post<UpstreamSite>(`${base}/${id}/balance`, {}, { timeout: 125000 })).data,

@@ -1156,6 +1156,7 @@ export interface OllamaCloudUsageSettings {
 }
 
 export interface Account {
+  site_scheduling?: import('@/api/admin/upstreamSites').SiteAccountScheduling
   id: number
   name: string
   notes?: string | null

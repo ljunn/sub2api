@@ -235,14 +235,15 @@
                     :href="accountHomepageUrl(row)"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="border-b border-dotted border-gray-300 font-medium text-gray-900 dark:border-dark-600 dark:text-white"
+                    class="block max-w-[360px] truncate border-b border-dotted border-gray-300 font-medium text-gray-900 dark:border-dark-600 dark:text-white"
+                    :title="value"
                   >
                     {{ value }}
                   </a>
                 </template>
               </HelpTooltip>
-              <span v-else class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
-              <AccountSitePrice :value="row.extra?.upstream_site_policy" />
+              <span v-else class="max-w-[360px] truncate font-medium text-gray-900 dark:text-white" :title="value">{{ value }}</span>
+              <AccountSitePrice :value="row.extra?.upstream_site_policy" :scheduling="row.site_scheduling" />
               <span
                 v-if="accountDisplayEmail(row)"
                 class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]"
@@ -293,7 +294,12 @@
             </div>
           </template>
           <template #cell-schedulable="{ row }">
-            <button @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
+            <RouterLink v-if="row.site_scheduling" :to="`/admin/upstream-sites?site=${row.extra?.upstream_site_id}`"
+              class="whitespace-nowrap text-xs" :class="row.site_scheduling.status === 'ready' ? 'text-green-600' : 'text-amber-700'"
+              :title="t(`admin.sites.status.${row.site_scheduling.reason || row.site_scheduling.status}`)">
+              {{ t(`admin.sites.status.${row.site_scheduling.status}`) }}
+            </RouterLink>
+            <button v-else @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
             </button>
           </template>

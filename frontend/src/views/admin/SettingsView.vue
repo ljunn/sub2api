@@ -8600,6 +8600,7 @@
           </div>
 
           <EmailTemplateEditor />
+          <SiteBalanceSettingsCard />
 
           <!-- Balance Low Notification -->
           <div class="card">
@@ -8874,6 +8875,7 @@ import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
+import SiteBalanceSettingsCard from "@/components/admin/sites/SiteBalanceSettingsCard.vue";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import {
@@ -8934,7 +8936,7 @@ type SettingsTab =
   | "payment"
   | "email"
   | "backup";
-const activeTab = ref<SettingsTab>("general");
+const activeTab = ref<SettingsTab>(new URLSearchParams(window.location.search).get("tab") === "email" ? "email" : "general");
 const settingsTabs = [
   { key: "general" as SettingsTab, icon: "home" as const },
   { key: "agreement" as SettingsTab, icon: "document" as const },

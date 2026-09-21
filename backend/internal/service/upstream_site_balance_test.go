@@ -69,22 +69,24 @@ func (r *siteBalanceSettingRepo) Set(_ context.Context, key, value string) error
 }
 
 type siteBalanceTestMailer struct {
-	to, body string
-	calls    int
-	err      error
+	to    string
+	input NotificationEmailSendInput
+	calls int
+	err   error
 }
 
-func (m *siteBalanceTestMailer) SendEmail(_ context.Context, to, subject, body string) error {
-	m.to, m.body = to, body
+func (m *siteBalanceTestMailer) Send(_ context.Context, input NotificationEmailSendInput) error {
+	m.to, m.input = input.RecipientEmail, input
 	m.calls++
 	return m.err
 }
 
 func balanceTestSettings() *siteBalanceSettingRepo {
 	return &siteBalanceSettingRepo{values: map[string]string{
-		siteBalanceSettingsKey: `{"enabled":true,"threshold":20,"admin_email":"admin@example.com"}`,
-		SettingKeySMTPHost:     "smtp.example.com",
-		SettingKeySMTPFrom:     "sender@example.com",
+		siteBalanceSettingsKey:             `{"enabled":true,"threshold":20}`,
+		SettingKeyAccountQuotaNotifyEmails: `[{"email":"admin@example.com","verified":true}]`,
+		SettingKeySMTPHost:                 "smtp.example.com",
+		SettingKeySMTPFrom:                 "sender@example.com",
 	}}
 }
 
@@ -116,9 +118,10 @@ func TestSiteBalanceQueryNotificationLifecycle(t *testing.T) {
 	result = query()
 	require.Equal(t, 1, mailer.calls)
 	require.Equal(t, "admin@example.com", mailer.to)
-	require.Contains(t, mailer.body, "19.99 USD")
-	require.Contains(t, mailer.body, "&lt;b&gt;Site&lt;/b&gt;")
-	require.NotContains(t, mailer.body, "secret-token")
+	require.Equal(t, "19.99", mailer.input.Variables["current_balance"])
+	require.Equal(t, "USD", mailer.input.Variables["currency"])
+	require.Equal(t, NotificationEmailEventUpstreamSiteBalanceLow, mailer.input.Event)
+	require.Equal(t, "<b>Site</b>", mailer.input.Variables["upstream_site_name"])
 	require.NotNil(t, result.Balance.LastNotified)
 	query()
 	require.Equal(t, 1, mailer.calls, "manual requery must not duplicate mail")
@@ -229,23 +232,76 @@ func TestSiteBalanceConcurrentQueriesSendOnce(t *testing.T) {
 	require.Equal(t, 1, mailer.calls)
 }
 
-func TestSiteBalanceSettingsValidationAndReadOnlySMTP(t *testing.T) {
+func TestSiteBalanceSettingsValidationAndSystemRecipients(t *testing.T) {
 	svc, _, _ := siteTestService()
-	svc.balanceSettings = balanceTestSettings()
-	for _, input := range []SiteBalanceSettings{
-		{Enabled: true, Threshold: 0, AdminEmail: "admin@example.com"},
-		{Enabled: true, Threshold: -1, AdminEmail: "admin@example.com"},
-		{Enabled: true, Threshold: 20, AdminEmail: ""},
-		{Enabled: true, Threshold: 20, AdminEmail: "Name <admin@example.com>"},
-		{Enabled: true, Threshold: 20, AdminEmail: "admin@example.com\r\nBcc: victim@example.com"},
-	} {
-		_, err := svc.SaveBalanceSettings(context.Background(), input)
+	settings := balanceTestSettings()
+	svc.balanceSettings = settings
+	for _, threshold := range []float64{0, -1, 1e13} {
+		_, err := svc.SaveBalanceSettings(context.Background(), SiteBalanceSettings{Enabled: true, Threshold: threshold})
 		require.Error(t, err)
 	}
-	result, err := svc.SaveBalanceSettings(context.Background(), SiteBalanceSettings{Enabled: true, Threshold: 20, AdminEmail: " admin@example.com "})
+	result, err := svc.SaveBalanceSettings(context.Background(), SiteBalanceSettings{Enabled: true, Threshold: 20, Recipients: []string{"ignored@example.com"}})
 	require.NoError(t, err)
 	require.True(t, result.SMTPConfigured)
-	require.Equal(t, "admin@example.com", result.AdminEmail)
+	require.Equal(t, []string{"admin@example.com"}, result.Recipients)
+	require.NotContains(t, settings.values[siteBalanceSettingsKey], "recipients")
+	require.NotContains(t, settings.values[siteBalanceSettingsKey], "ignored")
+	delete(settings.values, siteBalanceSettingsKey)
+	delete(settings.values, SettingKeyAccountQuotaNotifyEmails)
+	svc.balanceUsers = siteBalanceTestUsers{}
+	result, err = svc.BalanceSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, result.Enabled, "new installations automatically notify administrators")
+	require.Equal(t, 20.0, result.Threshold)
+	require.Equal(t, []string{"owner@example.com"}, result.Recipients)
+	settings.values[SettingKeyAccountQuotaNotifyEmails] = `[{"email":"disabled@example.com","verified":true,"disabled":true},{"email":"unverified@example.com"}]`
+	result, err = svc.BalanceSettings(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, result.Recipients, "do not bypass configured recipients' verification or disabled state")
+}
+
+type siteBalanceTestUsers struct{ UserRepository }
+
+func (siteBalanceTestUsers) GetFirstAdmin(context.Context) (*User, error) {
+	return &User{ID: 1, Role: RoleAdmin, Status: StatusActive, Email: "owner@example.com"}, nil
+}
+
+func TestSiteBalanceSystemTemplateDeliveryAndRecipientDeduplication(t *testing.T) {
+	ctx := context.Background()
+	settings := newNotificationEmailMemorySettingRepo()
+	smtp := startNotificationEmailTestSMTPServer(t)
+	require.NoError(t, settings.SetMultiple(ctx, smtp.settings()))
+	svc, _, _ := siteTestService()
+	svc.balanceSettings, svc.balanceUsers = settings, siteBalanceTestUsers{}
+	notifications := NewNotificationEmailService(settings, NewEmailService(settings, nil))
+	svc.balanceMailer = notifications
+	notifications.RememberRecipientLocale(ctx, 1, "owner@example.com", "zh-CN")
+	// This is the same template editable in System settings -> Email settings.
+	_, err := notifications.UpdateTemplate(ctx, NotificationEmailEventUpstreamSiteBalanceLow, "zh", "提醒 {{upstream_site_name}}", "<p>{{upstream_site_name}}: {{current_balance}} {{currency}} / {{threshold}}</p>")
+	require.NoError(t, err)
+	now := time.Now().UTC()
+	amount := -0.27761764
+	site := &UpstreamSite{ID: "site", Name: "<b>Upstream</b>", BaseURL: "https://example.com", Balance: &SiteBalance{Amount: &amount, Currency: "USD"}}
+	require.NoError(t, svc.notifySiteBalance(ctx, site, now))
+	require.Equal(t, int64(1), smtp.messageCount())
+	require.Contains(t, smtp.lastMessageBody(t), "&lt;b&gt;Upstream&lt;/b&gt;")
+	require.Contains(t, smtp.lastMessageBody(t), "-0.27761764 USD / 20")
+	cycle := site.Balance.NotifyCycle
+	require.NoError(t, svc.notifySiteBalance(ctx, site, now.Add(time.Minute)))
+	require.Equal(t, int64(1), smtp.messageCount())
+	// Adding a second system recipient must not resend to the first one.
+	require.NoError(t, settings.Set(ctx, SettingKeyAccountQuotaNotifyEmails, `[{"email":"owner@example.com","verified":true},{"email":"second@example.com","verified":true}]`))
+	require.NoError(t, svc.notifySiteBalance(ctx, site, now.Add(2*time.Minute)))
+	require.Equal(t, int64(2), smtp.messageCount())
+	require.Equal(t, cycle, site.Balance.NotifyCycle)
+	require.NoError(t, svc.notifySiteBalance(ctx, site, now.Add(25*time.Hour)))
+	require.Equal(t, int64(4), smtp.messageCount())
+	require.NotEqual(t, cycle, site.Balance.NotifyCycle)
+	for _, locale := range []string{"en", "zh"} {
+		preview, err := notifications.PreviewTemplate(ctx, NotificationEmailPreviewInput{Event: NotificationEmailEventUpstreamSiteBalanceLow, Locale: locale})
+		require.NoError(t, err)
+		require.Contains(t, preview.HTML, "USD")
+	}
 }
 
 func TestSiteBalancePollingIndependentOfPriceSchedule(t *testing.T) {
@@ -268,6 +324,14 @@ func TestSiteBalancePollingIndependentOfPriceSchedule(t *testing.T) {
 	first := calls
 	svc.runDue(context.Background())
 	require.Equal(t, first, calls, "balance queries respect their own 5-minute schedule")
+	// Preview still scans real balances, while leaving model sync and accounts alone.
+	svc.preview = true
+	repo.sites[site.ID].NextSync = nil
+	repo.sites[site.ID].Balance.NextCheck = nil
+	svc.runDue(context.Background())
+	require.Greater(t, calls, first)
+	require.Nil(t, repo.sites[site.ID].LastSuccess)
+	require.Nil(t, repo.sites[site.ID].NextSync)
 }
 
 func TestKongfangBalanceUsesRawCreditsAndDoesNotNeedPricing(t *testing.T) {

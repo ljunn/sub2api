@@ -1,7 +1,12 @@
 <template>
   <div class="flex items-center gap-2">
     <!-- Rate Limit Display (429) - Two-line layout -->
-    <div v-if="isRateLimited" class="flex flex-col items-center gap-1">
+    <span v-if="account.site_scheduling" class="badge text-xs whitespace-nowrap"
+      :class="account.site_scheduling.status === 'ready' ? 'badge-success' : 'badge-warning'"
+      :title="t(`admin.sites.status.${account.site_scheduling.reason || account.site_scheduling.status}`)">
+      {{ t(`admin.sites.status.${account.site_scheduling.status}`) }}
+    </span>
+    <div v-else-if="isRateLimited" class="flex flex-col items-center gap-1">
       <span class="badge text-xs badge-warning">{{ t('admin.accounts.status.rateLimited') }}</span>
       <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ rateLimitResumeText }}</span>
     </div>

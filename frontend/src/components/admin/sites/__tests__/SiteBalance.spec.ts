@@ -9,7 +9,7 @@ const api = vi.hoisted(() => ({ refresh: vi.fn(), settings: vi.fn(), saveSetting
 vi.mock('@/api/admin/upstreamSiteBalance', () => ({ upstreamSiteBalanceApi: api }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showSuccess: vi.fn() }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
-const settings: SiteBalanceSettings = { enabled: true, threshold: 20, admin_email: 'admin@example.com', smtp_configured: true }
+const settings: SiteBalanceSettings = { enabled: true, threshold: 20, recipients: ['admin@example.com'], smtp_configured: true }
 const site = (amount?: number, error?: string): UpstreamSite => ({
   id: 'site', name: 'test', kind: 'sub2api', base_url: 'https://example.com', auth_mode: 'token', username: '', user_id: 1,
   enabled: true, status: 'connected', models: [], bindings: [], history: [],
@@ -52,19 +52,20 @@ describe('site balance', () => {
     expect(wrapper.emitted('busy')).toEqual([[true], [false]])
   })
 
-  it('loads and saves the recipient and threshold without hardcoded addresses', async () => {
+  it('uses system recipients and saves only the alert toggle and threshold', async () => {
     api.settings.mockResolvedValue({ ...settings })
-    api.saveSettings.mockImplementation(async (value) => value)
+    api.saveSettings.mockImplementation(async (value) => ({ ...settings, ...value }))
     const wrapper = mount(SiteBalanceSettingsCard)
     wrappers.push(wrapper)
     await flushPromises()
-    expect((wrapper.get('input[type="email"]').element as HTMLInputElement).value).toBe('admin@example.com')
-    await wrapper.get('input[type="email"]').setValue('owner@example.com')
+    expect(wrapper.text()).toContain('admin@example.com')
+    expect(wrapper.find('input[type="email"]').exists()).toBe(false)
     await wrapper.get('input[type="number"]').setValue('15')
-    await wrapper.get('form').trigger('submit')
+    expect(wrapper.find('form').exists()).toBe(false)
+    await wrapper.get('button').trigger('click')
     await flushPromises()
-    expect(api.saveSettings).toHaveBeenCalledWith({ ...settings, admin_email: 'owner@example.com', threshold: 15 })
-    expect(wrapper.emitted('updated')?.at(-1)).toEqual([{ ...settings, admin_email: 'owner@example.com', threshold: 15 }])
+    expect(api.saveSettings).toHaveBeenCalledWith({ enabled: true, threshold: 15 })
+    expect(wrapper.emitted('updated')?.at(-1)).toEqual([{ ...settings, threshold: 15 }])
   })
 
   it('cannot overwrite existing settings when loading fails', async () => {

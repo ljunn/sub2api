@@ -120,6 +120,36 @@ func setupAccountListRouter() (*gin.Engine, *stubAdminService) {
 	return router, adminSvc
 }
 
+func TestAccountHandlerListManagedSchedulingFailsClosedInFullAndLiteResponses(t *testing.T) {
+	router, adminSvc := setupAccountListRouter()
+	policy := service.SiteAccountPolicy{BindingID: "binding", LocalGroupID: 9, Enabled: true, FreshUntil: time.Now().Add(time.Hour),
+		Tiers: []service.SitePriceTier{{Key: "1K", Unit: "USD/image", Prices: map[string]float64{"request": .045}}},
+	}
+	adminSvc.accounts = []service.Account{{ID: 25, Status: service.StatusActive, Schedulable: true,
+		Credentials: map[string]any{service.SiteBindingCredentialKey: "binding"}, Extra: map[string]any{service.SitePolicyExtraKey: policy},
+	}}
+	for _, query := range []string{"", "?lite=1"} {
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts"+query, nil))
+		require.Equal(t, http.StatusOK, rec.Code)
+		var payload struct {
+			Data struct {
+				Items []struct {
+					Schedulable bool                           `json:"schedulable"`
+					Scheduling  *service.SiteAccountScheduling `json:"site_scheduling"`
+				} `json:"items"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+		require.Len(t, payload.Data.Items, 1)
+		item := payload.Data.Items[0]
+		require.True(t, item.Schedulable)
+		require.NotNil(t, item.Scheduling)
+		require.Equal(t, "blocked", item.Scheduling.Status)
+		require.Equal(t, "unknown", item.Scheduling.Reason, "missing authoritative pricing cannot claim eligibility")
+	}
+}
+
 func TestAccountHandlerListIncludesCreatedAt(t *testing.T) {
 	router, adminSvc := setupAccountListRouter()
 

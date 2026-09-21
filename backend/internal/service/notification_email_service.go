@@ -909,6 +909,9 @@ func notificationEmailSampleVariables(locale string) map[string]string {
 			"expiry_time":         "2026-06-18 12:00",
 			"days_remaining":      "3",
 			"current_balance":     "12.34",
+			"upstream_site_name":  "Example upstream",
+			"upstream_site_url":   "https://example.com",
+			"currency":            "USD",
 			"threshold":           "20.00",
 			"recharge_url":        "https://example.com/recharge",
 			"recharge_amount":     "50.00",
@@ -957,6 +960,9 @@ func notificationEmailSampleVariables(locale string) map[string]string {
 		"expiry_time":         "2026-06-18 12:00",
 		"days_remaining":      "3",
 		"current_balance":     "12.34",
+		"upstream_site_name":  "Example upstream",
+		"upstream_site_url":   "https://example.com",
+		"currency":            "USD",
 		"threshold":           "20.00",
 		"recharge_url":        "https://example.com/recharge",
 		"recharge_amount":     "50.00",
@@ -1029,6 +1035,7 @@ var notificationEmailEventOrder = []string{
 	NotificationEmailEventBalanceLow,
 	NotificationEmailEventBalanceRechargeSuccess,
 	NotificationEmailEventAccountQuotaAlert,
+	NotificationEmailEventUpstreamSiteBalanceLow,
 	NotificationEmailEventContentModerationViolation,
 	NotificationEmailEventContentModerationDisabled,
 	NotificationEmailEventCyberPolicyNotice,
@@ -1037,6 +1044,7 @@ var notificationEmailEventOrder = []string{
 }
 
 var notificationEmailEventDefinitions = map[string]NotificationEmailEventInfo{
+	NotificationEmailEventUpstreamSiteBalanceLow: notificationEmailUpstreamSiteBalanceInfo,
 	NotificationEmailEventAuthVerifyCode: {
 		Event:        NotificationEmailEventAuthVerifyCode,
 		Label:        "Email verification code",
@@ -1155,6 +1163,7 @@ var notificationEmailEventDefinitions = map[string]NotificationEmailEventInfo{
 }
 
 var notificationEmailOfficialTemplates = map[string]map[string]notificationEmailOfficialTemplate{
+	NotificationEmailEventUpstreamSiteBalanceLow: notificationEmailUpstreamSiteBalanceTemplates,
 	NotificationEmailEventAuthVerifyCode: {
 		notificationEmailDefaultLocale: {
 			Subject: "[{{site_name}}] Email verification code",

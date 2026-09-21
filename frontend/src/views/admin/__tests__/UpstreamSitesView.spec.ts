@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import UpstreamSitesView from '../UpstreamSitesView.vue'
+import SitePriceSummary from '@/components/admin/sites/SitePriceSummary.vue'
 import type { UpstreamSite } from '@/api/admin/upstreamSites'
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   pricePreview: vi.fn(),
   showError: vi.fn(),
 }))
+vi.mock('@/api/admin/upstreamSiteBalance', () => ({ upstreamSiteBalanceApi: { settings: async () => ({ enabled: true, threshold: 20, recipients: [], smtp_configured: true }) } }))
 vi.mock('@/api/client', () => ({ default: {} }))
 vi.mock('@/components/layout/AppLayout.vue', () => ({ default: { template: '<div><slot /></div>' } }))
 vi.mock('@/api/admin/upstreamSites', async () => ({
@@ -35,7 +37,9 @@ const mountView = () =>
   shallowMount(UpstreamSitesView, {
     global: {
       stubs: {
+        SitePriceSummary,
         AppLayout: { template: '<div><slot /></div>' },
+        RouterLink: { template: '<a><slot /></a>' },
         BaseDialog: {
           props: ['show'],
           template: '<div v-if="show"><slot /><slot name="footer" /></div>',
@@ -89,6 +93,36 @@ async function click(text: string) {
 }
 
 describe('upstream sites', () => {
+  it('shows per-tier price vetoes even when the managed account awaits release', async () => {
+    site.models[0]!.tiers = ['1K', '2K', '4K'].map((key, i) => ({
+      key, unit: 'USD/image', prices: { request: i === 0 ? 0.03 : 0.045 },
+    }))
+    site.bindings = [{
+      id: 'binding', group_id: '2', model: 'upstream-image', local_group_id: 9,
+      local_model: 'local-image', platform: 'openai', account_id: 25,
+      enabled: true, status: 'preview',
+      limits: site.models[0]!.tiers.map(tier => ({
+        key: tier.key, unit: tier.unit, enabled: true,
+        selling: { request: 0.04 }, limits: { request: 0.04 },
+      })),
+    }]
+    wrapper = mountView()
+    await flushPromises()
+    const rows = wrapper.findAll('[data-testid="site-price-summary"] > span')
+    expect(rows[0]!.text()).toContain('admin.sites.status.preview')
+    expect(rows[1]!.text()).toContain('admin.sites.status.exceeded')
+    expect(rows[2]!.text()).toContain('admin.sites.status.exceeded')
+    expect(wrapper.text()).toContain('admin.sites.status.blocked')
+    expect(wrapper.findAll('[data-testid="binding-row"]')).toHaveLength(1)
+    expect(wrapper.findComponent({ name: 'SiteBalanceSettingsCard' }).exists()).toBe(false)
+    expect(wrapper.text()).toContain('admin.siteBalance.automaticHint')
+    expect(wrapper.text()).not.toContain('admin.sites.status.ready')
+
+    mocks.list.mockResolvedValue([{ ...site, last_success: new Date(Date.now() - 660000).toISOString() }])
+    await click('common.refresh')
+    expect(wrapper.findAll('[data-testid="site-price-summary"] > span').every(row => row.text().includes('admin.sites.status.expired'))).toBe(true)
+  })
+
   it('saves Kongfang conversion and hides unsupported refresh tokens', async () => {
     site.kind = 'kongfang'
     site.usd_per_credit = 0.12

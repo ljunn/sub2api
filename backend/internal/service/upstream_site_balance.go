@@ -4,11 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"html"
 	"math"
 	"net/http"
-	"net/mail"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -34,25 +32,26 @@ type SiteBalance struct {
 	NotifiedEmail string     `json:"notified_email,omitempty"`
 	NotifyError   string     `json:"notify_error,omitempty"`
 	LowSince      *time.Time `json:"low_since,omitempty"`
+	NotifyCycle   string     `json:"notify_cycle,omitempty"`
 }
 
 type SiteBalanceSettings struct {
-	Enabled        bool    `json:"enabled"`
-	Threshold      float64 `json:"threshold"`
-	AdminEmail     string  `json:"admin_email"`
-	SMTPConfigured bool    `json:"smtp_configured"`
+	Enabled        bool     `json:"enabled"`
+	Threshold      float64  `json:"threshold"`
+	SMTPConfigured bool     `json:"smtp_configured"`
+	Recipients     []string `json:"recipients"`
 }
 
 type siteBalanceMailer interface {
-	SendEmail(context.Context, string, string, string) error
+	Send(context.Context, NotificationEmailSendInput) error
 }
 
 func (s *UpstreamSiteService) BalanceSettings(ctx context.Context) (*SiteBalanceSettings, error) {
-	out := &SiteBalanceSettings{Threshold: 20}
+	out := &SiteBalanceSettings{Enabled: true, Threshold: 20, Recipients: []string{}}
 	if s.balanceSettings == nil {
 		return out, nil
 	}
-	values, err := s.balanceSettings.GetMultiple(ctx, []string{siteBalanceSettingsKey, SettingKeySMTPHost, SettingKeySMTPFrom})
+	values, err := s.balanceSettings.GetMultiple(ctx, []string{siteBalanceSettingsKey, SettingKeySMTPHost, SettingKeySMTPFrom, SettingKeyAccountQuotaNotifyEmails})
 	if err != nil {
 		return nil, errors.New("读取站点余额提醒设置失败")
 	}
@@ -62,23 +61,38 @@ func (s *UpstreamSiteService) BalanceSettings(ctx context.Context) (*SiteBalance
 		}
 	}
 	out.SMTPConfigured = strings.TrimSpace(values[SettingKeySMTPHost]) != "" && strings.TrimSpace(values[SettingKeySMTPFrom]) != ""
+	// Recipient management belongs to the existing system email settings. The
+	// old per-site admin_email field is deliberately ignored.
+	out.Recipients = filterVerifiedEmails(ParseNotifyEmails(values[SettingKeyAccountQuotaNotifyEmails]))
+	if raw := strings.TrimSpace(values[SettingKeyAccountQuotaNotifyEmails]); (raw == "" || raw == "[]") && s.balanceUsers != nil {
+		admin, err := s.balanceUsers.GetFirstAdmin(ctx)
+		if err != nil {
+			return nil, errors.New("读取系统管理员通知邮箱失败")
+		}
+		if admin != nil && admin.IsActive() && admin.Role == RoleAdmin && strings.TrimSpace(admin.Email) != "" {
+			out.Recipients = []string{strings.TrimSpace(admin.Email)}
+		}
+	}
+	if out.Recipients == nil {
+		out.Recipients = []string{}
+	}
+	sort.Strings(out.Recipients)
 	return out, nil
 }
 
 func (s *UpstreamSiteService) SaveBalanceSettings(ctx context.Context, input SiteBalanceSettings) (*SiteBalanceSettings, error) {
-	input.AdminEmail = strings.TrimSpace(input.AdminEmail)
 	if math.IsNaN(input.Threshold) || math.IsInf(input.Threshold, 0) || input.Threshold <= 0 || input.Threshold > 1e12 {
 		return nil, errors.New("余额提醒阈值必须大于 0 且不超过 1000000000000")
-	}
-	address, err := mail.ParseAddress(input.AdminEmail)
-	if (input.Enabled || input.AdminEmail != "") && (err != nil || address.Address != input.AdminEmail || strings.ContainsAny(input.AdminEmail, "\r\n")) {
-		return nil, errors.New("请输入有效的管理员收件邮箱")
 	}
 	if s.balanceSettings == nil {
 		return nil, errors.New("余额提醒设置不可用")
 	}
-	input.SMTPConfigured = false // This is a read-only capability, never user input.
-	raw, err := json.Marshal(input)
+	// Capabilities and recipients are resolved from system configuration, never
+	// persisted from client input.
+	raw, err := json.Marshal(struct {
+		Enabled   bool    `json:"enabled"`
+		Threshold float64 `json:"threshold"`
+	}{input.Enabled, input.Threshold})
 	if err != nil {
 		return nil, err
 	}
@@ -152,34 +166,51 @@ func (s *UpstreamSiteService) notifySiteBalance(ctx context.Context, site *Upstr
 		b.NotifyError = err.Error()
 		return s.repo.Save(ctx, site)
 	}
-	if b.Amount == nil || !settings.Enabled {
+	if b.Amount == nil {
 		return nil
 	}
 	if *b.Amount >= settings.Threshold {
 		b.LowSince, b.NextNotify, b.NotifyError = nil, nil, ""
+		b.NotifyCycle = ""
 		return s.repo.Save(ctx, site)
+	}
+	if !settings.Enabled {
+		return nil
 	}
 	if b.LowSince == nil {
 		b.LowSince = &now
 	}
-	if b.NotifiedEmail == settings.AdminEmail && b.NextNotify != nil && b.NextNotify.After(now) {
+	recipients := strings.Join(settings.Recipients, ",")
+	if b.NotifiedEmail == recipients && b.NextNotify != nil && b.NextNotify.After(now) {
 		return nil
+	}
+	if b.NotifyCycle == "" || (b.NotifyError == "" && (b.NextNotify == nil || !b.NextNotify.After(now))) {
+		b.NotifyCycle = now.Format(time.RFC3339Nano)
 	}
 	// Persist a short lease before sending. The PostgreSQL site lock serializes
 	// preview, production and repeated clicks; a crash cannot cause rapid spam.
 	retry := now.Add(10 * time.Minute)
-	b.NextNotify, b.NotifiedEmail = &retry, settings.AdminEmail
+	b.NextNotify, b.NotifiedEmail = &retry, recipients
 	b.NotifyError = "邮件正在发送；若进程中断，将在 10 分钟后重试"
 	if err = s.repo.Save(ctx, site); err != nil {
 		return err
 	}
-	if !settings.SMTPConfigured || s.balanceMailer == nil || settings.AdminEmail == "" {
-		b.NotifyError = "邮件未发送，请检查 SMTP 配置和管理员收件邮箱"
+	if !settings.SMTPConfigured || s.balanceMailer == nil || len(settings.Recipients) == 0 {
+		b.NotifyError = "邮件未发送，请检查系统邮件设置中的 SMTP 和管理员通知邮箱"
 	} else {
-		subject := "[Sub2API] 站点余额不足提醒"
-		body := fmt.Sprintf("<h2>站点余额不足</h2><p>站点：%s</p><p>地址：%s</p><p>当前余额：<strong>%s %s</strong></p><p>提醒阈值：%s %s（严格低于时提醒）</p><p>查询时间：%s</p><p>请及时前往上游站点充值。金额按上游站点显示单位计算，未折算汇率。持续低余额每 24 小时提醒一次，余额恢复后再次降低会重新提醒。</p>",
-			html.EscapeString(site.Name), html.EscapeString(site.BaseURL), balanceAmount(*b.Amount), html.EscapeString(b.Currency), balanceAmount(settings.Threshold), html.EscapeString(b.Currency), now.Format(time.RFC3339))
-		if err = s.balanceMailer.SendEmail(ctx, settings.AdminEmail, subject, body); err != nil {
+		failed := false
+		for _, recipient := range settings.Recipients {
+			err := s.balanceMailer.Send(ctx, NotificationEmailSendInput{
+				Event:          NotificationEmailEventUpstreamSiteBalanceLow,
+				RecipientEmail: recipient, RecipientName: emailRecipientName(recipient),
+				SourceType: "upstream_site", SourceID: site.ID, ReminderKey: b.NotifyCycle,
+				Variables: map[string]string{"upstream_site_name": site.Name, "upstream_site_url": site.BaseURL,
+					"current_balance": balanceAmount(*b.Amount), "currency": b.Currency,
+					"threshold": balanceAmount(settings.Threshold), "triggered_at": now.Format(time.RFC3339)},
+			})
+			failed = failed || err != nil
+		}
+		if failed {
 			// SMTP errors can contain server responses or credentials.
 			b.NotifyError = "邮件发送失败，请检查 SMTP 配置；10 分钟后重试"
 		} else {

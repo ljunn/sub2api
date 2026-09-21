@@ -18,16 +18,12 @@
           </button>
         </div>
       </div>
-      <SiteBalanceSettingsCard @updated="balanceSettings = $event" />
-      <div class="grid gap-3 sm:grid-cols-3">
-        <div
-          v-for="stat in stats"
-          :key="stat.label"
-          class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-800"
-        >
-          <div class="text-sm text-gray-500">{{ stat.label }}</div>
-          <div class="mt-2 text-2xl font-semibold">{{ stat.value }}</div>
-        </div>
+      <p class="text-sm text-gray-500">
+        {{ t('admin.siteBalance.automaticHint') }}
+        <RouterLink to="/admin/settings?tab=email" class="text-primary-600">{{ t('admin.siteBalance.emailSettings') }}</RouterLink>
+      </p>
+      <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500">
+        <span v-for="stat in stats" :key="stat.label">{{ stat.label }} <strong class="ml-1 text-gray-900 dark:text-white">{{ stat.value }}</strong></span>
       </div>
       <div
         v-if="loading && !sites.length"
@@ -49,13 +45,13 @@
       </div>
       <div
         v-else
-        class="grid items-start gap-5 xl:grid-cols-[320px_minmax(0,1fr)]"
+        class="space-y-4"
       >
-        <div class="space-y-3">
+        <div class="flex gap-3 overflow-x-auto pb-1">
           <button
             v-for="site in sites"
             :key="site.id"
-            class="w-full rounded-xl border bg-white p-4 text-left transition dark:bg-dark-800"
+            class="w-60 shrink-0 rounded-xl border bg-white px-4 py-3 text-left transition dark:bg-dark-800"
             :class="
               selectedId === site.id
                 ? 'border-primary-500 ring-1 ring-primary-500'
@@ -73,7 +69,7 @@
             <div class="mt-1 truncate text-xs text-gray-500">
               {{ site.base_url }}
             </div>
-            <div class="mt-3 flex items-center justify-between text-xs">
+            <div class="mt-2 flex items-center justify-between text-xs">
               <span
                 :class="
                   site.status === 'connected' && site.enabled
@@ -156,113 +152,40 @@
               </button>
             </div>
           </div>
-          <div v-if="activeTab === 'bindings'" class="space-y-4 p-5">
-            <p
-              v-if="!selected.bindings.length"
-              class="py-10 text-center text-sm text-gray-500"
-            >
-              {{ t('admin.sites.noBindings') }}
-            </p>
-            <article
-              v-for="binding in selected.bindings"
-              :key="binding.id"
-              class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
-            >
-              <div class="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 class="font-medium">
-                    {{ binding.model }} <span class="text-gray-400">→</span>
-                    {{ binding.local_model }}
-                  </h3>
-                  <p class="mt-1 text-xs text-gray-500">
-                    {{ groupName(binding.local_group_id) }} ·
-                    {{ t('admin.sites.account') }} #{{
-                      binding.account_id || '—'
-                    }}
-                  </p>
-                </div>
-                <div class="flex gap-3 text-sm">
-                  <button
-                    class="text-primary-600"
-                    :disabled="busy"
-                    @click="openBinding(binding)"
-                  >
-                    {{ t('admin.sites.limits') }}</button
-                  ><button
-                    class="text-red-600"
-                    :disabled="busy"
-                    @click="confirmAction = { kind: 'binding', id: binding.id }"
-                  >
-                    {{ t('admin.sites.unbind') }}
-                  </button>
-                </div>
-              </div>
-              <p v-if="binding.error" class="mt-2 text-sm text-red-600">
-                {{ binding.error }}
-              </p>
-              <div class="mt-3 overflow-x-auto">
-                <table class="w-full text-left text-xs">
-                  <thead class="text-gray-500">
-                    <tr>
-                      <th class="py-2">{{ t('admin.sites.tier') }}</th>
-                      <th>{{ t('admin.sites.price') }}</th>
-                      <th>{{ t('admin.sites.selling') }}</th>
-                      <th>{{ t('admin.sites.limit') }}</th>
-                      <th>{{ t('admin.sites.scheduling') }}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="tier in binding.price_tiers || bindingModel(binding)?.tiers || []"
-                      :key="tier.key"
-                      class="border-t border-gray-100 dark:border-dark-700"
-                    >
-                      <td class="py-2">
-                        {{
-                          tier.key === 'default'
-                            ? t('admin.sites.defaultTier')
-                            : tier.key
-                        }}
-                        <div class="text-gray-400">{{ tier.unit }}</div>
-                        <div v-if="tier.note" class="max-w-xs text-amber-600">
-                          {{ tier.note }}
-                        </div>
-                      </td>
-                      <td class="pr-3">{{ prices(tier.prices) }}</td>
-                      <td class="pr-3">{{ prices(binding.limits.find((l) => l.key === tier.key)?.selling || {}) }}</td>
-                      <td class="pr-3">
-                        {{
-                          prices(
-                            binding.limits.find((l) => l.key === tier.key)
-                              ?.limits || {},
-                          )
-                        }}
-                        <p class="text-amber-600">{{ binding.limits.find((l) => l.key === tier.key)?.reason }}</p>
-                      </td>
-                      <td
-                        :class="
-                          tierStatus(binding, tier) === 'ready'
-                            ? 'text-green-600'
-                            : 'text-amber-600'
-                        "
-                      >
-                        {{
-                          t(`admin.sites.status.${tierStatus(binding, tier)}`)
-                        }}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <p
-                v-if="bindingModel(binding)?.reason || !bindingModel(binding)"
-                class="mt-2 text-sm text-amber-700"
-              >
-                {{
-                  bindingModel(binding)?.reason || t('admin.sites.modelMissing')
-                }}
-              </p>
-            </article>
+          <div v-if="activeTab === 'bindings'" class="overflow-x-auto">
+            <p v-if="!selected.bindings.length" class="p-8 text-center text-sm text-gray-500">{{ t('admin.sites.noBindings') }}</p>
+            <table v-else class="w-full text-left text-sm" data-testid="binding-table">
+              <thead class="bg-gray-50 text-xs text-gray-500 dark:bg-dark-900/40">
+                <tr>
+                  <th class="px-5 py-3">{{ t('admin.sites.upstreamModel') }} / {{ t('admin.sites.upstreamGroup') }}</th>
+                  <th class="px-3 py-3">{{ t('admin.sites.localGroup') }}</th>
+                  <th class="px-3 py-3">{{ t('admin.sites.priceAndEligibility') }}</th>
+                  <th class="px-3 py-3">{{ t('admin.sites.scheduling') }}</th>
+                  <th class="px-5 py-3 text-right">{{ t('common.actions') }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
+                <tr v-for="binding in selected.bindings" :key="binding.id" data-testid="binding-row">
+                  <td class="max-w-64 px-5 py-3">
+                    <div class="truncate font-medium" :title="binding.model">{{ binding.model }}</div>
+                    <div class="mt-1 truncate text-xs text-gray-500" :title="bindingModel(binding)?.group_name">{{ bindingModel(binding)?.group_name || binding.group_id }} · #{{ binding.account_id || '—' }}</div>
+                  </td>
+                  <td class="max-w-52 px-3 py-3">
+                    <div class="truncate" :title="groupName(binding.local_group_id)">{{ groupName(binding.local_group_id) }}</div>
+                    <div v-if="binding.local_model !== binding.model" class="mt-1 truncate text-xs text-gray-500">{{ binding.local_model }}</div>
+                  </td>
+                  <td class="px-3 py-3"><SitePriceSummary :tiers="bindingTiers(binding)" /></td>
+                  <td class="px-3 py-3 whitespace-nowrap">
+                    <span :class="bindingStatus(binding) === 'ready' ? 'text-green-600' : 'text-amber-700'">{{ t(`admin.sites.status.${bindingStatus(binding)}`) }}</span>
+                    <div v-if="bindingReason(binding)" class="mt-1 text-xs text-gray-500" :title="binding.error || (binding.status === 'preview' ? t('admin.sites.previewPaused') : '')">{{ binding.error || t(`admin.sites.status.${bindingReason(binding)}`) }}</div>
+                  </td>
+                  <td class="px-5 py-3 text-right whitespace-nowrap">
+                    <button class="text-primary-600" :disabled="busy" @click="openBinding(binding)">{{ t('admin.sites.details') }}</button>
+                    <button class="ml-3 text-red-600" :disabled="busy" @click="confirmAction = { kind: 'binding', id: binding.id }">{{ t('admin.sites.unbind') }}</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           <div v-else-if="activeTab === 'models'" class="p-5">
             <input
@@ -655,8 +578,8 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import SiteBalanceCard from '@/components/admin/sites/SiteBalanceCard.vue'
-import SiteBalanceSettingsCard from '@/components/admin/sites/SiteBalanceSettingsCard.vue'
-import type { SiteBalanceSettings } from '@/api/admin/upstreamSiteBalance'
+import SitePriceSummary from '@/components/admin/sites/SitePriceSummary.vue'
+import { upstreamSiteBalanceApi, type SiteBalanceSettings } from '@/api/admin/upstreamSiteBalance'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { getAll, getModelAllowlistCandidates } from '@/api/admin/groups'
@@ -716,8 +639,8 @@ const bindingModel = (b: SiteBinding) =>
   selected.value?.models.find(
     (m) => m.group_id === b.group_id && m.model === b.model,
   )
-const tierStatus = (b: SiteBinding, tier: SitePriceTier) =>
-  b.status === 'preview' ? 'preview' : siteTierStatus(
+const tierStatus = (b: SiteBinding, tier: SitePriceTier) => {
+  const status = siteTierStatus(
     {
       site_id: selected.value!.id,
       site_name: selected.value!.name,
@@ -734,6 +657,19 @@ const tierStatus = (b: SiteBinding, tier: SitePriceTier) =>
     },
     tier,
   )
+  return status === 'ready' && b.status === 'preview' ? 'preview' : status
+}
+const bindingTiers = (b: SiteBinding) => (b.price_tiers || bindingModel(b)?.tiers || []).map(tier => ({
+  ...tier, status: tierStatus(b, tier),
+  selling: b.limits.find(limit => limit.key === tier.key)?.selling,
+  ceiling: b.limits.find(limit => limit.key === tier.key)?.limits,
+}))
+const bindingStatus = (b: SiteBinding) => {
+  const tiers = bindingTiers(b)
+  const allowed = tiers.filter(tier => tier.status === 'ready').length
+  return allowed === 0 || b.status === 'error' ? 'blocked' : allowed === tiers.length ? 'ready' : 'partial'
+}
+const bindingReason = (b: SiteBinding) => b.status === 'error' ? 'error' : bindingTiers(b).find(tier => tier.status !== 'ready')?.status || ''
 function error(e: unknown) {
   app.showError(
     e instanceof Error
@@ -1023,6 +959,7 @@ onMounted(async () => {
   await load()
   try {
     groups.value = await getAll()
+    balanceSettings.value = await upstreamSiteBalanceApi.settings()
   } catch (e) {
     error(e)
   }

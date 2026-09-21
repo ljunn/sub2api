@@ -8,6 +8,17 @@ export interface SitePriceTier {
   reason?: string
   note?: string
 }
+export interface SiteSchedulingTier extends SitePriceTier {
+  selling?: Record<string, number>
+  ceiling?: Record<string, number>
+  status: string
+}
+export interface SiteAccountScheduling {
+  status: 'ready' | 'partial' | 'blocked'
+  reason?: string
+  checked_at: string
+  tiers: SiteSchedulingTier[]
+}
 export interface SiteModel {
   group_id: string
   group_name: string

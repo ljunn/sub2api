@@ -375,6 +375,11 @@ const eventDisplayMeta: Record<string, EventDisplayMeta> = {
     timing: "余额充值订单支付完成并入账后发送。",
     categoryLabel: "计费",
   },
+  "upstream_site.balance_low": {
+    label: "站点余额不足",
+    timing: "每 5 分钟自动查询上游站点余额，低于阈值时通知系统管理员邮箱；未配置通知邮箱时发给主管理员。持续低余额每 24 小时提醒一次。",
+    categoryLabel: "管理告警",
+  },
   "account.quota_alert": {
     label: "账号限额告警",
     timing: "上游账号的用量达到配置的额度告警阈值时发送给管理员通知邮箱。",
@@ -437,6 +442,11 @@ const eventDisplayMetaEn: Record<string, EventDisplayMeta> = {
     label: "Balance Recharge Success",
     timing: "Sent after a balance recharge order is paid and credited.",
     categoryLabel: "Billing",
+  },
+  "upstream_site.balance_low": {
+    label: "Upstream Site Low Balance",
+    timing: "Checks balances every 5 minutes and alerts system admin notification emails, or the primary administrator when none are configured. Repeats every 24 hours while low.",
+    categoryLabel: "Admin",
   },
   "account.quota_alert": {
     label: "Account Quota Alert",
