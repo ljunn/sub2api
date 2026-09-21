@@ -899,6 +899,10 @@ ops:
   # Other detailed settings (cleanup, aggregation, etc.) are configured in ops settings dialog
   # 其他详细设置（数据清理、预聚合等）在运维监控设置对话框中配置
   enabled: true
+  # Keep Ops APIs and request error logging, but stop scheduled collectors,
+  # aggregation, cleanup, alerts and reports on a shared-database preview.
+  # 共享数据库的预览设为 true：保留错误记录和查询，停用 Ops 后台定时任务。
+  disable_background_tasks: false
 
 # =============================================================================
 # JWT Configuration

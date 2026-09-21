@@ -89,7 +89,7 @@ func NewOpsAggregationService(
 }
 
 func (s *OpsAggregationService) Start() {
-	if s == nil {
+	if s == nil || (s.cfg != nil && !s.cfg.Ops.BackgroundTasksEnabled()) {
 		return
 	}
 	s.startOnce.Do(func() {
@@ -151,7 +151,7 @@ func (s *OpsAggregationService) aggregateHourly() {
 		return
 	}
 	if s.cfg != nil {
-		if !s.cfg.Ops.Enabled {
+		if !s.cfg.Ops.BackgroundTasksEnabled() {
 			return
 		}
 		if !s.cfg.Ops.Aggregation.Enabled {
@@ -251,7 +251,7 @@ func (s *OpsAggregationService) aggregateDaily() {
 		return
 	}
 	if s.cfg != nil {
-		if !s.cfg.Ops.Enabled {
+		if !s.cfg.Ops.BackgroundTasksEnabled() {
 			return
 		}
 		if !s.cfg.Ops.Aggregation.Enabled {

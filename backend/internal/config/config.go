@@ -1600,6 +1600,10 @@ type OpsConfig struct {
 	// This config flag is the "hard switch" for deployments that want to disable ops completely.
 	Enabled bool `mapstructure:"enabled"`
 
+	// DisableBackgroundTasks keeps request logging and read APIs available on
+	// preview instances without running duplicate collectors, cleanup or emails.
+	DisableBackgroundTasks bool `mapstructure:"disable_background_tasks"`
+
 	// UsePreaggregatedTables prefers ops_metrics_hourly/daily for long-window dashboard queries.
 	UsePreaggregatedTables bool `mapstructure:"use_preaggregated_tables"`
 
@@ -1611,6 +1615,10 @@ type OpsConfig struct {
 
 	// Pre-aggregation configuration.
 	Aggregation OpsAggregationConfig `mapstructure:"aggregation"`
+}
+
+func (c OpsConfig) BackgroundTasksEnabled() bool {
+	return c.Enabled && !c.DisableBackgroundTasks
 }
 
 type OpsCleanupConfig struct {
@@ -2251,6 +2259,7 @@ func setDefaults() {
 
 	// Ops (vNext)
 	viper.SetDefault("ops.enabled", true)
+	viper.SetDefault("ops.disable_background_tasks", false)
 	viper.SetDefault("ops.use_preaggregated_tables", true)
 	viper.SetDefault("ops.cleanup.enabled", true)
 	viper.SetDefault("ops.cleanup.schedule", "0 2 * * *")

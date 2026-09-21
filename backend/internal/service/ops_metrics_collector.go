@@ -88,7 +88,7 @@ func NewOpsMetricsCollector(
 }
 
 func (c *OpsMetricsCollector) Start() {
-	if c == nil {
+	if c == nil || (c.cfg != nil && !c.cfg.Ops.BackgroundTasksEnabled()) {
 		return
 	}
 	c.startOnce.Do(func() {
@@ -163,7 +163,7 @@ func (c *OpsMetricsCollector) collectOnce() {
 	if c == nil {
 		return
 	}
-	if c.cfg != nil && !c.cfg.Ops.Enabled {
+	if c.cfg != nil && !c.cfg.Ops.BackgroundTasksEnabled() {
 		return
 	}
 	if c.opsRepo == nil {

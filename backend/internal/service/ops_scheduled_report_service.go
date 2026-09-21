@@ -100,7 +100,7 @@ func (s *OpsScheduledReportService) StartWithContext(ctx context.Context) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if s.cfg != nil && !s.cfg.Ops.Enabled {
+	if s.cfg != nil && !s.cfg.Ops.BackgroundTasksEnabled() {
 		return
 	}
 	if s.opsService == nil || s.emailService == nil {
@@ -144,7 +144,7 @@ func (s *OpsScheduledReportService) run() {
 }
 
 func (s *OpsScheduledReportService) runOnce() {
-	if s == nil || s.opsService == nil || s.emailService == nil {
+	if s == nil || s.opsService == nil || s.emailService == nil || (s.cfg != nil && !s.cfg.Ops.BackgroundTasksEnabled()) {
 		return
 	}
 

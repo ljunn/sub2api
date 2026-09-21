@@ -93,7 +93,7 @@ func (s *OpsCleanupService) Start() {
 	if s == nil {
 		return
 	}
-	if s.cfg != nil && !s.cfg.Ops.Enabled {
+	if s.cfg != nil && !s.cfg.Ops.BackgroundTasksEnabled() {
 		return
 	}
 	if s.opsRepo == nil || s.db == nil {
@@ -143,6 +143,10 @@ func (s *OpsCleanupService) stopCronLocked() {
 // applyScheduleLocked 重新计算 effective 配置并按其 schedule 重建 cron。调用方持锁。
 // 若 effective.Enabled=false（用户在 UI 关闭清理），停旧 cron 后直接返回，不创建新 cron。
 func (s *OpsCleanupService) applyScheduleLocked(ctx context.Context) error {
+	if s.cfg != nil && !s.cfg.Ops.BackgroundTasksEnabled() {
+		s.stopCronLocked()
+		return nil
+	}
 	s.computeEffectiveLocked(ctx)
 	s.stopCronLocked()
 
@@ -282,7 +286,7 @@ func (s *OpsCleanupService) refreshEffectiveBeforeRun(ctx context.Context) {
 }
 
 func (s *OpsCleanupService) runScheduled() {
-	if s == nil || s.db == nil || s.opsRepo == nil {
+	if s == nil || s.db == nil || s.opsRepo == nil || (s.cfg != nil && !s.cfg.Ops.BackgroundTasksEnabled()) {
 		return
 	}
 

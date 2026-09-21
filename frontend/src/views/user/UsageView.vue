@@ -868,7 +868,8 @@ const loadErrors = async () => {
     errorTotal.value = resp.total
   } catch (error) {
     console.error('[UsageView] loadErrors failed:', error)
-    appStore.showError(t('usage.errors.failedToLoad'))
+    const disabled = error && typeof error === 'object' && 'reason' in error && error.reason === 'OPS_DISABLED'
+    appStore.showError(t(disabled ? 'usage.errors.monitoringDisabled' : 'usage.errors.failedToLoad'))
   } finally {
     errorLoading.value = false
   }

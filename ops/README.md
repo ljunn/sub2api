@@ -59,7 +59,7 @@ git push origin host-production
 ### 本机预览进程
 
 - 独立 systemd 临时服务：`sub2api-preview.service`，监听 `0.0.0.0:6556`。
-- 私有工作目录：`/opt/sub2api/preview`，其中 `config.yaml` 和 `.installed` 仅服务用户可读；配置不进入 Git。PostgreSQL 和 JWT 配置复用生产，启动前同时核对生产进程的环境变量覆盖。Redis 复用服务器及认证，但使用独立 **DB 14**（首次启动前已确认为空）：Sub2API 启动会清理同库其他进程的并发槽位，预览不能与生产共享 Redis DB。此隔离不改变 PostgreSQL、原有账号和业务数据，也不涉及删除或重建 Redis。预览禁用自动 token 刷新、用量清理、仪表盘聚合、Ops 后台和批量图片队列。
+- 私有工作目录：`/opt/sub2api/preview`，其中 `config.yaml` 和 `.installed` 仅服务用户可读；配置不进入 Git。PostgreSQL 和 JWT 配置复用生产，启动前同时核对生产进程的环境变量覆盖。Redis 复用服务器及认证，但使用独立 **DB 14**（首次启动前已确认为空）：Sub2API 启动会清理同库其他进程的并发槽位，预览不能与生产共享 Redis DB。此隔离不改变 PostgreSQL、原有账号和业务数据，也不涉及删除或重建 Redis。预览禁用自动 token 刷新、用量清理、仪表盘聚合、Ops 定时后台和批量图片队列。Ops 使用 `enabled: true`、`disable_background_tasks: true`，保留请求错误记录和错误列表/详情查询；不得再通过 `ops.enabled: false` 整体关闭，否则使用记录中的错误请求接口会返回 `404 OPS_DISABLED`。独立开关强制停用指标采集、预聚合、清理、告警评估和定时报表，优先于共享数据库中的定时任务设置。
 - ExecStart 直接指向已提交并推送版本的 `/opt/sub2api/releases/<版本>-<提交>/sub2api`，不修改生产 `current`。新预览替换时只停止/启动 `sub2api-preview`。
 
 完成配置核对、测试、提交和推送后：

@@ -84,7 +84,7 @@ func NewOpsAlertEvaluatorService(
 }
 
 func (s *OpsAlertEvaluatorService) Start() {
-	if s == nil {
+	if s == nil || (s.cfg != nil && !s.cfg.Ops.BackgroundTasksEnabled()) {
 		return
 	}
 	s.startOnce.Do(func() {
@@ -157,7 +157,7 @@ func (s *OpsAlertEvaluatorService) evaluateOnce(interval time.Duration) {
 	if s == nil || s.opsRepo == nil {
 		return
 	}
-	if s.cfg != nil && !s.cfg.Ops.Enabled {
+	if s.cfg != nil && !s.cfg.Ops.BackgroundTasksEnabled() {
 		return
 	}
 

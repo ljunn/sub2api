@@ -839,7 +839,8 @@ const loadAdminErrors = async () => {
     errTotal.value = resp.total
   } catch (error) {
     console.error('Failed to load admin errors:', error)
-    appStore.showError(t('usage.errors.failedToLoad'))
+    const disabled = error && typeof error === 'object' && 'reason' in error && error.reason === 'OPS_DISABLED'
+    appStore.showError(t(disabled ? 'usage.errors.monitoringDisabled' : 'usage.errors.failedToLoad'))
   } finally {
     errLoading.value = false
   }
