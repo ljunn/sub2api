@@ -1,4 +1,5 @@
 import apiClient from '../client'
+import type { SiteBalance } from './upstreamSiteBalance'
 
 export interface SitePriceTier {
   key: string
@@ -46,6 +47,7 @@ export interface SitePriceChange {
 }
 export interface UpstreamSite {
   usd_per_credit?: number
+  balance?: SiteBalance
   id: string
   name: string
   base_url: string

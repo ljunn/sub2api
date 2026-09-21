@@ -18,22 +18,25 @@ import (
 )
 
 type UpstreamSiteService struct {
-	pricing   *UpstreamSitePricing
-	repo      UpstreamSiteRepository
-	accounts  AccountRepository
-	admin     AdminService
-	encryptor SecretEncryptor
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
-	preview   bool
+	balanceSettings SettingRepository
+	balanceMailer   siteBalanceMailer
+	pricing         *UpstreamSitePricing
+	repo            UpstreamSiteRepository
+	accounts        AccountRepository
+	admin           AdminService
+	encryptor       SecretEncryptor
+	cancel          context.CancelFunc
+	wg              sync.WaitGroup
+	preview         bool
 }
 
 func NewUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor) *UpstreamSiteService {
 	return &UpstreamSiteService{repo: repo, accounts: accounts, admin: admin, encryptor: encryptor, preview: os.Getenv("UPSTREAM_SITES_PREVIEW") == "true"}
 }
-func ProvideUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor, pricing *UpstreamSitePricing) *UpstreamSiteService {
+func ProvideUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor, pricing *UpstreamSitePricing, settings SettingRepository, email *EmailService) *UpstreamSiteService {
 	s := NewUpstreamSiteService(repo, accounts, admin, encryptor)
 	s.pricing = pricing
+	s.balanceSettings, s.balanceMailer = settings, email
 	if !s.preview {
 		s.Start()
 	}
@@ -72,6 +75,14 @@ func (s *UpstreamSiteService) runDue(ctx context.Context) {
 	for _, site := range sites {
 		if ctx.Err() != nil {
 			return
+		}
+		if s.balanceSettings != nil && site.Enabled && (site.Balance == nil || site.Balance.NextCheck == nil || !site.Balance.NextCheck.After(time.Now())) {
+			task, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			_, balanceErr := s.refreshBalance(task, site.ID, true)
+			cancel()
+			if balanceErr != nil {
+				slog.Warn("upstream_site_balance_failed", "site_id", site.ID)
+			}
 		}
 		if !site.Enabled || (site.NextSync != nil && site.NextSync.After(time.Now())) {
 			continue
@@ -167,6 +178,7 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	}
 	authChanged := identityChanged || input.Password != "" || input.AccessToken != "" || input.RefreshToken != ""
 	if identityChanged {
+		site.Balance = nil
 		credentials = &SiteCredentials{Keys: map[string]string{}}
 	}
 	if input.Password != "" {

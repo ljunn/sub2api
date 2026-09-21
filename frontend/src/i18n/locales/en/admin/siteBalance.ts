@@ -1,0 +1,21 @@
+export default {
+  siteBalance: {
+    settings: 'Site balance alerts',
+    enabled: 'Enable email alerts',
+    hint: 'Check enabled sites every 5 minutes and email when the balance is strictly below the threshold. Amounts use each site’s display unit without conversion to a common currency. Repeat every 24 hours while low; alert again after recovery and another drop. Manual queries also trigger alerts.',
+    adminEmail: 'Administrator notification email',
+    threshold: 'Balance below',
+    smtpMissing: 'Configure SMTP under System settings → Email settings to send alerts.',
+    settingsFailed: 'Could not load alert settings. Refresh the page to retry.',
+    saveFailed: 'Could not save. Check the email address, positive threshold and connection.',
+    saved: 'Site balance alert settings saved',
+    balance: 'Site balance',
+    query: 'Query balance',
+    low: 'Below the alert threshold',
+    normal: 'Sufficient balance',
+    stale: 'Not queried or out of date; showing the last successful result',
+    lastCheck: 'Last successful query:',
+    lastNotified: 'Last email alert:',
+    queryFailed: 'Could not query the balance. Please retry later.',
+  },
+}

@@ -11,17 +11,29 @@
 - `/opt/image2api` 是独立项目，不要为了修 Sub2API 修改它或切换其 6555 预览。
 - 后续各个 custom 渠道的账号池、模型路由、失败切换、重试、熔断、限流和健康调度统一放在 Sub2API；image2api 的 custom 适配层主要负责连接 Sub2API、转发请求和处理统一响应。
 
+## 完整版本统一提交与发布
+
+用户于 **2026-09-21** 明确要求：**所有待发布改动一起提交、推送、打包，不能只发布其中一部分。** 本约定同时适用于 6556 审阅预览和生产发布。
+
+1. 在 `/opt/sub2api/source` 检查 `git status --short`、已暂存和未暂存差异，以及未跟踪源码；把全部待发布功能及关联前端、后端、配置、测试、文档纳入同一个完整版本。保留已有工作，不能只提交最近新增的功能；凭据、私有运行配置和临时产物不提交。
+2. 对完整工作区完成测试，提交并推送 `host-production`，确认工作区干净。可以保留已有提交历史，但最后的 `HEAD` 必须包含所有待发布功能。
+3. 运行 `./ops/build-local.sh`。脚本已移除 `--committed-head` 部分构建入口；任何未提交/未跟踪源码、未推送 HEAD，或构建过程中出现新改动，都阻止形成可发布产物。不要使用独立索引、部分暂存、临时 checkout 或手动 `git archive` 绕过这一要求。
+4. 用完整产物更新 6556，按功能清单逐项审阅，并向用户说明预览包含的内容。本次统一版本包含：站点模型与价格调度、空凡登录/图片协议/VIP 积分价格、Sub2API/New API/空凡余额查询、低余额提醒设置和邮件通知机制。
+5. 用户确认此完整预览并明确同意上线后，才执行生产发布。若审阅后新增改动，重新整合、测试、提交、推送、构建并更新预览，不能上线未经审阅的不同版本。
+
+余额功能细节见 [UPSTREAM_SITE_BALANCE.md](UPSTREAM_SITE_BALANCE.md)，空凡接入见 [KONGFANG.md](KONGFANG.md)。此前仅含空凡适配的预览不能作为本次完整功能的发布依据。
+
 ## 日常修改与构建
 
 ```bash
 cd /opt/sub2api/source
 git status
-# 修改源码，运行与改动相关的测试
+# 检查并整合全部待发布改动，运行完整发布范围相关的测试
 cd backend
 go test -p 2 -tags=unit ./internal/service ./internal/handler \
   -run 'TestForwardImagesRetryLater400|TestOpenAIGatewayHandlerImages_(RetryLater400SwitchesAccounts|ServerErrorFailsOverAndReturnsClearErrorWhenExhausted)'
 cd ..
-git add <本次修改的文件>
+git add <全部已审阅的待发布文件>
 git commit -m '说明本次修改'
 git push origin host-production
 ./ops/build-local.sh

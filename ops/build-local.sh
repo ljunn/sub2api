@@ -4,26 +4,21 @@ set -euo pipefail
 source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 runtime_dir=/opt/sub2api
 cd "$source_dir"
-# Explicitly build the remote-recorded HEAD while preserving unrelated edits.
-# git archive below never consumes working-tree files; release-local stays strict.
-committed_head_only=false
-if [[ "${1:-}" == --committed-head && $# == 1 ]]; then
-  committed_head_only=true
-elif [[ $# != 0 ]]; then
-  echo 'Usage: ./ops/build-local.sh [--committed-head]' >&2
+# Preview and production must include every pending source change. Do not
+# provide a dirty-worktree bypass that silently leaves part of the release out.
+if [[ $# != 0 ]]; then
+  echo 'Usage: ./ops/build-local.sh (no partial-build options)' >&2
   exit 1
 fi
-if [[ -n $(git status --porcelain) && "$committed_head_only" != true ]]; then
-  echo 'Commit the source changes before building a release.' >&2
+if [[ -n $(git status --porcelain) ]]; then
+  echo 'Commit and push ALL pending source changes before building the complete release.' >&2
   exit 1
 fi
 commit=$(git rev-parse HEAD)
-if [[ "$committed_head_only" == true ]]; then
-  remote_head=$(git ls-remote --exit-code origin refs/heads/host-production | cut -f1)
-  if [[ "$remote_head" != "$commit" ]]; then
-    echo 'Push the committed HEAD to origin/host-production before building.' >&2
-    exit 1
-  fi
+remote_head=$(git ls-remote --exit-code origin refs/heads/host-production | cut -f1)
+if [[ "$remote_head" != "$commit" ]]; then
+  echo 'Push the complete committed HEAD to origin/host-production before building.' >&2
+  exit 1
 fi
 version=$(tr -d '\r\n' < backend/cmd/server/VERSION)
 release_dir="$runtime_dir/releases/${version}-${commit:0:12}"
@@ -63,5 +58,9 @@ PY
 rm -rf -- "$stage/source"
 chmod 755 "$stage" "$stage/sub2api"
 chmod 644 "$stage/manifest.json" "$stage/SHA256SUMS"
+if [[ $(git rev-parse HEAD) != "$commit" || -n $(git status --porcelain) ]]; then
+  echo 'Source changed during the build. Integrate, test, commit and push all changes, then rebuild.' >&2
+  exit 1
+fi
 mv -- "$stage" "$release_dir"
 echo "$release_dir"

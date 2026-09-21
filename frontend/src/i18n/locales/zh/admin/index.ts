@@ -1,4 +1,5 @@
 import sites from './sites'
+import siteBalance from './siteBalance'
 import overview from './overview'
 import channels from './channels'
 import accounts from './accounts'
@@ -11,6 +12,7 @@ import plugins from './plugins'
 
 export default {
   ...sites,
+  ...siteBalance,
   ...overview,
   ...channels,
   ...accounts,

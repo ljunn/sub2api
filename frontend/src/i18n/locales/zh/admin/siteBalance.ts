@@ -1,0 +1,21 @@
+export default {
+  siteBalance: {
+    settings: '站点低余额提醒',
+    enabled: '开启邮件提醒',
+    hint: '每 5 分钟查询已启用站点的余额，严格低于阈值时发送邮件。按各站点显示单位判断，不统一折算币种。持续低余额每 24 小时提醒一次，恢复后再次降低会重新提醒。手动查询也会触发提醒。',
+    adminEmail: '管理员收件邮箱',
+    threshold: '余额低于',
+    smtpMissing: '尚未配置 SMTP，请先在系统设置 → 邮件设置中配置发信服务。',
+    settingsFailed: '读取提醒设置失败，请刷新页面重试。',
+    saveFailed: '保存失败，请检查邮箱、正数阈值和网络后重试。',
+    saved: '站点余额提醒设置已保存',
+    balance: '站点余额',
+    query: '查询余额',
+    low: '余额低于提醒阈值',
+    normal: '余额充足',
+    stale: '待查询或数据已过期，以下仅为上次成功结果',
+    lastCheck: '最近成功查询：',
+    lastNotified: '最近邮件提醒：',
+    queryFailed: '查询余额失败，请稍后重试。',
+  },
+}

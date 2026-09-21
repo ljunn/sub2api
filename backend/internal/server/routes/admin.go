@@ -46,6 +46,9 @@ func RegisterAdminRoutes(
 		// 上游站点与模型采购绑定
 		sites := admin.Group("/upstream-sites")
 		sites.GET("", h.Admin.UpstreamSite.List)
+		sites.GET("/balance-settings", h.Admin.UpstreamSite.BalanceSettings)
+		sites.PUT("/balance-settings", h.Admin.UpstreamSite.SaveBalanceSettings)
+		sites.POST("/:id/balance", h.Admin.UpstreamSite.Balance)
 		sites.POST("", h.Admin.UpstreamSite.Save)
 		sites.PUT("/:id", h.Admin.UpstreamSite.Save)
 		sites.DELETE("/:id", h.Admin.UpstreamSite.Delete)

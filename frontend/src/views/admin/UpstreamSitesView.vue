@@ -18,6 +18,7 @@
           </button>
         </div>
       </div>
+      <SiteBalanceSettingsCard @updated="balanceSettings = $event" />
       <div class="grid gap-3 sm:grid-cols-3">
         <div
           v-for="stat in stats"
@@ -138,6 +139,7 @@
             >
               {{ selected.error }}
             </p>
+            <SiteBalanceCard :site="selected" :settings="balanceSettings" :disabled="busy" @updated="replace" @busy="busy = $event" />
             <div class="mt-5 flex gap-5">
               <button
                 v-for="tab in tabs"
@@ -652,6 +654,9 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import SiteBalanceCard from '@/components/admin/sites/SiteBalanceCard.vue'
+import SiteBalanceSettingsCard from '@/components/admin/sites/SiteBalanceSettingsCard.vue'
+import type { SiteBalanceSettings } from '@/api/admin/upstreamSiteBalance'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { getAll, getModelAllowlistCandidates } from '@/api/admin/groups'
@@ -668,6 +673,7 @@ import type { AdminGroup } from '@/types'
 const { t } = useI18n()
 const app = useAppStore()
 const route = useRoute()
+const balanceSettings = ref<SiteBalanceSettings | null>(null)
 const sites = ref<UpstreamSite[]>([])
 const groups = ref<AdminGroup[]>([])
 const selectedId = ref(String(route.query.site || ''))

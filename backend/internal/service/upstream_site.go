@@ -57,6 +57,7 @@ type SiteBinding struct {
 }
 
 type UpstreamSite struct {
+	Balance     *SiteBalance      `json:"balance,omitempty"`
 	ID          string            `json:"id"`
 	Name        string            `json:"name"`
 	BaseURL     string            `json:"base_url"`
