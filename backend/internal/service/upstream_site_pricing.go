@@ -194,6 +194,11 @@ func (s *UpstreamSitePricing) selling(ctx context.Context, group *Group, model s
 		out[tier.Key] = prices
 		if tier.Unit == "USD/request" || tier.Unit == "USD/image" {
 			if image {
+				// A local token/video card cannot be compared with a per-image
+				// purchase price without knowing usage. Do not use image fallback.
+				if resolved != nil && (resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel) && resolved.Mode != BillingModeImage && resolved.Mode != BillingModePerRequest {
+					continue
+				}
 				// Match calculateOpenAIImageCost: group model card, group resolution,
 				// channel model card, then the standard image fallback.
 				var cost *CostBreakdown

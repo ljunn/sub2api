@@ -186,3 +186,12 @@ func TestUpstreamSiteRecordUsageBillsTheSameLocalAliasAsAdmission(t *testing.T) 
 	require.InDelta(t, .01, usageRepo.lastLog.ActualCost, 1e-9, "upstream or channel aliases must not replace local selling prices")
 	require.Equal(t, BillingModelSourceResponse, input.BillingModelSource, "do not mutate caller input")
 }
+
+func TestUpstreamSitePerImagePurchaseRejectsLocalTokenCard(t *testing.T) {
+	pricing, groups := siteTestPricing()
+	groups.group.ModelPricing = []ChannelModelPricing{{Models: []string{"local-image"}, BillingMode: BillingModeToken, InputPrice: sitePricePtr(2e-6), OutputPrice: sitePricePtr(8e-6)}}
+	got := pricing.apply(context.Background(), siteAutomaticPolicy(), false)
+	for _, tier := range got.Tiers {
+		require.Equal(t, "site_price_unknown", siteTierReason(got, tier.Key, time.Now()))
+	}
+}
