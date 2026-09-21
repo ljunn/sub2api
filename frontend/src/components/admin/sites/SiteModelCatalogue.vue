@@ -1,31 +1,31 @@
 <template>
-  <div class="space-y-3 p-5">
+  <div class="min-w-0 space-y-3 p-4 sm:p-5">
     <div class="flex flex-wrap items-center gap-3">
-      <input v-model="search" class="input min-w-48 flex-1" :placeholder="t('admin.sites.searchModels')" :aria-label="t('admin.sites.searchModels')" />
+      <input v-model="search" class="input min-w-0 basis-full sm:flex-1 sm:basis-auto" :placeholder="t('admin.sites.searchModels')" :aria-label="t('admin.sites.searchModels')" />
       <label class="flex items-center gap-2 whitespace-nowrap text-sm"><input v-model="onlyNew" type="checkbox" />{{ t('admin.sites.discovery.onlyNew') }}</label>
     </div>
     <p class="text-xs text-gray-500">{{ t('admin.sites.discovery.hint') }}</p>
     <p v-if="readError" class="text-sm text-amber-700" role="alert">{{ t('admin.sites.discovery.readFailed') }} <button class="underline" @click="flushRead">{{ t('admin.sites.discovery.retry') }}</button></p>
-    <div ref="list" class="max-h-[520px] overflow-auto rounded-lg border border-gray-100 dark:border-dark-700">
+    <div ref="list" class="rounded-lg border border-gray-100 dark:border-dark-700 lg:max-h-[520px] lg:overflow-auto">
       <div v-for="model in filteredModels" :key="modelKey(model)" :data-discovery-id="model.discovery_id || ''" data-testid="catalogue-model"
-        class="flex items-center justify-between gap-4 border-b border-gray-100 px-4 py-3 last:border-0 dark:border-dark-700">
+        class="flex min-w-0 flex-col gap-3 border-b border-gray-100 px-3 py-4 last:border-0 dark:border-dark-700 sm:px-4 lg:flex-row lg:items-center lg:justify-between lg:gap-4 lg:py-3">
         <div class="min-w-0">
-          <div class="flex items-center gap-2 text-sm font-medium">
-            <span class="truncate" :title="model.model">{{ model.model }}</span>
+          <div class="flex items-start gap-2 text-sm font-medium">
+            <span class="min-w-0 [overflow-wrap:anywhere] lg:truncate" :title="model.model">{{ model.model }}</span>
             <span v-if="visitDiscoveries.has(model.discovery_id || '')" class="shrink-0 rounded bg-blue-50 px-1.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{{ t('admin.sites.discovery.new') }}</span>
           </div>
-          <div class="mt-1 truncate text-xs text-gray-500" :title="model.group_name">{{ model.group_name }} · {{ model.platform }}</div>
+          <div class="mt-1 text-xs text-gray-500 [overflow-wrap:anywhere] lg:truncate" :title="model.group_name">{{ model.group_name }} · {{ model.platform }}</div>
           <div class="mt-1 flex flex-wrap gap-x-3 text-xs text-gray-500">
-            <span v-for="tier in model.tiers" :key="tier.key" :title="tier.note || tier.reason">{{ tier.key }} {{ prices(tier) }}</span>
+            <span v-for="tier in model.tiers" :key="tier.key" class="min-w-0 [overflow-wrap:anywhere]" :title="tier.note || tier.reason">{{ tier.key }} {{ prices(tier) }}</span>
           </div>
           <p v-for="note in notes(model)" :key="note"
-            class="mt-1 text-xs text-gray-500">{{ note }}</p>
+            class="mt-1 text-xs text-gray-500 [overflow-wrap:anywhere]">{{ note }}</p>
           <p v-if="model.reason" class="mt-1 text-xs text-amber-700">{{ t('admin.sites.manualPrice.missing') }}</p>
         </div>
-        <div class="shrink-0 space-x-3 text-right text-xs">
-          <button v-if="!model.longxia && model.vividai?.kind !== 'video'" class="text-primary-600" :disabled="busy" data-testid="edit-model-price" @click="$emit('price', model)">{{ t(model.manual_price ? 'admin.sites.manualPrice.edit' : 'admin.sites.manualPrice.fill') }}</button>
-          <span v-if="isBound(model)" class="mr-3 text-gray-500">{{ t('admin.sites.discovery.bound') }}</span>
-          <button class="text-primary-600" :disabled="busy" data-testid="bind-model" @click="$emit('bind', model)">{{ t('admin.sites.bind') }}</button>
+        <div class="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-100 pt-2 text-xs dark:border-dark-700 lg:justify-end lg:border-0 lg:pt-0">
+          <button v-if="!model.longxia && model.vividai?.kind !== 'video'" class="min-h-11 text-primary-600 lg:min-h-0" :disabled="busy" data-testid="edit-model-price" @click="$emit('price', model)">{{ t(model.manual_price ? 'admin.sites.manualPrice.edit' : 'admin.sites.manualPrice.fill') }}</button>
+          <span v-if="isBound(model)" class="text-gray-500">{{ t('admin.sites.discovery.bound') }}</span>
+          <button class="min-h-11 text-primary-600 lg:min-h-0" :disabled="busy" data-testid="bind-model" @click="$emit('bind', model)">{{ t('admin.sites.bind') }}</button>
         </div>
       </div>
       <p v-if="!filteredModels.length" class="p-6 text-center text-sm text-gray-500">{{ t('admin.sites.overview.noResults') }}</p>

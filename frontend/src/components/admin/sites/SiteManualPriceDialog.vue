@@ -1,7 +1,7 @@
 <template>
   <BaseDialog :show="true" :title="t('admin.sites.manualPrice.title')" @close="!saving && emit('close')">
     <form id="site-manual-price-form" class="space-y-4" @submit.prevent="save(false)">
-      <div class="text-sm"><p class="font-medium">{{ model.model }}</p><p class="text-gray-500">{{ model.group_name }}</p></div>
+      <div class="text-sm [overflow-wrap:anywhere]"><p class="font-medium">{{ model.model }}</p><p class="text-gray-500">{{ model.group_name }}</p></div>
       <p class="text-sm text-gray-500">{{ t('admin.sites.manualPrice.hint') }}</p>
       <label class="block text-sm">{{ t('admin.sites.manualPrice.mode') }}
         <select v-model="mode" class="input mt-1" data-testid="manual-price-mode" @change="values = {}">

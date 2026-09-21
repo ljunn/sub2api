@@ -13,14 +13,14 @@
         <!-- Modal panel -->
         <div ref="dialogRef" :class="['modal-content', widthClasses]" @click.stop>
           <!-- Header -->
-          <div class="modal-header">
-            <h3 :id="dialogId" class="modal-title">
+          <div class="modal-header gap-3">
+            <h3 :id="dialogId" class="modal-title min-w-0 [overflow-wrap:anywhere]">
               {{ title }}
             </h3>
             <button
               v-if="showCloseButton"
               @click="emit('close')"
-              class="-mr-2 rounded-xl p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 focus-visible:ring-offset-2 dark:text-dark-500 dark:hover:bg-dark-700 dark:hover:text-dark-300 dark:focus-visible:ring-offset-dark-900"
+              class="-mr-2 shrink-0 rounded-xl p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 focus-visible:ring-offset-2 dark:text-dark-500 dark:hover:bg-dark-700 dark:hover:text-dark-300 dark:focus-visible:ring-offset-dark-900"
               aria-label="Close modal"
             >
               <Icon name="x" size="md" />
@@ -28,12 +28,12 @@
           </div>
 
           <!-- Body -->
-          <div ref="modalBodyRef" class="modal-body">
+          <div ref="modalBodyRef" class="modal-body" :class="bodyClass">
             <slot></slot>
           </div>
 
           <!-- Footer -->
-          <div v-if="$slots.footer" class="modal-footer">
+          <div v-if="$slots.footer" class="modal-footer flex-wrap">
             <slot name="footer"></slot>
           </div>
         </div>
@@ -71,6 +71,7 @@ interface Props {
   show: boolean
   title: string
   width?: DialogWidth
+  bodyClass?: string
   closeOnEscape?: boolean
   closeOnClickOutside?: boolean
   showCloseButton?: boolean

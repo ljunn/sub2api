@@ -57,12 +57,13 @@
       :show="true"
       :title="selected.name"
       width="extra-wide"
+      body-class="!p-0"
       @close="detailsOpen = false"
     >
         <section
-          class="min-w-0"
+          class="min-w-0 [overflow-wrap:anywhere]"
         >
-          <div class="border-b border-gray-200 p-5 dark:border-dark-700">
+          <div class="border-b border-gray-200 p-4 dark:border-dark-700 sm:p-5">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p class="mt-1 text-xs text-gray-500">
@@ -70,7 +71,7 @@
                   {{ date(selected.last_success) }}
                 </p>
               </div>
-              <div class="flex flex-wrap gap-2">
+              <div class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
                 <button
                   class="btn btn-secondary"
                   :disabled="busy"
@@ -109,11 +110,11 @@
               class="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
               role="status" data-testid="site-sync-warning">{{ warning }}</p>
             <SiteBalanceCard :site="selected" :settings="balanceSettings" :disabled="busy" @updated="replace" @busy="busy = $event" />
-            <div class="mt-5 flex gap-5">
+            <div class="mt-4 grid grid-cols-3 gap-2 sm:flex sm:gap-5">
               <button
                 v-for="tab in tabs"
                 :key="tab"
-                class="border-b-2 pb-2 text-sm"
+                class="min-h-11 border-b-2 pb-2 text-sm"
                 :class="
                   activeTab === tab
                     ? 'border-primary-500 text-primary-600'
@@ -126,10 +127,10 @@
               </button>
             </div>
           </div>
-          <div v-if="activeTab === 'bindings'" class="overflow-x-auto">
+          <div v-if="activeTab === 'bindings'" class="p-4 sm:p-5 lg:overflow-x-auto lg:p-0">
             <p v-if="!selected.bindings.length" class="p-8 text-center text-sm text-gray-500">{{ t('admin.sites.noBindings') }}</p>
-            <table v-else class="w-full text-left text-sm" data-testid="binding-table">
-              <thead class="bg-gray-50 text-xs text-gray-500 dark:bg-dark-900/40">
+            <table v-else class="block w-full text-left text-sm lg:table" data-testid="binding-table">
+              <thead class="hidden bg-gray-50 text-xs text-gray-500 dark:bg-dark-900/40 lg:table-header-group">
                 <tr>
                   <th class="px-5 py-3">{{ t('admin.sites.upstreamModel') }} / {{ t('admin.sites.upstreamGroup') }}</th>
                   <th class="px-3 py-3">{{ t('admin.sites.localGroup') }}</th>
@@ -138,25 +139,30 @@
                   <th class="px-5 py-3 text-right">{{ t('common.actions') }}</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
-                <tr v-for="binding in selected.bindings" :key="binding.id" data-testid="binding-row">
-                  <td class="max-w-64 px-5 py-3">
-                    <div class="truncate font-medium" :title="binding.model">{{ binding.model }}</div>
-                    <div class="mt-1 truncate text-xs text-gray-500" :title="bindingModel(binding)?.group_name">{{ bindingModel(binding)?.group_name || binding.group_id }} · #{{ binding.account_id || '—' }}</div>
+              <tbody class="grid gap-4 lg:table-row-group lg:divide-y lg:divide-gray-100 lg:dark:divide-dark-700">
+                <tr v-for="binding in selected.bindings" :key="binding.id" data-testid="binding-row" class="grid min-w-0 gap-3 rounded-xl border border-gray-200 p-3 dark:border-dark-700 lg:table-row lg:rounded-none lg:border-0 lg:p-0">
+                  <td class="min-w-0 lg:max-w-64 lg:px-5 lg:py-3">
+                    <div class="font-medium [overflow-wrap:anywhere] lg:truncate" :title="binding.model">{{ binding.model }}</div>
+                    <div class="mt-1 text-xs text-gray-500 [overflow-wrap:anywhere] lg:truncate" :title="bindingModel(binding)?.group_name">{{ bindingModel(binding)?.group_name || binding.group_id }} · #{{ binding.account_id || '—' }}</div>
                   </td>
-                  <td class="max-w-52 px-3 py-3">
-                    <div class="truncate" :title="groupName(binding.local_group_id)">{{ groupName(binding.local_group_id) }}</div>
-                    <div v-if="binding.local_model !== binding.model" class="mt-1 truncate text-xs text-gray-500">{{ binding.local_model }}</div>
+                  <td class="min-w-0 lg:max-w-52 lg:px-3 lg:py-3">
+                    <span class="mb-1 block text-xs text-gray-500 lg:hidden">{{ t('admin.sites.localGroup') }}</span>
+                    <div class="[overflow-wrap:anywhere] lg:truncate" :title="groupName(binding.local_group_id)">{{ groupName(binding.local_group_id) }}</div>
+                    <div v-if="binding.local_model !== binding.model" class="mt-1 text-xs text-gray-500 [overflow-wrap:anywhere] lg:truncate">{{ binding.local_model }}</div>
                   </td>
-                  <td class="px-3 py-3"><SitePriceSummary :tiers="bindingTiers(binding)" /></td>
-                  <td class="px-3 py-3 whitespace-nowrap">
+                  <td class="min-w-0 lg:px-3 lg:py-3">
+                    <span class="mb-2 block text-xs text-gray-500 lg:hidden">{{ t('admin.sites.priceAndEligibility') }}</span>
+                    <SitePriceSummary :tiers="bindingTiers(binding)" />
+                  </td>
+                  <td class="min-w-0 lg:px-3 lg:py-3">
+                    <span class="mb-1 block text-xs text-gray-500 lg:hidden">{{ t('admin.sites.scheduling') }}</span>
                     <span :class="bindingStatus(binding) === 'ready' ? 'text-green-600' : 'text-amber-700'">{{ t(`admin.sites.status.${bindingStatus(binding)}`) }}</span>
                     <div v-if="bindingReason(binding)" class="mt-1 text-xs text-gray-500" :title="binding.error || (binding.status === 'preview' ? t('admin.sites.previewPaused') : '')">{{ binding.error || t(`admin.sites.status.${bindingReason(binding)}`) }}</div>
                   </td>
-                  <td class="px-5 py-3 text-right whitespace-nowrap">
-                    <button v-if="!bindingModel(binding)?.longxia && bindingModel(binding) && bindingModel(binding)?.vividai?.kind !== 'video'" class="mr-3 text-primary-600" :disabled="busy" @click="priceModel = bindingModel(binding)!">{{ t('admin.sites.manualPrice.edit') }}</button>
-                    <button class="text-primary-600" :disabled="busy" @click="openBinding(binding)">{{ t('admin.sites.details') }}</button>
-                    <button class="ml-3 text-red-600" :disabled="busy" @click="confirmAction = { kind: 'binding', id: binding.id }">{{ t('admin.sites.unbind') }}</button>
+                  <td class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-100 pt-2 dark:border-dark-700 lg:table-cell lg:border-0 lg:px-5 lg:py-3 lg:text-right lg:whitespace-nowrap">
+                    <button v-if="!bindingModel(binding)?.longxia && bindingModel(binding) && bindingModel(binding)?.vividai?.kind !== 'video'" class="min-h-11 text-primary-600 lg:mr-3 lg:min-h-0" :disabled="busy" @click="priceModel = bindingModel(binding)!">{{ t('admin.sites.manualPrice.edit') }}</button>
+                    <button class="min-h-11 text-primary-600 lg:min-h-0" :disabled="busy" @click="openBinding(binding)">{{ t('admin.sites.details') }}</button>
+                    <button class="min-h-11 text-red-600 lg:ml-3 lg:min-h-0" :disabled="busy" @click="confirmAction = { kind: 'binding', id: binding.id }">{{ t('admin.sites.unbind') }}</button>
                   </td>
                 </tr>
               </tbody>
@@ -164,7 +170,7 @@
           </div>
           <SiteModelCatalogue v-else-if="activeTab === 'models'" :key="selected.id" :site="selected" :busy="busy" :initial-only-new="onlyNewModels"
             @bind="model => openBinding(undefined, model)" @price="priceModel = $event" @read="modelsRead" />
-          <div v-else class="space-y-3 p-5">
+          <div v-else class="space-y-3 p-4 sm:p-5">
             <p
               v-if="!selected.history.length"
               class="py-10 text-center text-sm text-gray-500"
@@ -206,7 +212,7 @@
       :title="t(editingId ? 'admin.sites.edit' : 'admin.sites.add')"
       @close="closeSite"
     >
-      <form id="site-form" class="space-y-4" @submit.prevent="saveSite">
+      <form id="site-form" class="min-w-0 space-y-4 [overflow-wrap:anywhere]" @submit.prevent="saveSite">
         <label class="block text-sm"
           >{{ t('admin.sites.name')
           }}<input
@@ -225,8 +231,8 @@
             required
             :disabled="identityLocked"
         /></label>
-        <div class="grid grid-cols-2 gap-4">
-          <label class="text-sm"
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block min-w-0 text-sm"
             >{{ t('admin.sites.format')
             }}<select
               v-model="siteForm.kind"
@@ -241,7 +247,7 @@
               <option value="newapi">New API</option>
               <option value="kongfang">{{ t('admin.sites.kongfang') }}</option>
             </select></label
-          ><label class="text-sm"
+          ><label class="block min-w-0 text-sm"
             >{{ t('admin.sites.auth')
             }}<select
               v-model="siteForm.auth_mode"
@@ -346,9 +352,9 @@
       width="wide"
       @close="!busy && (bindingDialog = false)"
     >
-      <form id="binding-form" class="space-y-4" @submit.prevent="saveBinding">
+      <form id="binding-form" class="min-w-0 space-y-4 [overflow-wrap:anywhere]" @submit.prevent="saveBinding">
         <div class="grid gap-4 sm:grid-cols-2">
-          <label class="text-sm"
+          <label class="block min-w-0 text-sm"
             >{{ t('admin.sites.upstreamGroup')
             }}<select
               v-model="bindingForm.group_id"
@@ -366,7 +372,7 @@
                 {{ group.name }}
               </option>
             </select></label
-          ><label class="text-sm"
+          ><label class="block min-w-0 text-sm"
             >{{ t('admin.sites.upstreamModel')
             }}<select
               v-model="bindingForm.model"
@@ -387,7 +393,7 @@
           >
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
-          <label class="text-sm"
+          <label class="block min-w-0 text-sm"
             >{{ t('admin.sites.localGroup')
             }}<select
               v-model.number="bindingForm.local_group_id"
@@ -405,7 +411,7 @@
                 {{ group.name }} · {{ group.platform }}
               </option>
             </select></label
-          ><label class="text-sm"
+          ><label class="block min-w-0 text-sm"
             >{{ t('admin.sites.localModel')
             }}<input
               v-model="bindingForm.local_model"

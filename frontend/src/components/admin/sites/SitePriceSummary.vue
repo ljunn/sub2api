@@ -1,6 +1,6 @@
 <template>
-  <div class="inline-flex items-center gap-3 whitespace-nowrap text-xs" data-testid="site-price-summary">
-    <span v-for="tier in tiers" :key="tier.key" :title="details(tier)" class="inline-flex items-center gap-1"
+  <div class="inline-flex max-w-full flex-wrap items-center gap-x-3 gap-y-2 text-xs" data-testid="site-price-summary">
+    <span v-for="tier in tiers" :key="tier.key" :title="details(tier)" class="inline-flex min-w-0 flex-wrap items-center gap-1 [overflow-wrap:anywhere]"
       :class="tier.status === 'ready' ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'">
       <span class="font-medium">{{ tier.key === 'default' ? t('admin.sites.defaultTier') : tier.key }}</span>
       <span>{{ amount(tier.prices) }}{{ tier.unit === 'USD/second' ? '/s' : '' }}</span>
