@@ -31,6 +31,12 @@ describe('site overview', () => {
     expect(wrapper.emitted('select')).toHaveLength(6)
     await row.get('td:first-child button').trigger('click')
     expect(wrapper.emitted('select')).toHaveLength(7)
+    const link = row.get('[data-testid=open-upstream-site]')
+    expect(link.attributes('href')).toBe('https://second.example.com')
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toContain('noopener')
+    await link.trigger('click')
+    expect(wrapper.emitted('select')).toHaveLength(7)
     wrapper.unmount()
   })
   it('shows low balances and unread models across sites and filters without reading anything', async () => {
