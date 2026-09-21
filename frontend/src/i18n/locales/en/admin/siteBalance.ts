@@ -1,9 +1,15 @@
 export default {
   siteBalance: {
+    autoConversion: 'Automatic',
+    conversion: 'Conversion rate',
+    conversionNeeded: 'Set a conversion rate',
+    originalUnit: 'original currency / credits',
+    conversionHint: 'Enter how many original units equal 1 USD. For example, 1:100 means 100 credits = 1 USD. Both balances and email alerts use the converted USD amount. Leave blank for the existing or upstream rate; enter a rate manually if unavailable.',
+    creditConversionHint: 'Kongfang credit purchase prices also use this rate. Changing it refreshes model prices.',
     settings: 'Site balance alerts',
     enabled: 'Enable email alerts',
-    hint: 'Check enabled sites every 5 minutes and email when the balance is strictly below the threshold. Amounts use each site’s display unit without conversion to a common currency. Repeat every 24 hours while low; alert again after recovery and another drop. Manual queries also trigger alerts.',
-    automaticHint: 'Balances are scanned every 5 minutes and update automatically on this page. Low balance alerts use system email settings.',
+    hint: 'Check enabled sites every 5 minutes and email when the balance is strictly below the threshold. Balances are converted to USD using the site conversion rate before comparison (default: below 20 USD). Alert emails are sent in Chinese. Repeat every 24 hours while low; alert again after recovery and another drop. Manual queries also trigger alerts.',
+    automaticHint: 'Balances are scanned every 5 minutes and displayed in USD. Low balance alerts use system email settings.',
     emailSettings: 'Email settings',
     recipientHint: 'Uses enabled, verified system admin notification emails, or the primary administrator email when none are configured. Current recipients:',
     recipientMissing: 'No available recipients. Check the system admin notification emails.',

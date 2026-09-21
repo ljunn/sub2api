@@ -204,13 +204,13 @@ describe('upstream sites', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('admin.sites.kongfang')
     await click('common.edit')
-    expect(wrapper.get<HTMLInputElement>('[data-testid="usd-per-credit"]').element.value).toBe('0.12')
+    expect(Number(wrapper.get<HTMLInputElement>('[data-testid="balance-conversion"]').element.value)).toBeCloseTo(1 / 0.12)
     expect(wrapper.get('#site-form').text()).not.toContain('Refresh Token')
     expect(wrapper.get<HTMLTextAreaElement>('#site-form textarea').element.value).toBe('')
-    await wrapper.get('[data-testid="usd-per-credit"]').setValue('0.15')
+    await wrapper.get('[data-testid="balance-conversion"]').setValue('100')
     await wrapper.get('#site-form').trigger('submit')
     await flushPromises()
-    expect(mocks.save).toHaveBeenCalledWith('site', expect.objectContaining({ kind: 'kongfang', usd_per_credit: 0.15, refresh_token: '' }))
+    expect(mocks.save).toHaveBeenCalledWith('site', expect.objectContaining({ kind: 'kongfang', balance_units_per_usd: 100, refresh_token: '' }))
   })
   it('does not offer an OpenAI local group for a Kongfang Gemini model', async () => {
     site.kind = 'kongfang'

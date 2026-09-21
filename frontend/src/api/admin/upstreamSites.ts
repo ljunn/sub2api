@@ -60,6 +60,7 @@ export interface SitePriceChange {
   after: SitePriceTier[]
 }
 export interface UpstreamSite {
+  balance_units_per_usd?: number
   usd_per_credit?: number
   balance?: SiteBalance
   id: string
@@ -80,6 +81,7 @@ export interface UpstreamSite {
   history: SitePriceChange[]
 }
 export interface SiteInput {
+  balance_units_per_usd?: number
   usd_per_credit?: number
   name: string
   base_url: string

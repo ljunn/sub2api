@@ -10,7 +10,7 @@ vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 const makeSite = (id = 'site'): UpstreamSite => ({
   id, name: id, base_url: `https://${id}.example.com`, kind: 'sub2api', auth_mode: 'token', username: '', user_id: 1,
   enabled: true, status: 'connected', bindings: [], history: [],
-  balance: { amount: 20, currency: 'USD', last_success: new Date().toISOString() },
+  balance: { amount: 20, amount_usd: 20, currency: 'USD', last_success: new Date().toISOString() },
   models: ['one', 'two'].map(model => ({ group_id: 'g', group_name: 'Images', model, discovery_id: model, unread: true, platform: 'openai', tiers: [{ key: '1K', prices: { request: .01 }, unit: 'USD/image' }] })),
 })
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.clearAllMocks() })
@@ -34,10 +34,10 @@ describe('site overview', () => {
     wrapper.unmount()
   })
   it('shows low balances and unread models across sites and filters without reading anything', async () => {
-    const low = makeSite('low'); low.balance!.amount = 0
+    const low = makeSite('low'); low.balance!.amount_usd = 0
     const normal = makeSite('normal'); normal.models = []
-    const stale = makeSite('stale'); stale.balance!.amount = -1; stale.balance!.last_success = '2020-01-01'
-    const disabled = makeSite('disabled'); disabled.enabled = false; disabled.balance!.amount = -1
+    const stale = makeSite('stale'); stale.balance!.amount_usd = -1; stale.balance!.last_success = '2020-01-01'
+    const disabled = makeSite('disabled'); disabled.enabled = false; disabled.balance!.amount_usd = -1
     const broken = makeSite('broken'); broken.status = 'error'; broken.balance = undefined
     const wrapper = mount(SiteOverview, { props: { sites: [low, normal, stale, disabled, broken], selectedId: 'normal', threshold: 20, now: Date.now() } })
     expect(wrapper.get('[data-filter=low]').text()).toContain('2')

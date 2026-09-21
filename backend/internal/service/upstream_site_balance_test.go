@@ -120,6 +120,7 @@ func TestSiteBalanceQueryNotificationLifecycle(t *testing.T) {
 	require.Equal(t, "admin@example.com", mailer.to)
 	require.Equal(t, "19.99", mailer.input.Variables["current_balance"])
 	require.Equal(t, "USD", mailer.input.Variables["currency"])
+	require.Equal(t, "zh", mailer.input.Locale)
 	require.Equal(t, NotificationEmailEventUpstreamSiteBalanceLow, mailer.input.Event)
 	require.Equal(t, "<b>Site</b>", mailer.input.Variables["upstream_site_name"])
 	require.NotNil(t, result.Balance.LastNotified)
@@ -161,7 +162,7 @@ func TestSiteBalanceMailFailureRetriesAndDoesNotLeak(t *testing.T) {
 	svc.balanceSettings, svc.balanceMailer = balanceTestSettings(), mailer
 	now := time.Now().UTC()
 	amount := -1.0
-	site := &UpstreamSite{ID: "test", Name: "test", Balance: &SiteBalance{Amount: &amount, Currency: "CNY"}}
+	site := &UpstreamSite{ID: "test", Name: "test", BalanceUnitsPerUSD: 1, Balance: &SiteBalance{Amount: &amount, Currency: "CNY"}}
 	require.NoError(t, svc.notifySiteBalance(ctx, site, now))
 	require.Equal(t, 1, mailer.calls)
 	require.Nil(t, site.Balance.LastNotified)
@@ -275,7 +276,7 @@ func TestSiteBalanceSystemTemplateDeliveryAndRecipientDeduplication(t *testing.T
 	svc.balanceSettings, svc.balanceUsers = settings, siteBalanceTestUsers{}
 	notifications := NewNotificationEmailService(settings, NewEmailService(settings, nil))
 	svc.balanceMailer = notifications
-	notifications.RememberRecipientLocale(ctx, 1, "owner@example.com", "zh-CN")
+	notifications.RememberRecipientLocale(ctx, 1, "owner@example.com", "en-US") // Site alerts must still be Chinese.
 	// This is the same template editable in System settings -> Email settings.
 	_, err := notifications.UpdateTemplate(ctx, NotificationEmailEventUpstreamSiteBalanceLow, "zh", "提醒 {{upstream_site_name}}", "<p>{{upstream_site_name}}: {{current_balance}} {{currency}} / {{threshold}}</p>")
 	require.NoError(t, err)

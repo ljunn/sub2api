@@ -296,11 +296,19 @@
               :disabled="identityLocked" /></label
         ></template>
         <p class="text-xs text-gray-500">{{ t(siteForm.kind === 'kongfang' ? 'admin.sites.kongfangAuthHint' : 'admin.sites.authHint') }}</p>
-        <label v-if="siteForm.kind === 'kongfang'" class="block text-sm">
-          {{ t('admin.sites.usdPerCredit') }}
-          <input v-model.number="siteForm.usd_per_credit" data-testid="usd-per-credit" class="input mt-1" type="number" min="0" step="any" />
-          <span class="mt-1 block text-xs text-gray-500">{{ t('admin.sites.usdPerCreditHint') }}</span>
-        </label>
+        <div class="space-y-2 text-sm">
+          <label for="balance-conversion">{{ t('admin.siteBalance.conversion') }}</label>
+          <div class="flex items-center gap-2">
+            <span class="shrink-0">1 USD =</span>
+            <input id="balance-conversion" v-model.number="siteForm.balance_units_per_usd" :placeholder="t('admin.siteBalance.autoConversion')" data-testid="balance-conversion" class="input min-w-0 flex-1" type="number" min="0.000000000001" max="1000000000000" step="any" />
+            <span class="shrink-0">{{ conversionCurrency }}</span>
+          </div>
+          <div class="flex gap-2">
+            <button v-for="rate in [100, 10, 1]" :key="rate" type="button" class="rounded border border-gray-200 px-3 py-1 text-xs dark:border-dark-600" @click="siteForm.balance_units_per_usd = rate">1:{{ rate }}</button>
+          </div>
+          <p class="text-xs text-gray-500">{{ t('admin.siteBalance.conversionHint') }}</p>
+          <p v-if="siteForm.kind === 'kongfang'" class="text-xs text-gray-500">{{ t('admin.siteBalance.creditConversionHint') }}</p>
+        </div>
         <label class="flex items-center gap-2 text-sm"
           ><input v-model="siteForm.enabled" type="checkbox" />{{
             t('admin.sites.enabled')
@@ -675,6 +683,7 @@ async function syncSite(site: UpstreamSite) {
   }
 }
 const emptySite = (): SiteInput => ({
+  balance_units_per_usd: undefined,
   usd_per_credit: 0,
   name: '',
   base_url: '',
@@ -690,6 +699,7 @@ const emptySite = (): SiteInput => ({
 const siteDialog = ref(false)
 const editingId = ref('')
 const siteForm = ref<SiteInput>(emptySite())
+const conversionCurrency = computed(() => sites.value.find(s => s.id === editingId.value)?.balance?.currency || (siteForm.value.kind === 'kongfang' ? '积分' : siteForm.value.kind === 'sub2api' ? 'USD' : t('admin.siteBalance.originalUnit')))
 const identityLocked = computed(
   () => !!sites.value.find((s) => s.id === editingId.value)?.bindings.length,
 )
@@ -699,6 +709,7 @@ function editSite(site?: UpstreamSite) {
     ? {
         ...emptySite(),
         usd_per_credit: site.usd_per_credit || 0,
+        balance_units_per_usd: site.balance_units_per_usd || site.balance?.units_per_usd || (site.kind === 'kongfang' && site.usd_per_credit ? 1 / site.usd_per_credit : site.kind === 'sub2api' ? 1 : undefined),
         name: site.name,
         base_url: site.base_url,
         kind: site.kind,
@@ -720,7 +731,7 @@ async function saveSite() {
   const selectedWhenSaving = selectedId.value
   busy.value = true
   try {
-    const result = await upstreamSitesApi.save(editingId.value, { ...siteForm.value, usd_per_credit: Number(siteForm.value.usd_per_credit) || 0, refresh_token: siteForm.value.kind === 'kongfang' ? '' : siteForm.value.refresh_token })
+    const result = await upstreamSitesApi.save(editingId.value, { ...siteForm.value, balance_units_per_usd: Number(siteForm.value.balance_units_per_usd) || 0, usd_per_credit: Number(siteForm.value.usd_per_credit) || 0, refresh_token: siteForm.value.kind === 'kongfang' ? '' : siteForm.value.refresh_token })
     replace(result)
     if (selectedId.value === selectedWhenSaving) selectSite(result.id)
     siteDialog.value = false

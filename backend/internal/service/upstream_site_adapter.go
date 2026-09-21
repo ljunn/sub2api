@@ -35,9 +35,10 @@ func (e *siteRemoteError) Error() string {
 }
 
 type siteAdapter struct {
-	site        *UpstreamSite
-	credentials *SiteCredentials
-	client      *http.Client
+	site              *UpstreamSite
+	credentials       *SiteCredentials
+	client            *http.Client
+	balanceNativeRate float64
 }
 
 func newSiteAdapter(site *UpstreamSite, credentials *SiteCredentials) *siteAdapter {

@@ -36,9 +36,10 @@
             </td>
             <td class="px-4 py-2 whitespace-nowrap">
               <button type="button" class="text-left" :title="site.balance?.error || site.balance?.last_success" @click.stop="$emit('select', site.id)">
-                <span class="font-medium" :class="isLow(site) ? 'text-red-600' : ''">{{ amount(site) }} {{ site.balance?.currency }}</span>
+                <span class="font-medium" :class="isLow(site) ? 'text-red-600' : ''">{{ amount(site) }} USD</span>
                 <span v-if="isLow(site)" class="ml-2 text-xs text-red-600">{{ t('admin.siteBalance.low') }}</span>
-                <span v-if="!isFresh(site)" class="ml-2 text-xs text-amber-600">{{ t('admin.sites.overview.balancePending') }}</span>
+                <span v-if="site.balance?.conversion_error" class="ml-2 text-xs text-amber-600">{{ t('admin.siteBalance.conversionNeeded') }}</span>
+                <span v-else-if="!isFresh(site)" class="ml-2 text-xs text-amber-600">{{ t('admin.sites.overview.balancePending') }}</span>
               </button>
             </td>
             <td class="px-4 py-2 text-xs" :title="site.error || site.balance?.error">
@@ -62,10 +63,10 @@ const { t } = useI18n()
 const filter = ref('all')
 const search = ref('')
 const unreadCount = (site: UpstreamSite) => site.models.filter(model => model.unread).length
-const isLow = (site: UpstreamSite) => site.enabled && typeof site.balance?.amount === 'number' && site.balance.amount < props.threshold
+const isLow = (site: UpstreamSite) => site.enabled && typeof site.balance?.amount_usd === 'number' && site.balance.amount_usd < props.threshold
 const isFresh = (site: UpstreamSite) => !!site.balance?.last_success && !site.balance.error && props.now - Date.parse(site.balance.last_success) < 600000
 const hasError = (site: UpstreamSite) => site.enabled && (site.status === 'error' || !!site.balance?.error)
-const amount = (site: UpstreamSite) => typeof site.balance?.amount === 'number' ? site.balance.amount.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '—'
+const amount = (site: UpstreamSite) => typeof site.balance?.amount_usd === 'number' ? site.balance.amount_usd.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '—'
 const filters = computed(() => [
   { key: 'all', count: props.sites.length },
   { key: 'new', count: props.sites.filter(site => unreadCount(site) > 0).length },

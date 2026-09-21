@@ -13,13 +13,34 @@ const settings: SiteBalanceSettings = { enabled: true, threshold: 20, recipients
 const site = (amount?: number, error?: string): UpstreamSite => ({
   id: 'site', name: 'test', kind: 'sub2api', base_url: 'https://example.com', auth_mode: 'token', username: '', user_id: 1,
   enabled: true, status: 'connected', models: [], bindings: [], history: [],
-  balance: { amount, currency: 'USD', last_success: new Date().toISOString(), error },
+  balance: { amount, amount_usd: amount, currency: 'USD', last_success: new Date().toISOString(), error },
 })
 const wrappers: Array<{ unmount: () => void }> = []
 beforeEach(() => vi.clearAllMocks())
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()))
 
 describe('site balance', () => {
+  it('uses converted USD for display and alerts instead of the original units', () => {
+    const converted = site(1900)
+    converted.balance = { ...converted.balance, currency: '积分', amount_usd: 19, units_per_usd: 100 }
+    const wrapper = mount(SiteBalanceCard, { props: { site: converted, settings } })
+    wrappers.push(wrapper)
+    expect(wrapper.get('[data-testid="balance-amount"]').text()).toBe('19 USD')
+    expect(wrapper.text()).toContain('admin.siteBalance.low')
+    expect(wrapper.text()).toContain('1 USD = 100 积分')
+  })
+
+  it('shows an unset exchange rate as unknown, not sufficient or zero', () => {
+    const unknown = site(1900)
+    unknown.balance = { ...unknown.balance, currency: 'CNY', amount_usd: undefined, conversion_error: '请设置倍率' }
+    const wrapper = mount(SiteBalanceCard, { props: { site: unknown, settings } })
+    wrappers.push(wrapper)
+    expect(wrapper.get('[data-testid="balance-amount"]').text()).toBe('— USD')
+    expect(wrapper.text()).toContain('admin.siteBalance.conversionNeeded')
+    expect(wrapper.text()).not.toContain('admin.siteBalance.normal')
+    expect(wrapper.text()).not.toContain('admin.siteBalance.low')
+  })
+
   it('shows zero as a real low balance and leaves missing balances unknown', () => {
     const zero = mount(SiteBalanceCard, { props: { site: site(0), settings } })
     const unknown = mount(SiteBalanceCard, { props: { site: site(), settings } })

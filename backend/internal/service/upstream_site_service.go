@@ -103,6 +103,7 @@ func (s *UpstreamSiteService) List(ctx context.Context) ([]UpstreamSite, error) 
 		return nil, err
 	}
 	for i := range sites {
+		convertSiteBalanceUSD(&sites[i])
 		for j := range sites[i].Bindings {
 			s.refreshBindingPrice(ctx, &sites[i], &sites[i].Bindings[j])
 		}
@@ -110,6 +111,7 @@ func (s *UpstreamSiteService) List(ctx context.Context) ([]UpstreamSite, error) 
 	return sites, nil
 }
 func (s *UpstreamSiteService) saveSecret(ctx context.Context, site *UpstreamSite, credentials *SiteCredentials) error {
+	convertSiteBalanceUSD(site)
 	raw, err := json.Marshal(credentials)
 	if err != nil {
 		return err
@@ -151,6 +153,19 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	if math.IsNaN(input.CreditUSD) || math.IsInf(input.CreditUSD, 0) || input.CreditUSD < 0 {
 		return nil, errors.New("每积分美元成本必须为非负有限数；留空或 0 时暂停价格调度")
 	}
+	if input.BalanceUnitsPerUSD != nil {
+		rate := *input.BalanceUnitsPerUSD
+		if math.IsNaN(rate) || math.IsInf(rate, 0) || rate < 0 || rate > 1e12 || (rate > 0 && rate < 1e-12) {
+			return nil, errors.New("换算倍率必须是有效正数，0 表示使用上游倍率；格式为 1 USD = 所填数量原币或积分")
+		}
+		if input.Kind == "kongfang" && rate > 0 {
+			input.CreditUSD = 1 / rate
+		}
+	} else if input.Kind == "kongfang" && input.CreditUSD > 0 {
+		// Older clients send USD/credit. Keep the reciprocal balance rate in sync.
+		rate := 1 / input.CreditUSD
+		input.BalanceUnitsPerUSD = &rate
+	}
 	if input.Kind == "kongfang" && u.Path != "" {
 		return nil, errors.New("空凡请填写站点首页地址，不要包含 /user/balance 等路径")
 	}
@@ -173,6 +188,11 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	credentials, err := s.credentials(site)
 	if err != nil {
 		return nil, err
+	}
+	convertSiteBalanceUSD(site)
+	previousBalanceRate := 0.0
+	if site.Balance != nil {
+		previousBalanceRate = site.Balance.UnitsPerUSD
 	}
 	identityChanged := !fresh && (site.BaseURL != input.BaseURL || site.Kind != input.Kind || site.Username != input.Username || site.AuthMode != input.AuthMode || site.UserID != input.UserID)
 	if identityChanged && len(site.Bindings) > 0 {
@@ -214,6 +234,14 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	site.Username = input.Username
 	site.UserID = input.UserID
 	site.Enabled = input.Enabled
+	if input.BalanceUnitsPerUSD != nil {
+		site.BalanceUnitsPerUSD = *input.BalanceUnitsPerUSD
+	}
+	convertSiteBalanceUSD(site)
+	if site.Balance != nil && previousBalanceRate != site.Balance.UnitsPerUSD {
+		site.Balance.NextCheck, site.Balance.NextNotify, site.Balance.LowSince = nil, nil, nil
+		site.Balance.NotifyCycle, site.Balance.NotifyError = "", ""
+	}
 	if authChanged || priceChanged {
 		if !identityChanged {
 			seedSiteModelCatalogue(site)

@@ -2,6 +2,10 @@ import apiClient from '../client'
 import type { UpstreamSite } from './upstreamSites'
 
 export interface SiteBalance {
+  amount_usd?: number
+  units_per_usd?: number
+  native_units_per_usd?: number
+  conversion_error?: string
   amount?: number
   currency?: string
   last_attempt?: string

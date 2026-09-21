@@ -14,7 +14,7 @@
         <span v-if="loaded" class="mt-1 block">{{ form.recipients.join('、') || t('admin.siteBalance.recipientMissing') }}</span>
       </p>
       <label class="text-sm">
-        {{ t('admin.siteBalance.threshold') }}
+        {{ t('admin.siteBalance.threshold') }} (USD)
         <input v-model.number="form.threshold" type="number" min="0.000001" max="1000000000000" step="any" required class="input mt-1" :disabled="!loaded || saving" />
       </label>
       <button class="btn btn-primary" type="button" :disabled="!loaded || saving" @click="save">{{ t('common.save') }}</button>

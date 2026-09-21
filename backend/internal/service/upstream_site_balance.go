@@ -21,18 +21,22 @@ const siteBalanceReminderInterval = 24 * time.Hour
 // Balance freshness and mail delivery are independent of catalogue sync. Missing
 // or malformed upstream data must never turn into a synthetic zero balance.
 type SiteBalance struct {
-	Amount        *float64   `json:"amount,omitempty"`
-	Currency      string     `json:"currency,omitempty"`
-	LastAttempt   *time.Time `json:"last_attempt,omitempty"`
-	LastSuccess   *time.Time `json:"last_success,omitempty"`
-	NextCheck     *time.Time `json:"next_check,omitempty"`
-	Error         string     `json:"error,omitempty"`
-	LastNotified  *time.Time `json:"last_notified,omitempty"`
-	NextNotify    *time.Time `json:"next_notify,omitempty"`
-	NotifiedEmail string     `json:"notified_email,omitempty"`
-	NotifyError   string     `json:"notify_error,omitempty"`
-	LowSince      *time.Time `json:"low_since,omitempty"`
-	NotifyCycle   string     `json:"notify_cycle,omitempty"`
+	AmountUSD         *float64   `json:"amount_usd,omitempty"`
+	UnitsPerUSD       float64    `json:"units_per_usd,omitempty"`
+	NativeUnitsPerUSD float64    `json:"native_units_per_usd,omitempty"`
+	ConversionError   string     `json:"conversion_error,omitempty"`
+	Amount            *float64   `json:"amount,omitempty"`
+	Currency          string     `json:"currency,omitempty"`
+	LastAttempt       *time.Time `json:"last_attempt,omitempty"`
+	LastSuccess       *time.Time `json:"last_success,omitempty"`
+	NextCheck         *time.Time `json:"next_check,omitempty"`
+	Error             string     `json:"error,omitempty"`
+	LastNotified      *time.Time `json:"last_notified,omitempty"`
+	NextNotify        *time.Time `json:"next_notify,omitempty"`
+	NotifiedEmail     string     `json:"notified_email,omitempty"`
+	NotifyError       string     `json:"notify_error,omitempty"`
+	LowSince          *time.Time `json:"low_since,omitempty"`
+	NotifyCycle       string     `json:"notify_cycle,omitempty"`
 }
 
 type SiteBalanceSettings struct {
@@ -131,14 +135,17 @@ func (s *UpstreamSiteService) refreshBalance(ctx context.Context, id string, due
 	if queryErr == nil {
 		var amount float64
 		var currency string
-		amount, currency, queryErr = newSiteAdapter(site, credentials).balance(ctx)
+		adapter := newSiteAdapter(site, credentials)
+		amount, currency, queryErr = adapter.balance(ctx)
 		if queryErr == nil {
 			b.Amount, b.Currency, b.LastSuccess, b.Error = &amount, currency, &now, ""
+			b.NativeUnitsPerUSD = adapter.balanceNativeRate
 		}
 	}
 	if queryErr != nil {
 		b.Error = queryErr.Error()
 	}
+	convertSiteBalanceUSD(site)
 	// Even a disconnected caller must not lose rotated upstream tokens or the
 	// notification lease. SMTP uses its own bounded connection deadlines.
 	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
@@ -161,15 +168,16 @@ func (s *UpstreamSiteService) refreshBalance(ctx context.Context, id string, due
 
 func (s *UpstreamSiteService) notifySiteBalance(ctx context.Context, site *UpstreamSite, now time.Time) error {
 	b := site.Balance
+	convertSiteBalanceUSD(site)
 	settings, err := s.BalanceSettings(ctx)
 	if err != nil {
 		b.NotifyError = err.Error()
 		return s.repo.Save(ctx, site)
 	}
-	if b.Amount == nil {
+	if b.AmountUSD == nil {
 		return nil
 	}
-	if *b.Amount >= settings.Threshold {
+	if *b.AmountUSD >= settings.Threshold {
 		b.LowSince, b.NextNotify, b.NotifyError = nil, nil, ""
 		b.NotifyCycle = ""
 		return s.repo.Save(ctx, site)
@@ -202,10 +210,11 @@ func (s *UpstreamSiteService) notifySiteBalance(ctx context.Context, site *Upstr
 		for _, recipient := range settings.Recipients {
 			err := s.balanceMailer.Send(ctx, NotificationEmailSendInput{
 				Event:          NotificationEmailEventUpstreamSiteBalanceLow,
+				Locale:         notificationEmailLocaleChinese,
 				RecipientEmail: recipient, RecipientName: emailRecipientName(recipient),
 				SourceType: "upstream_site", SourceID: site.ID, ReminderKey: b.NotifyCycle,
 				Variables: map[string]string{"upstream_site_name": site.Name, "upstream_site_url": site.BaseURL,
-					"current_balance": balanceAmount(*b.Amount), "currency": b.Currency,
+					"current_balance": balanceAmount(*b.AmountUSD), "currency": "USD",
 					"threshold": balanceAmount(settings.Threshold), "triggered_at": now.Format(time.RFC3339)},
 			})
 			failed = failed || err != nil
@@ -222,6 +231,41 @@ func (s *UpstreamSiteService) notifySiteBalance(ctx context.Context, site *Upstr
 }
 
 func balanceAmount(value float64) string { return strconv.FormatFloat(value, 'f', -1, 64) }
+
+// Keep the original amount for audit, but display and alert only in USD. A
+// missing conversion is unknown, not a zero or an assumed 1:1 exchange rate.
+func convertSiteBalanceUSD(site *UpstreamSite) {
+	b := site.Balance
+	if b == nil {
+		return
+	}
+	b.AmountUSD, b.ConversionError = nil, ""
+	rate := site.BalanceUnitsPerUSD
+	if rate == 0 {
+		switch {
+		case b.Currency == "USD":
+			rate = 1
+		case site.Kind == "kongfang" && site.CreditUSD > 0:
+			rate = 1 / site.CreditUSD
+		default:
+			rate = b.NativeUnitsPerUSD
+		}
+	}
+	b.UnitsPerUSD = rate
+	if b.Amount == nil {
+		return
+	}
+	if rate <= 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
+		b.ConversionError = "请在站点设置中填写换算倍率：1 USD 等于多少原币或积分"
+		return
+	}
+	usd := *b.Amount / rate
+	if math.IsNaN(usd) || math.IsInf(usd, 0) {
+		b.ConversionError = "余额换算结果无效，请检查换算倍率"
+		return
+	}
+	b.AmountUSD = &usd
+}
 
 func (a *siteAdapter) balance(ctx context.Context) (float64, string, error) {
 	if a.site.Kind != "sub2api" && a.site.Kind != "newapi" && a.site.Kind != "kongfang" {
@@ -252,13 +296,29 @@ func (a *siteAdapter) balance(ctx context.Context) (float64, string, error) {
 		if a.site.Kind == "kongfang" {
 			return amount, "积分", nil
 		}
+		a.balanceNativeRate = 1
 		return amount, "USD", nil
 	}
 	status, err := a.request(ctx, http.MethodGet, "/api/status", nil)
 	if err != nil {
 		return 0, "", err
 	}
-	return parseNewAPISiteBalance(profile.Get("data"), status.Get("data"))
+	amount, currency, err := parseNewAPISiteBalance(profile.Get("data"), status.Get("data"))
+	if err == nil {
+		switch status.Get("data.quota_display_type").String() {
+		case "CNY":
+			a.balanceNativeRate = status.Get("data.usd_exchange_rate").Float()
+		case "CUSTOM":
+			a.balanceNativeRate = status.Get("data.custom_currency_exchange_rate").Float()
+		default:
+			if currency == "USD" {
+				a.balanceNativeRate = 1
+			} else if currency == "QUOTA" {
+				a.balanceNativeRate = status.Get("data.quota_per_unit").Float()
+			}
+		}
+	}
+	return amount, currency, err
 }
 
 func siteBalanceNumber(value gjson.Result) (float64, bool) {
