@@ -188,7 +188,11 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	proxyExitInfoProber := repository.NewProxyExitInfoProber(configConfig)
 	proxyLatencyCache := repository.NewProxyLatencyCache(redisClient)
 	adminService := service.NewAdminService(configConfig, userRepository, adminGroupRepository, adminAccountRepository, proxyRepository, apiKeyRepository, redeemCodeRepository, userGroupRateRepository, userRPMCache, billingCacheService, proxyExitInfoProber, proxyLatencyCache, apiKeyAuthCacheInvalidator, client, settingService, subscriptionService, userSubscriptionRepository, privacyClientFactory, openAIGatewayService, affiliateService, compositeModelRouteRepository, compositeRouteResolver, channelService)
-	upstreamSiteService := service.ProvideUpstreamSiteService(upstreamSiteRepository, accountRepository, adminService, secretEncryptor)
+	upstreamSiteSecretEncryptor, err := repository.NewUpstreamSiteSecretEncryptor(configConfig)
+	if err != nil {
+		return nil, err
+	}
+	upstreamSiteService := service.ProvideUpstreamSiteService(upstreamSiteRepository, accountRepository, adminService, upstreamSiteSecretEncryptor)
 	upstreamSiteHandler := admin.NewUpstreamSiteHandler(upstreamSiteService)
 	dashboardAggregationRepository := repository.NewDashboardAggregationRepository(db)
 	dashboardStatsCache := repository.NewDashboardCache(redisClient, configConfig)

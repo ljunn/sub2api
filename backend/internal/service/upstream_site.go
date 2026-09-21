@@ -8,6 +8,10 @@ import (
 const SitePolicyExtraKey = "upstream_site_policy"
 const SiteBindingCredentialKey = "upstream_site_binding_id"
 
+// A separate named dependency prevents accidentally using the TOTP encryptor,
+// whose unconfigured key is ephemeral on some existing installations.
+type UpstreamSiteSecretEncryptor interface{ SecretEncryptor }
+
 // Prices and limits use USD per request/image or per million tokens. Missing is
 // unknown, never zero. A tier can carry several independently bounded components.
 type SitePriceTier struct {
