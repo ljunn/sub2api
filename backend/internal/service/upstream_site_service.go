@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math"
 	"net/url"
 	"os"
 	"reflect"
@@ -18,6 +17,7 @@ import (
 )
 
 type UpstreamSiteService struct {
+	pricing   *UpstreamSitePricing
 	repo      UpstreamSiteRepository
 	accounts  AccountRepository
 	admin     AdminService
@@ -30,8 +30,9 @@ type UpstreamSiteService struct {
 func NewUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor) *UpstreamSiteService {
 	return &UpstreamSiteService{repo: repo, accounts: accounts, admin: admin, encryptor: encryptor, preview: os.Getenv("UPSTREAM_SITES_PREVIEW") == "true"}
 }
-func ProvideUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor) *UpstreamSiteService {
+func ProvideUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor, pricing *UpstreamSitePricing) *UpstreamSiteService {
 	s := NewUpstreamSiteService(repo, accounts, admin, encryptor)
+	s.pricing = pricing
 	if !s.preview {
 		s.Start()
 	}
@@ -83,7 +84,16 @@ func (s *UpstreamSiteService) runDue(ctx context.Context) {
 	}
 }
 func (s *UpstreamSiteService) List(ctx context.Context) ([]UpstreamSite, error) {
-	return s.repo.List(ctx)
+	sites, err := s.repo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range sites {
+		for j := range sites[i].Bindings {
+			s.refreshBindingPrice(ctx, &sites[i], &sites[i].Bindings[j])
+		}
+	}
+	return sites, nil
 }
 func (s *UpstreamSiteService) saveSecret(ctx context.Context, site *UpstreamSite, credentials *SiteCredentials) error {
 	raw, err := json.Marshal(credentials)
@@ -257,24 +267,6 @@ func findSiteModel(site *UpstreamSite, groupID, model string) *SiteModel {
 	}
 	return nil
 }
-func validateSiteLimits(limits []SiteTierLimit) error {
-	if len(limits) == 0 || len(limits) > 32 {
-		return errors.New("请设置至少一个价格档位")
-	}
-	seen := map[string]bool{}
-	for _, tier := range limits {
-		if tier.Key == "" || seen[tier.Key] || (tier.Enabled && len(tier.Limits) == 0) {
-			return errors.New("价格档位重复或缺少上限")
-		}
-		seen[tier.Key] = true
-		for _, v := range tier.Limits {
-			if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 || v > 1e9 {
-				return errors.New("价格上限必须为有效的非负数")
-			}
-		}
-	}
-	return nil
-}
 func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBinding) (*UpstreamSite, error) {
 	unlock, err := s.repo.Lock(ctx, id)
 	if err != nil {
@@ -296,11 +288,9 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 			if b.GroupID != input.GroupID || b.Model != input.Model || b.LocalGroupID != input.LocalGroupID || b.LocalModel != input.LocalModel {
 				return nil, errors.New("更换模型请新增绑定")
 			}
-			if err = validateSiteLimits(input.Limits); err != nil {
-				return nil, err
-			}
-			b.Limits = input.Limits
+			b.Limits = siteMergeTierSwitches(b.Limits, input.Limits)
 			b.Enabled = input.Enabled
+			s.refreshBindingPrice(ctx, site, b)
 			if err = s.repo.Save(ctx, site); err != nil {
 				return nil, err
 			}
@@ -309,9 +299,6 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 			}
 			return site, nil
 		}
-	}
-	if err = validateSiteLimits(input.Limits); err != nil {
-		return nil, err
 	}
 	input.LocalModel = strings.TrimSpace(input.LocalModel)
 	if input.LocalModel == "" || len(input.LocalModel) > 200 || strings.ContainsAny(input.LocalModel, "*?\r\n") {
@@ -337,17 +324,7 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 	if model.Platform != "" && site.Kind == "sub2api" && model.Platform != group.Platform {
 		return nil, errors.New("本地分组与上游模型的平台不匹配")
 	}
-	for _, limit := range input.Limits {
-		found := false
-		for _, tier := range model.Tiers {
-			if tier.Key == limit.Key && tier.Unit == limit.Unit {
-				found = true
-			}
-		}
-		if !found {
-			return nil, errors.New("价格档位或单位已变化，请刷新后重新设置")
-		}
-	}
+	s.refreshBindingPrice(ctx, site, &input)
 	var binding *SiteBinding
 	if input.ID != "" {
 		for i := range site.Bindings {
@@ -360,9 +337,9 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 			return nil, errors.New("绑定不存在")
 		}
 		if binding.GroupID != input.GroupID || binding.Model != input.Model || binding.LocalGroupID != input.LocalGroupID || binding.LocalModel != input.LocalModel {
-			return nil, errors.New("已有绑定只能修改上限或启停；更换模型请新增绑定")
+			return nil, errors.New("已有绑定只能修改档位启停；更换模型请新增绑定")
 		}
-		binding.Limits = input.Limits
+		binding.Limits = siteMergeTierSwitches(binding.Limits, input.Limits)
 		binding.Enabled = input.Enabled
 	} else {
 		for i := range site.Bindings {
@@ -440,13 +417,13 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 	return site, nil
 }
 func BuildSiteAccountPolicy(site *UpstreamSite, b *SiteBinding) SiteAccountPolicy {
-	p := SiteAccountPolicy{SiteID: site.ID, SiteName: site.Name, BindingID: b.ID, LocalModel: b.LocalModel, UpstreamModel: b.Model, Enabled: site.Enabled && b.Enabled, Limits: b.Limits, Tiers: []SitePriceTier{}}
+	p := SiteAccountPolicy{LocalGroupID: b.LocalGroupID, SiteID: site.ID, SiteName: site.Name, BindingID: b.ID, LocalModel: b.LocalModel, UpstreamModel: b.Model, Enabled: site.Enabled && b.Enabled, Limits: b.Limits, Tiers: []SitePriceTier{}}
 	if site.LastSuccess != nil {
 		p.FreshUntil = site.LastSuccess.Add(10 * time.Minute)
 	}
 	if m := findSiteModel(site, b.GroupID, b.Model); m != nil {
 		p.Image = m.Image
-		p.Tiers = m.Tiers
+		p.Tiers = siteComparisonTiers(m.Image, m.Tiers)
 		p.Reason = m.Reason
 	} else {
 		p.Reason = "上游模型或分组已不可用"
@@ -456,6 +433,7 @@ func BuildSiteAccountPolicy(site *UpstreamSite, b *SiteBinding) SiteAccountPolic
 func (s *UpstreamSiteService) updatePolicies(ctx context.Context, site *UpstreamSite) error {
 	for i := range site.Bindings {
 		b := &site.Bindings[i]
+		s.refreshBindingPrice(ctx, site, b)
 		if b.AccountID == 0 {
 			continue
 		}

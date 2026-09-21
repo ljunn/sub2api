@@ -155,6 +155,11 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if input == nil {
 		return errors.New("openai usage input is nil")
 	}
+	if input.Account.IsSiteManaged() {
+		copied := *input
+		copied.ChannelUsageFields = siteBillingFields(input.Account, input.ChannelUsageFields)
+		input = &copied
+	}
 	result := input.Result
 	if result == nil {
 		return errors.New("openai usage result is nil")

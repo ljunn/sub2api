@@ -204,13 +204,14 @@
                     <tr>
                       <th class="py-2">{{ t('admin.sites.tier') }}</th>
                       <th>{{ t('admin.sites.price') }}</th>
+                      <th>{{ t('admin.sites.selling') }}</th>
                       <th>{{ t('admin.sites.limit') }}</th>
                       <th>{{ t('admin.sites.scheduling') }}</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr
-                      v-for="tier in bindingModel(binding)?.tiers || []"
+                      v-for="tier in binding.price_tiers || bindingModel(binding)?.tiers || []"
                       :key="tier.key"
                       class="border-t border-gray-100 dark:border-dark-700"
                     >
@@ -226,6 +227,7 @@
                         </div>
                       </td>
                       <td class="pr-3">{{ prices(tier.prices) }}</td>
+                      <td class="pr-3">{{ prices(binding.limits.find((l) => l.key === tier.key)?.selling || {}) }}</td>
                       <td class="pr-3">
                         {{
                           prices(
@@ -233,6 +235,7 @@
                               ?.limits || {},
                           )
                         }}
+                        <p class="text-amber-600">{{ binding.limits.find((l) => l.key === tier.key)?.reason }}</p>
                       </td>
                       <td
                         :class="
@@ -543,6 +546,10 @@
         <p v-if="chosenModel?.reason" class="text-sm text-amber-700">
           {{ chosenModel.reason }}
         </p>
+        <p v-if="pricingLoading" class="text-sm text-gray-500">
+          {{ t('admin.sites.pricingLoading') }}
+        </p>
+        <p v-if="pricingError" class="text-sm text-amber-700">{{ pricingError }}</p>
         <div
           v-for="limit in bindingForm.limits"
           :key="limit.key"
@@ -556,26 +563,22 @@
               limit.unit
             }}</span></label
           >
-          <div class="mt-3 grid gap-3 sm:grid-cols-2">
-            <label
-              v-for="(_value, key) in limit.limits"
-              :key="key"
-              class="text-xs text-gray-500"
-              >{{ t(`admin.sites.components.${key}`) }} ·
-              {{ t('admin.sites.current') }} ${{
-                chosenModel?.tiers.find((p) => p.key === limit.key)?.prices[
-                  key
-                ] ?? '—'
-              }}<input
-                v-model.number="limit.limits[key]"
-                class="input mt-1"
-                type="number"
-                min="0"
-                max="1000000000"
-                step="any"
-                required
-                :aria-label="`${limit.key} ${key} ${t('admin.sites.limit')}`"
-            /></label>
+          <p v-if="limit.reason" class="mt-2 text-xs text-amber-700">
+            {{ limit.reason }}
+          </p>
+          <div class="mt-3 grid gap-3 sm:grid-cols-3 text-xs">
+            <div>
+              <span class="text-gray-500">{{ t('admin.sites.price') }}</span>
+              <p class="mt-1">{{ prices(bindingForm.price_tiers?.find((p) => p.key === limit.key)?.prices || {}) }}</p>
+            </div>
+            <div>
+              <span class="text-gray-500">{{ t('admin.sites.selling') }}</span>
+              <p class="mt-1">{{ prices(limit.selling || {}) }}</p>
+            </div>
+            <div>
+              <span class="text-gray-500">{{ t('admin.sites.limit') }}</span>
+              <p class="mt-1 font-medium" data-testid="auto-limit">{{ prices(limit.limits) }}</p>
+            </div>
           </div>
         </div>
         <label class="flex items-center gap-2 text-sm"
@@ -596,7 +599,11 @@
           form="binding-form"
           type="submit"
           :disabled="
-            busy || !bindingForm.limits.length || !bindingForm.local_group_id
+            busy ||
+            pricingLoading ||
+            !!pricingError ||
+            !bindingForm.local_group_id ||
+            !bindingForm.local_model
           "
         >
           {{ t('common.save') }}
@@ -635,7 +642,7 @@
   </AppLayout>
 </template>
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -709,7 +716,7 @@ const tierStatus = (b: SiteBinding, tier: SitePriceTier) =>
             Date.parse(selected.value!.last_success) + 600000,
           ).toISOString()
         : '',
-      tiers: bindingModel(b)?.tiers || [],
+      tiers: b.price_tiers || bindingModel(b)?.tiers || [],
       limits: b.limits,
       reason: bindingModel(b)?.reason,
     },
@@ -851,14 +858,12 @@ const compatibleGroups = computed(() =>
         chosenModel.value.platform === g.platform),
   ),
 )
-function clearUpstreamModel() { bindingForm.value.model = ''; bindingForm.value.limits = [] }
+function clearUpstreamModel() {
+  bindingForm.value.model = ''
+  bindingForm.value.limits = []
+}
 function initLimits() {
-  bindingForm.value.limits = (chosenModel.value?.tiers || []).map((tier) => ({
-    key: tier.key,
-    unit: tier.unit,
-    enabled: !tier.reason,
-    limits: { ...tier.prices },
-  }))
+  bindingForm.value.limits = []
   if (!bindingForm.value.local_model)
     bindingForm.value.local_model = bindingForm.value.model
 }
@@ -873,22 +878,59 @@ function openBinding(binding?: SiteBinding, model?: SiteModel) {
   }
   bindingDialog.value = true
   if (binding) {
-    const model = chosenModel.value
-    if (model)
-      bindingForm.value.limits = model.tiers.map((tier) => {
-        const previous = binding.limits.find(
-          (limit) => limit.key === tier.key && limit.unit === tier.unit,
-        )
-        return {
-          key: tier.key,
-          unit: tier.unit,
-          enabled: previous?.enabled ?? false,
-          limits: { ...tier.prices, ...previous?.limits },
-        }
-      })
     void loadLocalModels()
   }
 }
+const pricingLoading = ref(false)
+const pricingError = ref('')
+let pricingRequest = 0
+async function refreshPricePreview() {
+  const request = ++pricingRequest
+  pricingError.value = ''
+  if (
+    !bindingDialog.value ||
+    !selected.value ||
+    !bindingForm.value.local_group_id ||
+    !bindingForm.value.local_model ||
+    !bindingForm.value.model
+  ) {
+    pricingLoading.value = false
+    bindingForm.value.limits = []
+    return
+  }
+  pricingLoading.value = true
+  try {
+    const result = await upstreamSitesApi.pricePreview(
+      selected.value.id,
+      bindingForm.value,
+    )
+    if (request !== pricingRequest) return
+    // Keep checkbox changes made while the preview was loading.
+    for (const limit of result.limits) {
+      const current = bindingForm.value.limits.find((l) => l.key === limit.key)
+      if (current) limit.enabled = current.enabled
+    }
+    bindingForm.value.limits = result.limits
+    bindingForm.value.price_tiers = result.price_tiers
+  } catch {
+    if (request === pricingRequest) {
+      bindingForm.value.limits = []
+      pricingError.value = t('admin.sites.pricingFailed')
+    }
+  } finally {
+    if (request === pricingRequest) pricingLoading.value = false
+  }
+}
+watch(
+  () => [
+    bindingDialog.value,
+    bindingForm.value.group_id,
+    bindingForm.value.model,
+    bindingForm.value.local_group_id,
+    bindingForm.value.local_model,
+  ],
+  refreshPricePreview,
+)
 async function loadLocalModels() {
   const id = bindingForm.value.local_group_id
   if (!id) {
@@ -903,12 +945,21 @@ async function loadLocalModels() {
   }
 }
 async function saveBinding() {
-  if (!selected.value) return
+  if (!selected.value || pricingLoading.value || pricingError.value) return
   busy.value = true
   try {
     const result = await upstreamSitesApi.bind(
       selected.value.id,
-      bindingForm.value,
+      {
+        ...bindingForm.value,
+        price_tiers: undefined,
+        limits: bindingForm.value.limits.map((l) => ({
+          key: l.key,
+          unit: l.unit,
+          enabled: l.enabled,
+          limits: {},
+        })),
+      },
     )
     replace(result)
     const binding = result.bindings.find(

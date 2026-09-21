@@ -96,7 +96,7 @@ func siteTierReason(p SiteAccountPolicy, key string, now time.Time) string {
 			break
 		}
 	}
-	if price == nil || limit == nil || len(price.Prices) == 0 || price.Reason != "" || price.Unit != limit.Unit {
+	if price == nil || limit == nil || len(price.Prices) == 0 || price.Reason != "" || price.Unit != limit.Unit || limit.Reason != "" {
 		return "site_price_unknown"
 	}
 	if !limit.Enabled {
@@ -118,6 +118,10 @@ func (a *Account) siteHasEligibleTier() bool {
 	if !managed {
 		return true
 	}
+	// Auto ceilings can recover after a local price edit without an upstream scan.
+	if p.LocalGroupID > 0 {
+		return p.Enabled && time.Now().Before(p.FreshUntil) && p.Reason == "" && len(p.Tiers) > 0
+	}
 	for _, tier := range p.Tiers {
 		if siteTierReason(p, tier.Key, time.Now()) == "" {
 			return true
@@ -135,6 +139,16 @@ func SitePriceVeto(ctx context.Context, a *Account) (bool, string) {
 	p, managed := a.SitePolicy()
 	if !managed {
 		return false, ""
+	}
+	pricing, _ := ctx.Value(sitePricingKey{}).(*UpstreamSitePricing)
+	if p.LocalGroupID == 0 && pricing != nil && len(a.GroupIDs) == 1 {
+		p.LocalGroupID = a.GroupIDs[0]
+	}
+	if pricing != nil && p.LocalGroupID <= 0 {
+		return true, "site_price_unknown"
+	}
+	if p.LocalGroupID > 0 {
+		p = pricing.apply(ctx, p, true)
 	}
 	request, _ := ctx.Value(siteRequestKey{}).(SitePriceRequest)
 	if request.UnpricedServiceTier {

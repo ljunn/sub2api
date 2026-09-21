@@ -14,7 +14,7 @@ import (
 )
 
 func siteSchedulerAccount(id int64, price float64) Account {
-	policy := SiteAccountPolicy{BindingID: "binding", LocalModel: "gpt-image-1", UpstreamModel: "renamed-upstream", Enabled: true, FreshUntil: time.Now().Add(time.Minute), Tiers: []SitePriceTier{}, Limits: []SiteTierLimit{}}
+	policy := SiteAccountPolicy{LocalGroupID: 9, Image: true, BindingID: "binding", LocalModel: "gpt-image-1", UpstreamModel: "renamed-upstream", Enabled: true, FreshUntil: time.Now().Add(time.Minute), Tiers: []SitePriceTier{}, Limits: []SiteTierLimit{}}
 	for _, tier := range []string{"1K", "2K", "4K"} {
 		cost := 0.1
 		if tier == "2K" {
@@ -40,8 +40,12 @@ func TestUpstreamSiteSchedulerFiltersPerResolutionWithoutProfitControl(t *testin
 			require.Equal(t, "renamed-upstream", account.GetMappedModel("channel-mapped-alias"))
 			svc := &OpenAIGatewayService{accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{account}}, cfg: &config.Config{}, rateLimitService: newOpenAIAdvancedSchedulerRateLimitService(advanced), concurrencyService: NewConcurrencyService(stubConcurrencyCache{})}
 			groupID := int64(7)
+			pricing, localGroups := siteTestPricing()
+			localGroups.group.ImagePrice1K = sitePricePtr(.2)
+			localGroups.group.ImagePrice2K = sitePricePtr(.2)
+			localGroups.group.ImagePrice4K = sitePricePtr(.2)
 			selectSize := func(size string, allowed bool) {
-				ctx := WithSiteImageSize(context.Background(), size)
+				ctx := WithSiteImageSize(context.WithValue(context.Background(), sitePricingKey{}, pricing), size)
 				selected, _, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "", "gpt-image-1", nil, OpenAIUpstreamTransportAny, false)
 				if !allowed {
 					require.Error(t, err)
@@ -57,6 +61,9 @@ func TestUpstreamSiteSchedulerFiltersPerResolutionWithoutProfitControl(t *testin
 			}
 			selectSize("1K", true)
 			selectSize("2K", false)
+			localGroups.group.ImagePrice2K = sitePricePtr(.5)
+			selectSize("2K", true)
+			localGroups.group.ImagePrice2K = sitePricePtr(.2)
 			selectSize("", false)
 			svc.accountRepo = schedulerTestOpenAIAccountRepo{accounts: []Account{siteSchedulerAccount(31, 0.15)}}
 			selectSize("2K", true)
@@ -69,7 +76,8 @@ func TestUpstreamSiteEveryNetworkAttemptChecksLatestPrice(t *testing.T) {
 	repo := &siteTestAccounts{accounts: map[int64]*Account{31: &selected}}
 	transport := &pluginRoutingHTTPUpstream{}
 	guarded := siteCheckedUpstream(transport, repo, &selected)
-	ctx := WithSiteImageSize(context.Background(), "2K")
+	pricing, _ := siteTestPricing()
+	ctx := WithSiteImageSize(context.WithValue(context.Background(), sitePricingKey{}, pricing), "2K")
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://example.com/v1/images/generations", nil)
 	require.NoError(t, err)
 	response, err := guarded.Do(request, "", 31, 2)

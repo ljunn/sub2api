@@ -55,6 +55,11 @@ func SetupRouter(
 	}
 	refreshFrameOrigins() // 启动时初始化
 
+	// Pricing is resolved lazily for managed accounts only.
+	if handlers.Admin != nil && handlers.Admin.UpstreamSite != nil {
+		r.Use(handlers.Admin.UpstreamSite.PricingContext)
+	}
+
 	// 应用中间件
 	r.Use(middleware2.RequestLogger())
 	// 将客户端 IP + UA 注入 request context，供 token 签发/会话绑定/审计日志统一读取。

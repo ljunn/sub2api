@@ -4,11 +4,27 @@ set -euo pipefail
 source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 runtime_dir=/opt/sub2api
 cd "$source_dir"
-if [[ -n $(git status --porcelain) ]]; then
+# Explicitly build the remote-recorded HEAD while preserving unrelated edits.
+# git archive below never consumes working-tree files; release-local stays strict.
+committed_head_only=false
+if [[ "${1:-}" == --committed-head && $# == 1 ]]; then
+  committed_head_only=true
+elif [[ $# != 0 ]]; then
+  echo 'Usage: ./ops/build-local.sh [--committed-head]' >&2
+  exit 1
+fi
+if [[ -n $(git status --porcelain) && "$committed_head_only" != true ]]; then
   echo 'Commit the source changes before building a release.' >&2
   exit 1
 fi
 commit=$(git rev-parse HEAD)
+if [[ "$committed_head_only" == true ]]; then
+  remote_head=$(git ls-remote --exit-code origin refs/heads/host-production | cut -f1)
+  if [[ "$remote_head" != "$commit" ]]; then
+    echo 'Push the committed HEAD to origin/host-production before building.' >&2
+    exit 1
+  fi
+fi
 version=$(tr -d '\r\n' < backend/cmd/server/VERSION)
 release_dir="$runtime_dir/releases/${version}-${commit:0:12}"
 mkdir -p "$runtime_dir/releases"

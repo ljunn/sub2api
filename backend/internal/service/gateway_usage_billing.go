@@ -714,6 +714,11 @@ func logResponseModelBillingApplied(component string, account *Account, requestI
 
 // recordUsageCore 是 RecordUsage 的核心实现。
 func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsageCoreInput) error {
+	if input.Account.IsSiteManaged() {
+		copied := *input
+		copied.ChannelUsageFields = siteBillingFields(input.Account, input.ChannelUsageFields)
+		input = &copied
+	}
 	result := input.Result
 	apiKey := input.APIKey
 	user := input.User

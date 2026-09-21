@@ -77,3 +77,21 @@ func (h *UpstreamSiteHandler) Delete(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+func (h *UpstreamSiteHandler) PricingContext(c *gin.Context) {
+	c.Request = c.Request.WithContext(h.service.WithPricingContext(c.Request.Context()))
+	c.Next()
+}
+func (h *UpstreamSiteHandler) PricePreview(c *gin.Context) {
+	var input service.SiteBinding
+	if c.ShouldBindJSON(&input) != nil {
+		response.BadRequest(c, "绑定参数无效")
+		return
+	}
+	result, err := h.service.PricePreview(c.Request.Context(), c.Param("id"), input)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, result)
+}

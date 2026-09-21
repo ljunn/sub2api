@@ -303,6 +303,10 @@ func openAIProfitControlVetoReason(ctx context.Context, account *Account) (bool,
 	if vetoed, reason := SitePriceVeto(ctx, account); vetoed {
 		return true, reason
 	}
+	// Managed sites already compare actual unit costs with the group margin.
+	if account.IsSiteManaged() {
+		return false, ""
+	}
 	gate, _ := ctx.Value(openAIProfitControlGateCtxKey{}).(*openAIProfitControlGate)
 	if gate == nil || account == nil {
 		return false, ""

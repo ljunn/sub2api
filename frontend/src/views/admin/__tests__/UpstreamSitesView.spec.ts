@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   sync: vi.fn(),
   bind: vi.fn(),
+  pricePreview: vi.fn(),
   showError: vi.fn(),
 }))
 vi.mock('@/api/client', () => ({ default: {} }))
@@ -73,6 +74,7 @@ beforeEach(() => {
     bindings: [],
     history: [],
   }
+  mocks.pricePreview.mockImplementation(async (_id, binding) => ({ ...binding, price_tiers: site.models[0]!.tiers, limits: site.models[0]!.tiers.map((tier, i) => ({ key: tier.key, unit: tier.unit, enabled: true, selling: { request: (i+1)*.25 }, limits: { request: (i+1)*.2 } })) }))
   mocks.list.mockResolvedValue([site])
   mocks.save.mockResolvedValue(site)
   mocks.sync.mockResolvedValue(site)
@@ -87,7 +89,7 @@ async function click(text: string) {
 }
 
 describe('upstream sites', () => {
-  it('binds a model alias with independent resolution ceilings and enablement', async () => {
+  it('derives read-only prices from the local model and saves only tier enablement', async () => {
     mocks.bind.mockResolvedValue(site)
     wrapper = mountView()
     await flushPromises()
@@ -97,9 +99,11 @@ describe('upstream sites', () => {
     await selects[1]!.setValue('upstream-image')
     await selects[2]!.setValue('9')
     await wrapper.get('#binding-form input[list]').setValue('local-image')
-    const caps = wrapper.findAll('#binding-form input[type="number"]')
-    expect(caps).toHaveLength(3)
-    await caps[1]!.setValue('0.15')
+    await flushPromises()
+    expect(wrapper.findAll('#binding-form input[type="number"]')).toHaveLength(0)
+    expect(wrapper.findAll('[data-testid="auto-limit"]')).toHaveLength(3)
+    expect(wrapper.get('#binding-form').text()).toContain('$0.4')
+    expect(mocks.pricePreview).toHaveBeenLastCalledWith('site', expect.objectContaining({ local_group_id: 9, local_model: 'local-image' }))
     await wrapper
       .findAll('#binding-form input[type="checkbox"]')[2]!
       .setValue(false)
@@ -121,10 +125,24 @@ describe('upstream sites', () => {
         ],
       ),
     ).toEqual([
-      [true, 0.1],
-      [true, 0.15],
-      [false, 0.3],
+      [true, undefined],
+      [true, undefined],
+      [false, undefined],
     ])
+  })
+  it('clears old ceilings and blocks saving when local pricing cannot be loaded', async () => {
+    mocks.pricePreview.mockRejectedValue(new Error('offline'))
+    wrapper = mountView()
+    await flushPromises()
+    await click('admin.sites.bind')
+    const selects = wrapper.findAll('#binding-form select')
+    await selects[0]!.setValue('2')
+    await selects[1]!.setValue('upstream-image')
+    await selects[2]!.setValue('9')
+    await flushPromises()
+    expect(wrapper.get('#binding-form').text()).toContain('admin.sites.pricingFailed')
+    expect(wrapper.findAll('[data-testid="auto-limit"]')).toHaveLength(0)
+    expect(wrapper.get('button[form="binding-form"]').attributes('disabled')).toBeDefined()
   })
   it('never repopulates saved login secrets when reopening the site dialog', async () => {
     wrapper = mountView()

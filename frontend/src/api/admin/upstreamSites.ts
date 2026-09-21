@@ -16,12 +16,15 @@ export interface SiteModel {
   reason?: string
 }
 export interface SiteTierLimit {
+  selling?: Record<string, number>
+  reason?: string
   key: string
   unit: string
   enabled: boolean
   limits: Record<string, number>
 }
 export interface SiteBinding {
+  price_tiers?: SitePriceTier[]
   id: string
   group_id: string
   model: string
@@ -72,6 +75,7 @@ export interface SiteInput {
   refresh_token: string
 }
 export interface SiteAccountPolicy {
+  local_group_id?: number
   site_id: string
   site_name: string
   binding_id: string
@@ -98,6 +102,8 @@ export const upstreamSitesApi = {
         { timeout: 125000 },
       )
     ).data,
+  pricePreview: async (id: string, binding: SiteBinding) =>
+    (await apiClient.post<SiteBinding>(`${base}/${id}/price-preview`, binding)).data,
   bind: async (id: string, binding: SiteBinding) =>
     (
       await (binding.id
@@ -132,7 +138,7 @@ export function siteTierStatus(
   if (policy.reason || tier.reason || !Object.keys(tier.prices).length)
     return 'unknown'
   const limit = policy.limits.find((item) => item.key === tier.key)
-  if (!limit || limit.unit !== tier.unit) return 'unknown'
+  if (!limit || limit.unit !== tier.unit || limit.reason) return 'unknown'
   if (!limit.enabled) return 'disabled'
   for (const [key, value] of Object.entries(tier.prices)) {
     const cap = limit.limits[key]

@@ -136,7 +136,9 @@ func (siteTestAdmin) ValidateAccountGroupBindings(context.Context, []int64) erro
 func siteTestService() (*UpstreamSiteService, *siteMemoryRepo, *siteTestAccounts) {
 	repo := &siteMemoryRepo{sites: map[string]*UpstreamSite{}}
 	accounts := &siteTestAccounts{accounts: map[int64]*Account{}}
-	return NewUpstreamSiteService(repo, accounts, siteTestAdmin{}, siteTestCipher{}), repo, accounts
+	svc := NewUpstreamSiteService(repo, accounts, siteTestAdmin{}, siteTestCipher{})
+	svc.pricing, _ = siteTestPricing()
+	return svc, repo, accounts
 }
 func writeSiteJSON(w http.ResponseWriter, value any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -185,6 +187,7 @@ func TestUpstreamSiteLifecyclePriceChangeRecoveryAndStaleQueue(t *testing.T) {
 	}))
 	defer server.Close()
 	svc, repo, accounts := siteTestService()
+	ctx = svc.WithPricingContext(ctx)
 	svc.preview = false
 	site, err := svc.Save(ctx, "", SiteInput{Name: "A", BaseURL: server.URL, Kind: "sub2api", AuthMode: "password", Username: "user@example.test", Password: "private-password", Enabled: true})
 	require.NoError(t, err)
@@ -193,7 +196,7 @@ func TestUpstreamSiteLifecyclePriceChangeRecoveryAndStaleQueue(t *testing.T) {
 	require.Empty(t, site.Error)
 	require.Len(t, site.Models, 1)
 	assert.InDelta(t, 0.1, site.Models[0].Tiers[0].Prices["request"], 1e-12, "personal rate replaces the public group rate")
-	b := SiteBinding{GroupID: "2", Model: "image-upstream", LocalGroupID: 9, LocalModel: "my-image", Enabled: true, Limits: []SiteTierLimit{{Key: "1K", Unit: "USD/image", Enabled: true, Limits: map[string]float64{"request": 0.15}}, {Key: "2K", Unit: "USD/image", Enabled: true, Limits: map[string]float64{"request": 0.20}}, {Key: "4K", Unit: "USD/image", Enabled: true, Limits: map[string]float64{"request": 0.5}}}}
+	b := SiteBinding{GroupID: "2", Model: "image-upstream", LocalGroupID: 9, LocalModel: "my-image", Enabled: true, Limits: []SiteTierLimit{{Key: "1K", Unit: "USD/image", Enabled: true, Limits: map[string]float64{"request": 9999}}, {Key: "2K", Unit: "USD/image", Enabled: true, Limits: map[string]float64{"request": 0.20}}, {Key: "4K", Unit: "USD/image", Enabled: true, Limits: map[string]float64{"request": 0.5}}}}
 	site, err = svc.Bind(ctx, site.ID, b)
 	require.NoError(t, err)
 	require.Len(t, site.Bindings, 1)

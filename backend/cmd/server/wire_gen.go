@@ -192,7 +192,8 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	upstreamSiteService := service.ProvideUpstreamSiteService(upstreamSiteRepository, accountRepository, adminService, upstreamSiteSecretEncryptor)
+	upstreamSitePricing := service.NewUpstreamSitePricing(groupRepository, billingService, modelPricingResolver, userGroupRateRepository)
+	upstreamSiteService := service.ProvideUpstreamSiteService(upstreamSiteRepository, accountRepository, adminService, upstreamSiteSecretEncryptor, upstreamSitePricing)
 	upstreamSiteHandler := admin.NewUpstreamSiteHandler(upstreamSiteService)
 	dashboardAggregationRepository := repository.NewDashboardAggregationRepository(db)
 	dashboardStatsCache := repository.NewDashboardCache(redisClient, configConfig)

@@ -14,7 +14,7 @@
       :key="tier.key"
       class="rounded px-1.5 py-0.5"
       :class="
-        siteTierStatus(policy, tier) === 'ready'
+        !policy.local_group_id && siteTierStatus(policy, tier) === 'ready'
           ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'
           : 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300'
       "
@@ -27,7 +27,7 @@
           )
           .join(' / ') || t('admin.sites.unknown')
       }}
-      · {{ tier.unit }} · {{ t(`admin.sites.status.${siteTierStatus(policy, tier)}`) }}
+      · {{ tier.unit }} · {{ policy.local_group_id ? t('admin.sites.automatic') : t(`admin.sites.status.${siteTierStatus(policy, tier)}`) }}
     </span>
     <span v-if="!policy.tiers.length">{{ t('admin.sites.unknown') }}</span>
   </RouterLink>

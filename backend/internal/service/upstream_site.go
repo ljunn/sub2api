@@ -33,6 +33,8 @@ type SiteModel struct {
 }
 
 type SiteTierLimit struct {
+	Selling map[string]float64 `json:"selling,omitempty"`
+	Reason  string             `json:"reason,omitempty"`
 	Key     string             `json:"key"`
 	Unit    string             `json:"unit"`
 	Enabled bool               `json:"enabled"`
@@ -40,6 +42,7 @@ type SiteTierLimit struct {
 }
 
 type SiteBinding struct {
+	PriceTiers   []SitePriceTier `json:"price_tiers,omitempty"`
 	ID           string          `json:"id"`
 	GroupID      string          `json:"group_id"`
 	Model        string          `json:"model"`
@@ -103,6 +106,7 @@ type SiteInput struct {
 }
 
 type SiteAccountPolicy struct {
+	LocalGroupID  int64           `json:"local_group_id"`
 	Image         bool            `json:"image"`
 	SiteID        string          `json:"site_id"`
 	SiteName      string          `json:"site_name"`
