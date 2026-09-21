@@ -45,6 +45,7 @@ func TestOpenAIGatewayHandlerImages_RetryLater400SwitchesAccounts(t *testing.T) 
 		firstStatus int
 	}{
 		{"429 with retries disabled switches immediately", `{"error":{"message":"engine temporarily unavailable"}}`, []int64{1, 2}, http.StatusBadGateway, http.StatusTooManyRequests},
+		{"503 without same-account retry stays available next request", `{"error":{"message":"No available compatible accounts","type":"api_error"}}`, []int64{1, 2}, http.StatusBadGateway, http.StatusServiceUnavailable},
 		{"generic upstream failure", `{"error":{"type":"api_error","message":"Upstream request failed. Please retry later."}}`, []int64{1, 2}, http.StatusBadGateway, http.StatusBadRequest},
 		{"mislabelled transient switches", `{"error":{"type":"invalid_request_error","code":"upstream_error","message":"Upstream request failed. Please retry later."}}`, []int64{1, 2}, http.StatusBadGateway, http.StatusBadRequest},
 		{"wrapped unsafe is terminal", `{"error":{"type":"api_error","message":"poll failed: 451 {\"error_code\":\"image_unsafe\",\"message\":\"The generated images appear to be unsafe.\"}"}}`, []int64{1}, http.StatusBadRequest, http.StatusBadRequest},
@@ -62,27 +63,34 @@ func TestOpenAIGatewayHandlerImages_RetryLater400SwitchesAccounts(t *testing.T) 
 			}
 			upstream := &retryLaterImagesUpstream{firstError: tt.firstError, firstStatus: tt.firstStatus}
 			cfg := &config.Config{RunMode: config.RunModeSimple}
+			repo := openAIImagesFailoverAccountRepo{accounts: accounts}
+			rateLimits := service.NewRateLimitService(repo, nil, cfg, nil, nil)
 			gateway := service.NewOpenAIGatewayService(
-				openAIImagesFailoverAccountRepo{accounts: accounts}, nil, nil, nil, nil, nil, nil,
-				cfg, nil, nil, nil, nil, nil, upstream, nil, nil, nil, nil, nil, nil, nil, nil,
+				repo, nil, nil, nil, nil, nil, nil,
+				cfg, nil, nil, nil, rateLimits, nil, upstream, nil, nil, nil, nil, nil, nil, nil, nil,
 			)
 			billing := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 			t.Cleanup(billing.Stop)
 			h := NewOpenAIGatewayHandler(gateway, service.NewConcurrencyService(nil), billing,
 				service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, cfg), nil, nil, nil, nil, cfg)
 			h.maxAccountSwitches = 1
-			body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`)
-			rec := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(rec)
-			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
-			c.Request.Header.Set("Content-Type", "application/json")
-			groupID := int64(3130)
-			c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{ID: 99, GroupID: &groupID,
-				Group: &service.Group{ID: groupID, AllowImageGeneration: true}, User: &service.User{ID: 100}})
-			c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 100, Concurrency: 0})
-			h.Images(c)
-			require.Equal(t, tt.wantCalls, upstream.accountIDs, "each eligible channel must be tried at most once")
-			require.Equal(t, tt.wantStatus, rec.Code)
+			// Reuse the gateway so failures from earlier requests can affect selection.
+			// The third request used to fail before contacting either upstream.
+			for request := 0; request < 4; request++ {
+				upstream.accountIDs = nil
+				body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`)
+				rec := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(rec)
+				c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+				c.Request.Header.Set("Content-Type", "application/json")
+				groupID := int64(3130)
+				c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{ID: 99, GroupID: &groupID,
+					Group: &service.Group{ID: groupID, AllowImageGeneration: true}, User: &service.User{ID: 100}})
+				c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 100, Concurrency: 0})
+				h.Images(c)
+				require.Equal(t, tt.wantCalls, upstream.accountIDs, "each eligible channel must be tried at most once")
+				require.Equal(t, tt.wantStatus, rec.Code)
+			}
 		})
 	}
 }

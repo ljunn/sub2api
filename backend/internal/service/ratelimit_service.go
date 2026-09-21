@@ -2286,6 +2286,12 @@ func (s *RateLimitService) HandleOpenAIImageRateLimit(ctx context.Context, accou
 		return false
 	}
 
+	// The upstream pool decides availability on each request. Preserve failover
+	// classification without creating a cross-request model cooldown.
+	if account.IsPoolMode() && !account.IsCustomErrorCodesEnabled() {
+		return true
+	}
+
 	resetAt := openAIImageRateLimitResetAt(headers, responseBody)
 	if err := s.accountRepo.SetModelRateLimit(ctx, account.ID, openAIImageGenerationRateLimitKey, resetAt, openAIImageRateLimitReason); err != nil {
 		slog.Warn("openai_image_rate_limit_set_model_rate_limit_failed", "account_id", account.ID, "scope", openAIImageGenerationRateLimitKey, "error", err)
@@ -2345,6 +2351,12 @@ func (s *RateLimitService) HandleOpenAIImageCapabilityLoss(ctx context.Context, 
 	}
 	if !isOpenAIImageCapabilityLossError(statusCode, responseBody) {
 		return false
+	}
+
+	// The upstream pool decides availability on each request. Preserve failover
+	// classification without creating a cross-request model cooldown.
+	if account.IsPoolMode() && !account.IsCustomErrorCodesEnabled() {
+		return true
 	}
 
 	resetAt := time.Now().Add(openAIImageCapabilityLossCooldown)
@@ -2481,6 +2493,12 @@ func (s *RateLimitService) HandleUpstreamModelNotFound(ctx context.Context, acco
 	default:
 		return false
 	}
+	// The upstream pool decides availability on each request. Preserve failover
+	// classification without creating a cross-request model cooldown.
+	if account.IsPoolMode() && !account.IsCustomErrorCodesEnabled() {
+		return true
+	}
+
 	modelKey := modelRateLimitKeyForUpstreamModelNotFound(ctx, account, requestedModel)
 	if modelKey == "" {
 		return false

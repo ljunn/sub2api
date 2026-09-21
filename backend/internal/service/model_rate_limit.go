@@ -178,6 +178,15 @@ func (a *Account) modelRateLimitResetAt(scope string) *time.Time {
 	if !ok {
 		return nil
 	}
+	// Ignore default cooldowns left by older versions or another gateway
+	// instance. Explicit account rules and administrator limits still apply.
+	if a.IsPoolMode() && !a.IsCustomErrorCodesEnabled() {
+		reason, _ := rawLimit["reason"].(string)
+		switch reason {
+		case upstreamModelNotFoundReason, openAIImageRateLimitReason, openAIImageCapabilityLossReason:
+			return nil
+		}
+	}
 	resetAtRaw, ok := rawLimit["rate_limit_reset_at"].(string)
 	if !ok || strings.TrimSpace(resetAtRaw) == "" {
 		return nil
