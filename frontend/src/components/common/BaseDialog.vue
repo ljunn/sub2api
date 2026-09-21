@@ -44,6 +44,13 @@
 
 <script lang="ts">
 let dialogIdCounter = 0
+const openDialogIds = new Set<string>()
+
+function unlockDialog(id: string) {
+  if (openDialogIds.delete(id) && openDialogIds.size === 0) {
+    document.body.classList.remove('modal-open')
+  }
+}
 </script>
 
 <script setup lang="ts">
@@ -122,7 +129,8 @@ watch(
     if (isOpen) {
       // 保存当前焦点元素
       previousActiveElement = document.activeElement as HTMLElement
-      // 使用CSS类而不是直接操作style,更易于管理多个对话框
+      // Track owners: replacing one dialog must not unlock its successor.
+      openDialogIds.add(dialogId)
       document.body.classList.add('modal-open')
 
       // 等待DOM更新后设置焦点到对话框
@@ -137,7 +145,7 @@ watch(
         firstFocusable?.focus()
       }
     } else {
-      document.body.classList.remove('modal-open')
+      unlockDialog(dialogId)
       // 恢复之前的焦点
       if (previousActiveElement && typeof previousActiveElement.focus === 'function') {
         previousActiveElement.focus()
@@ -154,7 +162,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleEscape)
-  // 确保组件卸载时移除滚动锁定
-  document.body.classList.remove('modal-open')
+  unlockDialog(dialogId)
+  if (openDialogIds.size === 0) previousActiveElement?.focus()
 })
 </script>
