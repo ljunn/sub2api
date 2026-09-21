@@ -61,10 +61,13 @@ systemd-run --unit=sub2api-preview --collect \
   --property=Restart=on-failure \
   --setenv=DATA_DIR=/opt/sub2api/preview \
   --setenv=CONFIG_FILE=/opt/sub2api/preview/config.yaml \
+  --setenv=UPSTREAM_SITES_PREVIEW=true \
   "$release_dir/sub2api"
 curl -fsS http://127.0.0.1:6556/health
 systemctl status sub2api-preview --no-pager
 ```
+
+站点管理、价格口径及预览托管账号的行为见 [UPSTREAM_SITES.md](UPSTREAM_SITES.md)。预览必须设置 `UPSTREAM_SITES_PREVIEW=true`，禁用重复的价格同步任务，并暂停新建托管账号直到确认发布。
 
 两种新增媒体协议的配置和计费说明分别见 [VIVIDAI.md](VIVIDAI.md) 和 [LONGXIA.md](LONGXIA.md)。验证使用模拟上游，没有实际客户 Key 时不把模拟测试视作真实上游生成验证。
 

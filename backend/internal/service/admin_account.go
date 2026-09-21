@@ -261,6 +261,9 @@ func (s *adminServiceImpl) DuplicateAccount(ctx context.Context, id int64, actor
 			"linked credential shadow accounts cannot be duplicated; duplicate the parent account instead",
 		)
 	}
+	if source.IsSiteManaged() {
+		return nil, infraerrors.BadRequest("SITE_MANAGED_ACCOUNT", "站点托管账号请通过站点管理新增绑定")
+	}
 	if !canDuplicateAccountType(source.Type) {
 		return nil, infraerrors.BadRequest(
 			"ACCOUNT_DUPLICATE_CREDENTIAL_TYPE_UNSUPPORTED",
@@ -573,6 +576,16 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	account, err := s.accountRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	if account.IsSiteManaged() {
+		if input.Credentials != nil || input.GroupIDs != nil || (input.Type != "" && input.Type != account.Type) {
+			return nil, errors.New("站点托管账号的凭据与模型映射请在站点管理中维护")
+		}
+		if input.Extra != nil {
+			for _, key := range []string{SitePolicyExtraKey, "upstream_site_binding_id", "upstream_site_id", "upstream_site_preview_pending"} {
+				input.Extra[key] = account.Extra[key]
+			}
+		}
 	}
 	var normalizedExtra map[string]any
 	if input.Extra != nil {
@@ -937,6 +950,9 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	delete(input.Extra, OllamaCloudUsageSessionExtraKey)
 	delete(input.Extra, OllamaCloudUsageAutoRefreshExtraKey)
 	delete(input.Extra, OllamaCloudUsageSnapshotExtraKey)
+	for _, key := range []string{SitePolicyExtraKey, SiteBindingCredentialKey, "upstream_site_id", "upstream_site_preview_pending"} {
+		delete(input.Extra, key)
+	}
 
 	if len(input.AccountIDs) == 0 && input.Filters != nil {
 		accountIDs, err := s.resolveBulkUpdateTargetIDs(ctx, input.Filters)
@@ -972,7 +988,7 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 
 	// 预取所有目标账号，供凭据守卫/代理守卫/混合渠道检查共用，避免多次 DB 查询。
 	var cachedTargets []*Account
-	if len(input.Credentials) > 0 || input.ProxyID != nil || needMixedChannelCheck || openAISettings.any() || input.ProbeEnabled != nil || input.RateMultiplier != nil {
+	if len(input.Credentials) > 0 || input.GroupIDs != nil || input.ProxyID != nil || needMixedChannelCheck || openAISettings.any() || input.ProbeEnabled != nil || input.RateMultiplier != nil {
 		loaded, err := s.accountRepo.GetByIDs(ctx, input.AccountIDs)
 		if err != nil {
 			return nil, err
@@ -983,6 +999,9 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	for _, account := range cachedTargets {
 		if account != nil {
 			targetsByID[account.ID] = account
+			if account.IsSiteManaged() && (len(input.Credentials) > 0 || input.GroupIDs != nil) {
+				return nil, infraerrors.BadRequest("SITE_MANAGED_ACCOUNT", "站点托管账号的凭据与模型映射请在站点管理中维护")
+			}
 		}
 	}
 	if openAISettings.any() {

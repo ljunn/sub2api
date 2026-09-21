@@ -242,6 +242,7 @@
                 </template>
               </HelpTooltip>
               <span v-else class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+              <AccountSitePrice :value="row.extra?.upstream_site_policy" />
               <span
                 v-if="accountDisplayEmail(row)"
                 class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]"
@@ -486,6 +487,7 @@
 </template>
 
 <script setup lang="ts">
+import AccountSitePrice from '@/components/account/AccountSitePrice.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'

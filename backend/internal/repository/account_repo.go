@@ -2872,6 +2872,9 @@ func lockAndMatchProbeProxyIdentity(ctx context.Context, client *dbent.Client, a
 }
 
 func shouldEnqueueSchedulerOutboxForExtraUpdates(updates map[string]any) bool {
+	if _, ok := updates[service.SitePolicyExtraKey]; ok {
+		return true
+	}
 	if len(updates) == 0 {
 		return false
 	}

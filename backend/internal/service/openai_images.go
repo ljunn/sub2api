@@ -227,7 +227,7 @@ func (s *OpenAIGatewayService) ParseOpenAIImagesRequest(c *gin.Context, body []b
 	}
 
 	applyOpenAIImagesDefaults(req)
-	if err := validateOpenAIImagesModel(req.Model); err != nil {
+	if err := validateOpenAIImagesModel(req.Model); err != nil && !s.siteImageAliasAllowed(c.Request.Context(), req.Model) {
 		return nil, err
 	}
 	req.SizeTier = normalizeOpenAIImageSizeTier(req.Size)
@@ -571,6 +571,10 @@ func (s *OpenAIGatewayService) ForwardImages(
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}
+	ctx = WithSiteImageSize(ctx, parsed.Size)
+	if err := CheckSitePriceBeforeSend(ctx, account, s.accountRepo); err != nil {
+		return nil, err
+	}
 	if account.IsVividAI() {
 		return s.forwardVividAIImages(ctx, c, account, parsed, channelMappedModel)
 	}
@@ -597,11 +601,11 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	if mapped := strings.TrimSpace(channelMappedModel); mapped != "" {
 		requestModel = mapped
 	}
-	if err := validateOpenAIImagesModel(requestModel); err != nil {
+	if err := validateOpenAIImagesModel(requestModel); err != nil && !account.IsSiteManaged() {
 		return nil, err
 	}
 	upstreamModel := account.GetMappedModel(requestModel)
-	if err := validateOpenAIImagesModel(upstreamModel); err != nil {
+	if err := validateOpenAIImagesModel(upstreamModel); err != nil && !account.IsSiteManaged() {
 		return nil, err
 	}
 	SetOpsUpstreamModel(c, upstreamModel)

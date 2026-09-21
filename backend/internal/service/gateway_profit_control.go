@@ -82,13 +82,16 @@ func (s *GatewayService) GatewayProfitControlVetoLatest(ctx context.Context, sel
 
 func profitControlVetoLatest(ctx context.Context, selected *Account, snapshot *SchedulerSnapshotService) (*Account, bool, string) {
 	gate, _ := ctx.Value(openAIProfitControlGateCtxKey{}).(*openAIProfitControlGate)
-	if gate == nil || selected == nil {
+	if selected == nil || (gate == nil && !selected.IsSiteManaged()) {
 		return selected, false, ""
 	}
 	latest := selected
 	if snapshot != nil {
 		refreshed, err := snapshot.GetAccount(ctx, selected.ID)
 		if err != nil || refreshed == nil {
+			if selected.IsSiteManaged() {
+				return selected, true, "site_price_unavailable"
+			}
 			slog.Warn("profit_control_account_refresh_failed", "group_id", gate.groupID, "platform", gate.platform, "account_id", selected.ID, "error", err)
 			openAIProfitControlObserverInstance.recordRefreshFailure(gate.groupID, gate.platform, gate.threshold)
 		} else if !refreshed.UpdatedAt.Before(selected.UpdatedAt) {

@@ -43,6 +43,17 @@ func RegisterAdminRoutes(
 		// 分组管理
 		registerGroupRoutes(admin, h)
 
+		// 上游站点与模型采购绑定
+		sites := admin.Group("/upstream-sites")
+		sites.GET("", h.Admin.UpstreamSite.List)
+		sites.POST("", h.Admin.UpstreamSite.Save)
+		sites.PUT("/:id", h.Admin.UpstreamSite.Save)
+		sites.DELETE("/:id", h.Admin.UpstreamSite.Delete)
+		sites.POST("/:id/sync", h.Admin.UpstreamSite.Sync)
+		sites.POST("/:id/bindings", h.Admin.UpstreamSite.Bind)
+		sites.PUT("/:id/bindings/:binding_id", h.Admin.UpstreamSite.Bind)
+		sites.DELETE("/:id/bindings/:binding_id", h.Admin.UpstreamSite.Unbind)
+
 		// 账号管理
 		registerAccountRoutes(admin, h, stepUpAuth)
 

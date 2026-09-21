@@ -15,7 +15,7 @@ func (s *OpenAIGatewayService) doOpenAIUpstream(request *http.Request, proxyURL 
 			return response, err
 		}
 	}
-	return s.httpUpstream.Do(request, proxyURL, account.ID, account.Concurrency)
+	return siteCheckedUpstream(s.httpUpstream, s.accountRepo, account).Do(request, proxyURL, account.ID, account.Concurrency)
 }
 
 // doOpenAIAccountTestUpstream 让 OpenAI OAuth 账号测试与真实转发使用同一插件路径。
@@ -41,5 +41,5 @@ func (s *AccountTestService) doOpenAIAccountTestUpstream(
 			s.tlsFPProfileService.ResolveTLSProfile(account),
 		)
 	}
-	return s.httpUpstream.Do(request, proxyURL, account.ID, account.Concurrency)
+	return siteCheckedUpstream(s.httpUpstream, s.accountRepo, account).Do(request, proxyURL, account.ID, account.Concurrency)
 }

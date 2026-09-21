@@ -123,6 +123,7 @@ func provideCleanup(
 	channelMonitorV2Aggregator *service.ChannelMonitorV2Aggregator,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
+	upstreamSites *service.UpstreamSiteService,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	auditLog *service.AuditLogService,
 	openAIAutoReset *service.OpenAIQuotaAutoResetService,
@@ -369,6 +370,9 @@ func provideCleanup(
 				return nil
 			}},
 			{"UpstreamBillingProbeService", func() error {
+				if upstreamSites != nil {
+					upstreamSites.Stop()
+				}
 				if upstreamBillingProbe != nil {
 					upstreamBillingProbe.Stop()
 				}

@@ -1,0 +1,972 @@
+<template>
+  <AppLayout>
+    <div class="space-y-5">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+            {{ t('admin.sites.title') }}
+          </h1>
+          <p class="mt-1 text-sm text-gray-500">
+            {{ t('admin.sites.description') }}
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary" :disabled="busy" @click="load">
+            {{ t('common.refresh') }}</button
+          ><button class="btn btn-primary" @click="editSite()">
+            {{ t('admin.sites.add') }}
+          </button>
+        </div>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-3">
+        <div
+          v-for="stat in stats"
+          :key="stat.label"
+          class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-800"
+        >
+          <div class="text-sm text-gray-500">{{ stat.label }}</div>
+          <div class="mt-2 text-2xl font-semibold">{{ stat.value }}</div>
+        </div>
+      </div>
+      <div
+        v-if="loading && !sites.length"
+        class="p-10 text-center text-gray-500"
+      >
+        {{ t('common.loading') }}
+      </div>
+      <div
+        v-else-if="!sites.length"
+        class="rounded-xl border border-dashed border-gray-300 p-14 text-center dark:border-dark-600"
+      >
+        <h2 class="font-medium">{{ t('admin.sites.empty') }}</h2>
+        <p class="mx-auto mt-2 max-w-lg text-sm text-gray-500">
+          {{ t('admin.sites.emptyHint') }}
+        </p>
+        <button class="btn btn-primary mt-5" @click="editSite()">
+          {{ t('admin.sites.add') }}
+        </button>
+      </div>
+      <div
+        v-else
+        class="grid items-start gap-5 xl:grid-cols-[320px_minmax(0,1fr)]"
+      >
+        <div class="space-y-3">
+          <button
+            v-for="site in sites"
+            :key="site.id"
+            class="w-full rounded-xl border bg-white p-4 text-left transition dark:bg-dark-800"
+            :class="
+              selectedId === site.id
+                ? 'border-primary-500 ring-1 ring-primary-500'
+                : 'border-gray-200 dark:border-dark-700'
+            "
+            @click="selectedId = site.id"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-semibold">{{ site.name }}</span
+              ><span
+                class="rounded bg-gray-100 px-2 py-0.5 text-xs dark:bg-dark-700"
+                >{{ site.kind === 'sub2api' ? 'Sub2API' : 'New API' }}</span
+              >
+            </div>
+            <div class="mt-1 truncate text-xs text-gray-500">
+              {{ site.base_url }}
+            </div>
+            <div class="mt-3 flex items-center justify-between text-xs">
+              <span
+                :class="
+                  site.status === 'connected' && site.enabled
+                    ? 'text-green-600'
+                    : 'text-amber-600'
+                "
+                >{{
+                  t(
+                    `admin.sites.status.${site.enabled ? site.status : 'disabled'}`,
+                  )
+                }}</span
+              ><span class="text-gray-500">{{
+                t('admin.sites.bindingCount', { count: site.bindings.length })
+              }}</span>
+            </div>
+          </button>
+        </div>
+        <section
+          v-if="selected"
+          class="min-w-0 rounded-xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800"
+        >
+          <div class="border-b border-gray-200 p-5 dark:border-dark-700">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-semibold">{{ selected.name }}</h2>
+                <p class="mt-1 text-xs text-gray-500">
+                  {{ t('admin.sites.lastSync') }}
+                  {{ date(selected.last_success) }}
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  class="btn btn-secondary"
+                  :disabled="busy"
+                  @click="syncSite(selected)"
+                >
+                  {{ t('admin.sites.sync') }}</button
+                ><button
+                  class="btn btn-secondary"
+                  :disabled="busy"
+                  @click="editSite(selected)"
+                >
+                  {{ t('common.edit') }}</button
+                ><button
+                  class="btn btn-primary"
+                  :disabled="busy || !selected.models.length"
+                  @click="openBinding()"
+                >
+                  {{ t('admin.sites.bind') }}</button
+                ><button
+                  class="btn btn-danger"
+                  :disabled="busy || selected.bindings.length > 0"
+                  @click="confirmAction = { kind: 'site', id: selected.id }"
+                >
+                  {{ t('common.delete') }}
+                </button>
+              </div>
+            </div>
+            <p
+              v-if="selected.error"
+              class="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+              role="alert"
+            >
+              {{ selected.error }}
+            </p>
+            <div class="mt-5 flex gap-5">
+              <button
+                v-for="tab in tabs"
+                :key="tab"
+                class="border-b-2 pb-2 text-sm"
+                :class="
+                  activeTab === tab
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500'
+                "
+                @click="activeTab = tab"
+              >
+                {{ t(`admin.sites.${tab}`) }}
+              </button>
+            </div>
+          </div>
+          <div v-if="activeTab === 'bindings'" class="space-y-4 p-5">
+            <p
+              v-if="!selected.bindings.length"
+              class="py-10 text-center text-sm text-gray-500"
+            >
+              {{ t('admin.sites.noBindings') }}
+            </p>
+            <article
+              v-for="binding in selected.bindings"
+              :key="binding.id"
+              class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+            >
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 class="font-medium">
+                    {{ binding.model }} <span class="text-gray-400">→</span>
+                    {{ binding.local_model }}
+                  </h3>
+                  <p class="mt-1 text-xs text-gray-500">
+                    {{ groupName(binding.local_group_id) }} ·
+                    {{ t('admin.sites.account') }} #{{
+                      binding.account_id || '—'
+                    }}
+                  </p>
+                </div>
+                <div class="flex gap-3 text-sm">
+                  <button
+                    class="text-primary-600"
+                    :disabled="busy"
+                    @click="openBinding(binding)"
+                  >
+                    {{ t('admin.sites.limits') }}</button
+                  ><button
+                    class="text-red-600"
+                    :disabled="busy"
+                    @click="confirmAction = { kind: 'binding', id: binding.id }"
+                  >
+                    {{ t('admin.sites.unbind') }}
+                  </button>
+                </div>
+              </div>
+              <p v-if="binding.error" class="mt-2 text-sm text-red-600">
+                {{ binding.error }}
+              </p>
+              <div class="mt-3 overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                  <thead class="text-gray-500">
+                    <tr>
+                      <th class="py-2">{{ t('admin.sites.tier') }}</th>
+                      <th>{{ t('admin.sites.price') }}</th>
+                      <th>{{ t('admin.sites.limit') }}</th>
+                      <th>{{ t('admin.sites.scheduling') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="tier in bindingModel(binding)?.tiers || []"
+                      :key="tier.key"
+                      class="border-t border-gray-100 dark:border-dark-700"
+                    >
+                      <td class="py-2">
+                        {{
+                          tier.key === 'default'
+                            ? t('admin.sites.defaultTier')
+                            : tier.key
+                        }}
+                        <div class="text-gray-400">{{ tier.unit }}</div>
+                        <div v-if="tier.note" class="max-w-xs text-amber-600">
+                          {{ tier.note }}
+                        </div>
+                      </td>
+                      <td class="pr-3">{{ prices(tier.prices) }}</td>
+                      <td class="pr-3">
+                        {{
+                          prices(
+                            binding.limits.find((l) => l.key === tier.key)
+                              ?.limits || {},
+                          )
+                        }}
+                      </td>
+                      <td
+                        :class="
+                          tierStatus(binding, tier) === 'ready'
+                            ? 'text-green-600'
+                            : 'text-amber-600'
+                        "
+                      >
+                        {{
+                          t(`admin.sites.status.${tierStatus(binding, tier)}`)
+                        }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p
+                v-if="bindingModel(binding)?.reason || !bindingModel(binding)"
+                class="mt-2 text-sm text-amber-700"
+              >
+                {{
+                  bindingModel(binding)?.reason || t('admin.sites.modelMissing')
+                }}
+              </p>
+            </article>
+          </div>
+          <div v-else-if="activeTab === 'models'" class="p-5">
+            <input
+              v-model="modelSearch"
+              class="input mb-4"
+              :placeholder="t('admin.sites.searchModels')"
+            />
+            <div class="max-h-[600px] space-y-2 overflow-auto">
+              <div
+                v-for="model in filteredModels"
+                :key="`${model.group_id}:${model.model}`"
+                class="flex items-start justify-between gap-3 rounded-lg border border-gray-100 p-3 dark:border-dark-700"
+              >
+                <div class="min-w-0">
+                  <div class="break-all text-sm font-medium">
+                    {{ model.model }}
+                  </div>
+                  <div class="mt-1 text-xs text-gray-500">
+                    {{ model.group_name }} · {{ model.platform }}
+                  </div>
+                  <div v-if="model.reason" class="mt-1 text-xs text-amber-700">
+                    {{ model.reason }}
+                  </div>
+                  <div
+                    v-for="tier in model.tiers"
+                    :key="tier.key"
+                    class="mt-1 text-xs text-gray-500"
+                  >
+                    {{ tier.key }} · {{ prices(tier.prices) }} · {{ tier.unit }}
+                    <div v-if="tier.note" class="text-amber-600">
+                      {{ tier.note }}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  class="shrink-0 text-sm text-primary-600"
+                  :disabled="busy || !model.tiers.length"
+                  @click="openBinding(undefined, model)"
+                >
+                  {{ t('admin.sites.bind') }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="space-y-3 p-5">
+            <p
+              v-if="!selected.history.length"
+              class="py-10 text-center text-sm text-gray-500"
+            >
+              {{ t('admin.sites.noChanges') }}
+            </p>
+            <div
+              v-for="(change, index) in selected.history"
+              :key="index"
+              class="rounded-lg border border-gray-100 p-3 text-sm dark:border-dark-700"
+            >
+              <div class="font-medium">
+                {{ change.model }}
+                <span class="ml-2 text-xs font-normal text-gray-500">{{
+                  date(change.at)
+                }}</span>
+              </div>
+              <div class="mt-1 text-xs text-gray-500">
+                {{
+                  change.before
+                    .map((p) => `${p.key}: ${prices(p.prices)}`)
+                    .join(' / ')
+                }}
+                →
+                {{
+                  change.after
+                    .map((p) => `${p.key}: ${prices(p.prices)}`)
+                    .join(' / ')
+                }}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+    <BaseDialog
+      :show="siteDialog"
+      :title="t(editingId ? 'admin.sites.edit' : 'admin.sites.add')"
+      @close="closeSite"
+    >
+      <form id="site-form" class="space-y-4" @submit.prevent="saveSite">
+        <label class="block text-sm"
+          >{{ t('admin.sites.name')
+          }}<input
+            v-model="siteForm.name"
+            class="input mt-1"
+            required
+            maxlength="120"
+        /></label>
+        <label class="block text-sm"
+          >{{ t('admin.sites.url')
+          }}<input
+            v-model="siteForm.base_url"
+            class="input mt-1"
+            type="url"
+            placeholder="https://api.example.com"
+            required
+            :disabled="identityLocked"
+        /></label>
+        <div class="grid grid-cols-2 gap-4">
+          <label class="text-sm"
+            >{{ t('admin.sites.format')
+            }}<select
+              v-model="siteForm.kind"
+              class="input mt-1"
+              :disabled="identityLocked"
+            >
+              <option value="sub2api">Sub2API</option>
+              <option value="newapi">New API</option>
+            </select></label
+          ><label class="text-sm"
+            >{{ t('admin.sites.auth')
+            }}<select
+              v-model="siteForm.auth_mode"
+              class="input mt-1"
+              :disabled="identityLocked"
+            >
+              <option value="password">
+                {{ t('admin.sites.passwordLogin') }}
+              </option>
+              <option value="token">Access / Refresh Token</option>
+            </select></label
+          >
+        </div>
+        <template v-if="siteForm.auth_mode === 'password'"
+          ><label class="block text-sm"
+            >{{ t('admin.sites.username')
+            }}<input
+              v-model="siteForm.username"
+              class="input mt-1"
+              autocomplete="off"
+              :required="!editingId"
+              :disabled="identityLocked" /></label
+          ><label class="block text-sm"
+            >{{ t('admin.sites.password')
+            }}<input
+              v-model="siteForm.password"
+              class="input mt-1"
+              type="password"
+              autocomplete="new-password"
+              :required="!editingId"
+              :placeholder="
+                editingId ? t('admin.sites.keepSecret') : ''
+              " /></label
+        ></template>
+        <template v-else
+          ><label class="block text-sm"
+            >Access Token<textarea
+              v-model="siteForm.access_token"
+              class="input mt-1 font-mono text-xs"
+              rows="3"
+              autocomplete="off"
+              :placeholder="editingId ? t('admin.sites.keepSecret') : ''"
+            /></label
+          ><label class="block text-sm"
+            >Refresh Token<input
+              v-model="siteForm.refresh_token"
+              class="input mt-1"
+              type="password"
+              autocomplete="new-password"
+              :placeholder="
+                editingId ? t('admin.sites.keepSecret') : ''
+              " /></label
+          ><label v-if="siteForm.kind === 'newapi'" class="block text-sm"
+            >{{ t('admin.sites.userId')
+            }}<input
+              v-model.number="siteForm.user_id"
+              class="input mt-1"
+              type="number"
+              min="0"
+              :disabled="identityLocked" /></label
+        ></template>
+        <p class="text-xs text-gray-500">{{ t('admin.sites.authHint') }}</p>
+        <label class="flex items-center gap-2 text-sm"
+          ><input v-model="siteForm.enabled" type="checkbox" />{{
+            t('admin.sites.enabled')
+          }}</label
+        >
+      </form>
+      <template #footer
+        ><button class="btn btn-secondary" :disabled="busy" @click="closeSite">
+          {{ t('common.cancel') }}</button
+        ><button
+          class="btn btn-primary"
+          form="site-form"
+          type="submit"
+          :disabled="busy"
+        >
+          {{ t('admin.sites.saveConnect') }}
+        </button></template
+      >
+    </BaseDialog>
+    <BaseDialog
+      :show="bindingDialog"
+      :title="t('admin.sites.bind')"
+      width="wide"
+      @close="!busy && (bindingDialog = false)"
+    >
+      <form id="binding-form" class="space-y-4" @submit.prevent="saveBinding">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="text-sm"
+            >{{ t('admin.sites.upstreamGroup')
+            }}<select
+              v-model="bindingForm.group_id"
+              class="input mt-1"
+              required
+              :disabled="!!bindingForm.id"
+              @change="clearUpstreamModel"
+            >
+              <option value="" disabled>{{ t('admin.sites.choose') }}</option>
+              <option
+                v-for="group in upstreamGroups"
+                :key="group.id"
+                :value="group.id"
+              >
+                {{ group.name }}
+              </option>
+            </select></label
+          ><label class="text-sm"
+            >{{ t('admin.sites.upstreamModel')
+            }}<select
+              v-model="bindingForm.model"
+              class="input mt-1"
+              required
+              :disabled="!!bindingForm.id"
+              @change="initLimits"
+            >
+              <option value="" disabled>{{ t('admin.sites.choose') }}</option>
+              <option
+                v-for="model in upstreamModels"
+                :key="model.model"
+                :value="model.model"
+              >
+                {{ model.model }}
+              </option>
+            </select></label
+          >
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="text-sm"
+            >{{ t('admin.sites.localGroup')
+            }}<select
+              v-model.number="bindingForm.local_group_id"
+              class="input mt-1"
+              required
+              :disabled="!!bindingForm.id"
+              @change="loadLocalModels"
+            >
+              <option :value="0" disabled>{{ t('admin.sites.choose') }}</option>
+              <option
+                v-for="group in compatibleGroups"
+                :key="group.id"
+                :value="group.id"
+              >
+                {{ group.name }} · {{ group.platform }}
+              </option>
+            </select></label
+          ><label class="text-sm"
+            >{{ t('admin.sites.localModel')
+            }}<input
+              v-model="bindingForm.local_model"
+              class="input mt-1"
+              list="site-local-models"
+              required
+              :disabled="!!bindingForm.id" /><datalist id="site-local-models">
+              <option
+                v-for="model in localModels"
+                :key="model"
+                :value="model"
+              /></datalist
+          ></label>
+        </div>
+        <p
+          class="rounded-lg bg-primary-50 p-3 text-xs text-primary-800 dark:bg-primary-900/20 dark:text-primary-200"
+        >
+          {{ t('admin.sites.limitHint') }}
+        </p>
+        <p v-if="chosenModel?.reason" class="text-sm text-amber-700">
+          {{ chosenModel.reason }}
+        </p>
+        <div
+          v-for="limit in bindingForm.limits"
+          :key="limit.key"
+          class="rounded-lg border border-gray-200 p-3 dark:border-dark-700"
+        >
+          <label class="flex items-center gap-2 text-sm font-medium"
+            ><input v-model="limit.enabled" type="checkbox" />{{
+              limit.key === 'default' ? t('admin.sites.defaultTier') : limit.key
+            }}
+            <span class="font-normal text-gray-500">{{
+              limit.unit
+            }}</span></label
+          >
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <label
+              v-for="(_value, key) in limit.limits"
+              :key="key"
+              class="text-xs text-gray-500"
+              >{{ t(`admin.sites.components.${key}`) }} ·
+              {{ t('admin.sites.current') }} ${{
+                chosenModel?.tiers.find((p) => p.key === limit.key)?.prices[
+                  key
+                ] ?? '—'
+              }}<input
+                v-model.number="limit.limits[key]"
+                class="input mt-1"
+                type="number"
+                min="0"
+                max="1000000000"
+                step="any"
+                required
+                :aria-label="`${limit.key} ${key} ${t('admin.sites.limit')}`"
+            /></label>
+          </div>
+        </div>
+        <label class="flex items-center gap-2 text-sm"
+          ><input v-model="bindingForm.enabled" type="checkbox" />{{
+            t('admin.sites.bindingEnabled')
+          }}</label
+        >
+      </form>
+      <template #footer
+        ><button
+          class="btn btn-secondary"
+          :disabled="busy"
+          @click="bindingDialog = false"
+        >
+          {{ t('common.cancel') }}</button
+        ><button
+          class="btn btn-primary"
+          form="binding-form"
+          type="submit"
+          :disabled="
+            busy || !bindingForm.limits.length || !bindingForm.local_group_id
+          "
+        >
+          {{ t('common.save') }}
+        </button></template
+      >
+    </BaseDialog>
+    <BaseDialog
+      :show="!!confirmAction"
+      :title="t('common.delete')"
+      @close="!busy && (confirmAction = null)"
+      ><p class="text-sm">
+        {{
+          t(
+            confirmAction?.kind === 'site'
+              ? 'admin.sites.deleteConfirm'
+              : 'admin.sites.unbindConfirm',
+          )
+        }}
+      </p>
+      <template #footer
+        ><button
+          class="btn btn-secondary"
+          :disabled="busy"
+          @click="confirmAction = null"
+        >
+          {{ t('common.cancel') }}</button
+        ><button
+          class="btn btn-danger"
+          :disabled="busy"
+          @click="removeConfirmed"
+        >
+          {{ t('common.confirm') }}
+        </button></template
+      ></BaseDialog
+    >
+  </AppLayout>
+</template>
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
+import AppLayout from '@/components/layout/AppLayout.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useAppStore } from '@/stores/app'
+import { getAll, getModelAllowlistCandidates } from '@/api/admin/groups'
+import {
+  upstreamSitesApi,
+  siteTierStatus,
+  type UpstreamSite,
+  type SiteInput,
+  type SiteBinding,
+  type SiteModel,
+  type SitePriceTier,
+} from '@/api/admin/upstreamSites'
+import type { AdminGroup } from '@/types'
+const { t } = useI18n()
+const app = useAppStore()
+const route = useRoute()
+const sites = ref<UpstreamSite[]>([])
+const groups = ref<AdminGroup[]>([])
+const selectedId = ref(String(route.query.site || ''))
+const loading = ref(false)
+const busy = ref(false)
+const activeTab = ref('bindings')
+const tabs = ['bindings', 'models', 'history']
+const modelSearch = ref('')
+const selected = computed(() =>
+  sites.value.find((s) => s.id === selectedId.value),
+)
+const stats = computed(() => [
+  { label: t('admin.sites.totalSites'), value: sites.value.length },
+  {
+    label: t('admin.sites.totalBindings'),
+    value: sites.value.reduce((n, s) => n + s.bindings.length, 0),
+  },
+  { label: t('admin.sites.syncInterval'), value: t('admin.sites.fiveMinutes') },
+])
+const filteredModels = computed(
+  () =>
+    selected.value?.models.filter((m) =>
+      `${m.model} ${m.group_name}`
+        .toLowerCase()
+        .includes(modelSearch.value.toLowerCase()),
+    ) || [],
+)
+const date = (value?: string) =>
+  value ? new Date(value).toLocaleString() : '—'
+const prices = (values: Record<string, number>) =>
+  Object.entries(values)
+    .map(
+      ([k, v]) =>
+        `${t(`admin.sites.components.${k}`)} $${Number(v.toPrecision(8))}`,
+    )
+    .join(' / ') || '—'
+const groupName = (id: number) =>
+  groups.value.find((g) => g.id === id)?.name || `#${id}`
+const bindingModel = (b: SiteBinding) =>
+  selected.value?.models.find(
+    (m) => m.group_id === b.group_id && m.model === b.model,
+  )
+const tierStatus = (b: SiteBinding, tier: SitePriceTier) =>
+  b.status === 'preview' ? 'preview' : siteTierStatus(
+    {
+      site_id: selected.value!.id,
+      site_name: selected.value!.name,
+      binding_id: b.id,
+      enabled: selected.value!.enabled && b.enabled,
+      fresh_until: selected.value!.last_success
+        ? new Date(
+            Date.parse(selected.value!.last_success) + 600000,
+          ).toISOString()
+        : '',
+      tiers: bindingModel(b)?.tiers || [],
+      limits: b.limits,
+      reason: bindingModel(b)?.reason,
+    },
+    tier,
+  )
+function error(e: unknown) {
+  app.showError(
+    e instanceof Error
+      ? e.message
+      : (e as { message?: string })?.message || t('admin.sites.failed'),
+  )
+}
+function replace(site: UpstreamSite) {
+  const i = sites.value.findIndex((s) => s.id === site.id)
+  if (i < 0) sites.value.push(site)
+  else sites.value[i] = site
+  selectedId.value = site.id
+}
+async function load() {
+  loading.value = true
+  try {
+    sites.value = await upstreamSitesApi.list()
+    if (!sites.value.some((s) => s.id === selectedId.value))
+      selectedId.value = sites.value[0]?.id || ''
+  } catch (e) {
+    error(e)
+  } finally {
+    loading.value = false
+  }
+}
+async function syncSite(site: UpstreamSite) {
+  busy.value = true
+  try {
+    const result = await upstreamSitesApi.sync(site.id)
+    replace(result)
+    if (result.error) app.showError(result.error)
+    else app.showSuccess(t('admin.sites.synced'))
+  } catch (e) {
+    error(e)
+  } finally {
+    busy.value = false
+  }
+}
+const emptySite = (): SiteInput => ({
+  name: '',
+  base_url: '',
+  kind: 'sub2api',
+  auth_mode: 'password',
+  username: '',
+  user_id: 0,
+  enabled: true,
+  password: '',
+  access_token: '',
+  refresh_token: '',
+})
+const siteDialog = ref(false)
+const editingId = ref('')
+const siteForm = ref<SiteInput>(emptySite())
+const identityLocked = computed(
+  () => !!sites.value.find((s) => s.id === editingId.value)?.bindings.length,
+)
+function editSite(site?: UpstreamSite) {
+  editingId.value = site?.id || ''
+  siteForm.value = site
+    ? {
+        ...emptySite(),
+        name: site.name,
+        base_url: site.base_url,
+        kind: site.kind,
+        auth_mode: site.auth_mode,
+        username: site.username,
+        user_id: site.user_id,
+        enabled: site.enabled,
+      }
+    : emptySite()
+  siteDialog.value = true
+}
+function closeSite() {
+  if (!busy.value) {
+    siteDialog.value = false
+    siteForm.value = emptySite()
+  }
+}
+async function saveSite() {
+  busy.value = true
+  try {
+    const result = await upstreamSitesApi.save(editingId.value, siteForm.value)
+    replace(result)
+    siteDialog.value = false
+    siteForm.value = emptySite()
+    const synced = await upstreamSitesApi.sync(result.id)
+    replace(synced)
+    if (synced.error) app.showError(synced.error)
+    else app.showSuccess(t('admin.sites.synced'))
+  } catch (e) {
+    error(e)
+  } finally {
+    busy.value = false
+  }
+}
+const emptyBinding = (): SiteBinding => ({
+  id: '',
+  group_id: '',
+  model: '',
+  local_group_id: 0,
+  local_model: '',
+  platform: '',
+  account_id: 0,
+  enabled: true,
+  limits: [],
+  status: '',
+})
+const bindingDialog = ref(false)
+const bindingForm = ref<SiteBinding>(emptyBinding())
+const localModels = ref<string[]>([])
+const upstreamGroups = computed(() => [
+  ...new Map(
+    (selected.value?.models || []).map((m) => [
+      m.group_id,
+      { id: m.group_id, name: m.group_name },
+    ]),
+  ).values(),
+])
+const upstreamModels = computed(
+  () =>
+    selected.value?.models.filter(
+      (m) => m.group_id === bindingForm.value.group_id,
+    ) || [],
+)
+const chosenModel = computed(() =>
+  upstreamModels.value.find((m) => m.model === bindingForm.value.model),
+)
+const compatibleGroups = computed(() =>
+  groups.value.filter(
+    (g) =>
+      ['openai', 'anthropic', 'gemini'].includes(g.platform) &&
+      (selected.value?.kind !== 'sub2api' ||
+        !chosenModel.value?.platform ||
+        chosenModel.value.platform === g.platform),
+  ),
+)
+function clearUpstreamModel() { bindingForm.value.model = ''; bindingForm.value.limits = [] }
+function initLimits() {
+  bindingForm.value.limits = (chosenModel.value?.tiers || []).map((tier) => ({
+    key: tier.key,
+    unit: tier.unit,
+    enabled: !tier.reason,
+    limits: { ...tier.prices },
+  }))
+  if (!bindingForm.value.local_model)
+    bindingForm.value.local_model = bindingForm.value.model
+}
+function openBinding(binding?: SiteBinding, model?: SiteModel) {
+  bindingForm.value = binding
+    ? JSON.parse(JSON.stringify(binding))
+    : emptyBinding()
+  if (model) {
+    bindingForm.value.group_id = model.group_id
+    bindingForm.value.model = model.model
+    initLimits()
+  }
+  bindingDialog.value = true
+  if (binding) {
+    const model = chosenModel.value
+    if (model)
+      bindingForm.value.limits = model.tiers.map((tier) => {
+        const previous = binding.limits.find(
+          (limit) => limit.key === tier.key && limit.unit === tier.unit,
+        )
+        return {
+          key: tier.key,
+          unit: tier.unit,
+          enabled: previous?.enabled ?? false,
+          limits: { ...tier.prices, ...previous?.limits },
+        }
+      })
+    void loadLocalModels()
+  }
+}
+async function loadLocalModels() {
+  const id = bindingForm.value.local_group_id
+  if (!id) {
+    localModels.value = []
+    return
+  }
+  try {
+    const models = await getModelAllowlistCandidates(id)
+    if (id === bindingForm.value.local_group_id) localModels.value = models
+  } catch (e) {
+    error(e)
+  }
+}
+async function saveBinding() {
+  if (!selected.value) return
+  busy.value = true
+  try {
+    const result = await upstreamSitesApi.bind(
+      selected.value.id,
+      bindingForm.value,
+    )
+    replace(result)
+    const binding = result.bindings.find(
+      (b) =>
+        b.group_id === bindingForm.value.group_id &&
+        b.model === bindingForm.value.model &&
+        b.local_group_id === bindingForm.value.local_group_id &&
+        b.local_model === bindingForm.value.local_model,
+    )
+    if (binding?.error) {
+      bindingForm.value = JSON.parse(JSON.stringify(binding))
+      app.showError(binding.error)
+    } else {
+      bindingDialog.value = false
+      app.showSuccess(t('admin.sites.bound'))
+    }
+  } catch (e) {
+    error(e)
+  } finally {
+    busy.value = false
+  }
+}
+const confirmAction = ref<{ kind: 'site' | 'binding'; id: string } | null>(null)
+async function removeConfirmed() {
+  if (!confirmAction.value) return
+  busy.value = true
+  try {
+    if (confirmAction.value.kind === 'site') {
+      await upstreamSitesApi.remove(confirmAction.value.id)
+      await load()
+    } else if (selected.value)
+      replace(
+        await upstreamSitesApi.unbind(
+          selected.value.id,
+          confirmAction.value.id,
+        ),
+      )
+    confirmAction.value = null
+  } catch (e) {
+    error(e)
+  } finally {
+    busy.value = false
+  }
+}
+let refreshTimer: ReturnType<typeof setInterval> | undefined
+onMounted(async () => {
+  await load()
+  try {
+    groups.value = await getAll()
+  } catch (e) {
+    error(e)
+  }
+  refreshTimer = setInterval(() => {
+    if (!busy.value && !siteDialog.value && !bindingDialog.value) void load()
+  }, 30000)
+})
+onUnmounted(() => {
+  if (refreshTimer) clearInterval(refreshTimer)
+  siteForm.value = emptySite()
+})
+</script>
