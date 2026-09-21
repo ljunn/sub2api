@@ -72,6 +72,7 @@ type UpstreamSite struct {
 	Enabled            bool                `json:"enabled"`
 	Status             string              `json:"status"`
 	Error              string              `json:"error,omitempty"`
+	Warnings           []string            `json:"warnings,omitempty"`
 	LastAttempt        *time.Time          `json:"last_attempt,omitempty"`
 	LastSuccess        *time.Time          `json:"last_success,omitempty"`
 	NextSync           *time.Time          `json:"next_sync,omitempty"`

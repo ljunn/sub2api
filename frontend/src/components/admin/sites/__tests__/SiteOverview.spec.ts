@@ -57,6 +57,19 @@ describe('site overview', () => {
 })
 
 describe('model discovery read receipts', () => {
+  it('allows configuring a binding for a model with unknown prices and explains reference prices', async () => {
+    vi.stubGlobal('IntersectionObserver', class { observe = vi.fn(); disconnect = vi.fn() })
+    const site = makeSite()
+    site.models[0]!.tiers = []
+    site.models[0]!.reason = '已读取模型，尚未确认价格，暂不参与价格调度'
+    site.models[1]!.tiers[0]!.note = '分组图片参考价，尚未确认实际计费'
+    const wrapper = mount(SiteModelCatalogue, { props: { site, busy: false, initialOnlyNew: false } })
+    expect(wrapper.text()).toContain('分组图片参考价')
+    expect(wrapper.text()).toContain('暂不参与价格调度')
+    await wrapper.get('[data-testid=catalogue-model] button').trigger('click')
+    expect(wrapper.emitted('bind')).toEqual([[site.models[0]]])
+    wrapper.unmount()
+  })
   function mountCatalogue() {
     let callback: IntersectionObserverCallback
     vi.stubGlobal('IntersectionObserver', class {

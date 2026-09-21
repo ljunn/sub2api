@@ -248,6 +248,7 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 		}
 		site.LastSuccess = nil
 		site.Models = []SiteModel{}
+		site.Warnings = nil
 		site.NextSync = nil
 		site.Status = "pending"
 		site.Error = ""
@@ -284,7 +285,8 @@ func (s *UpstreamSiteService) sync(ctx context.Context, id string, dueOnly bool)
 	next := now.Add(5 * time.Minute)
 	site.LastAttempt = &now
 	site.NextSync = &next
-	models, syncErr := newSiteAdapter(site, credentials).catalog(ctx)
+	adapter := newSiteAdapter(site, credentials)
+	models, syncErr := adapter.catalog(ctx)
 	if syncErr != nil {
 		site.Status = "error"
 		site.Error = syncErr.Error()
@@ -303,6 +305,7 @@ func (s *UpstreamSiteService) sync(ctx context.Context, id string, dueOnly bool)
 		}
 		trackSiteModelDiscoveries(site, models, now)
 		site.Models = models
+		site.Warnings = adapter.warnings
 		site.LastSuccess = &now
 		site.Status = "connected"
 		site.Error = ""

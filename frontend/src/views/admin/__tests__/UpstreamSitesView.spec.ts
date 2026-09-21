@@ -99,6 +99,17 @@ async function click(text: string) {
 }
 
 describe('upstream sites', () => {
+  it('shows partial catalogue warnings while allowing binding and resync', async () => {
+    site.warnings = ['某分组没有有效 Key，其他分组已同步']
+    wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('[data-testid=site-sync-warning]').text()).toContain('其他分组已同步')
+    expect(wrapper.findAll('button').find(button => button.text() === 'admin.sites.bind')!.attributes('disabled')).toBeUndefined()
+    expect(mocks.showError).not.toHaveBeenCalled()
+    mocks.sync.mockResolvedValue({ ...site, warnings: [] })
+    await click('admin.sites.sync')
+    expect(wrapper.find('[data-testid=site-sync-warning]').exists()).toBe(false)
+  })
   it('shows only the list until a site is opened and keeps details closed during refresh', async () => {
     mocks.routeQuery = {}
     const second = { ...site, id: 'second', name: 'Second site' }

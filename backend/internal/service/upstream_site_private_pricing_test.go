@@ -73,7 +73,7 @@ func TestUpstreamSitePrivateGroupCannotSilentlyDisappearWithoutAKey(t *testing.T
 	require.ErrorContains(t, err, "有效 API Key")
 }
 
-func TestUpstreamSiteDisabledModelPlazaReportsUpstreamConfiguration(t *testing.T) {
+func TestUpstreamSiteDisabledModelPlazaStillReadsPublicPrices(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
 		switch r.URL.Path {
@@ -82,15 +82,21 @@ func TestUpstreamSiteDisabledModelPlazaReportsUpstreamConfiguration(t *testing.T
 		case "/api/v1/model-plaza":
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprint(w, `{"code":404,"message":"Model plaza is not enabled"}`)
+		case "/api/v1/public/model-pricing":
+			fmt.Fprintf(w, `{"code":0,"data":%s}`, sitePublicPrices)
+		case "/api/v1/groups/available":
+			fmt.Fprintf(w, `{"code":0,"data":%s}`, sitePublicGroups)
+		case "/api/v1/groups/rates":
+			fmt.Fprint(w, `{"code":0,"data":{}}`)
 		default:
-			t.Errorf("disabled feature must not be mistaken for a different API: %s", r.URL.Path)
+			t.Errorf("unexpected endpoint: %s", r.URL.Path)
 			w.WriteHeader(500)
 		}
 	}))
 	defer server.Close()
 	adapter := newSiteAdapter(&UpstreamSite{BaseURL: server.URL, Kind: "sub2api"}, &SiteCredentials{AccessToken: "valid-login"})
-	_, err := adapter.catalog(context.Background())
-	require.ErrorContains(t, err, "上游已关闭模型广场")
-	require.ErrorContains(t, err, "登录凭据已验证通过")
-	assert.NotContains(t, err.Error(), "/public/model-pricing")
+	models, err := adapter.catalog(context.Background())
+	require.NoError(t, err)
+	require.Len(t, models, 3)
+	assert.Equal(t, .035, models[0].Tiers[0].Prices["request"])
 }

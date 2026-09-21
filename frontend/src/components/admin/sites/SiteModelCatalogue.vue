@@ -18,11 +18,13 @@
           <div class="mt-1 flex flex-wrap gap-x-3 text-xs text-gray-500">
             <span v-for="tier in model.tiers" :key="tier.key" :title="tier.note || tier.reason">{{ tier.key }} {{ prices(tier) }}</span>
           </div>
+          <p v-for="note in notes(model)" :key="note"
+            class="mt-1 text-xs text-gray-500">{{ note }}</p>
           <p v-if="model.reason" class="mt-1 text-xs text-amber-700">{{ model.reason }}</p>
         </div>
         <div class="shrink-0 text-right text-xs">
           <span v-if="isBound(model)" class="mr-3 text-gray-500">{{ t('admin.sites.discovery.bound') }}</span>
-          <button class="text-primary-600" :disabled="busy || !model.tiers.length" @click="$emit('bind', model)">{{ t('admin.sites.bind') }}</button>
+          <button class="text-primary-600" :disabled="busy" @click="$emit('bind', model)">{{ t('admin.sites.bind') }}</button>
         </div>
       </div>
       <p v-if="!filteredModels.length" class="p-6 text-center text-sm text-gray-500">{{ t('admin.sites.overview.noResults') }}</p>
@@ -58,6 +60,7 @@ const filteredModels = computed(() => props.site.models.filter(model =>
 ).slice().sort((a, b) => Number(visitDiscoveries.value.has(b.discovery_id || '')) - Number(visitDiscoveries.value.has(a.discovery_id || ''))))
 const isBound = (model: SiteModel) => props.site.bindings.some(binding => binding.group_id === model.group_id && binding.model === model.model)
 const prices = (tier: SitePriceTier) => Object.entries(tier.prices).map(([key, value]) => `${key === 'request' ? '' : t(`admin.sites.components.${key}`) + ' '}$${Number(value.toPrecision(6))}`).join(' / ') || '—'
+const notes = (model: SiteModel) => [...new Set(model.tiers.flatMap(tier => tier.note ? [tier.note] : []))]
 
 async function flushRead() {
   if (sending || !pending.size) return

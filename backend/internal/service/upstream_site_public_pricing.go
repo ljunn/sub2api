@@ -17,7 +17,11 @@ import (
 func (a *siteAdapter) publicPricingCatalog(ctx context.Context) ([]SiteModel, error) {
 	result, err := a.request(ctx, http.MethodGet, "/api/v1/public/model-pricing", nil)
 	if err != nil {
-		return nil, fmt.Errorf("上游模型广场接口不存在，读取公开模型价格失败：%w", err)
+		var remote *siteRemoteError
+		if errors.As(err, &remote) && remote.Status == http.StatusNotFound {
+			return a.authenticatedPricingCatalog(ctx)
+		}
+		return nil, fmt.Errorf("读取公开模型价格失败：%w", err)
 	}
 	available, err := a.request(ctx, http.MethodGet, "/api/v1/groups/available", nil)
 	if err != nil {

@@ -105,6 +105,9 @@
             >
               {{ selected.error }}
             </p>
+            <p v-for="warning in selected.warnings" :key="warning"
+              class="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+              role="status" data-testid="site-sync-warning">{{ warning }}</p>
             <SiteBalanceCard :site="selected" :settings="balanceSettings" :disabled="busy" @updated="replace" @busy="busy = $event" />
             <div class="mt-5 flex gap-5">
               <button
