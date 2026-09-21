@@ -413,7 +413,7 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 	if siteModelWithPrice(site, *model).ManualPrice == nil && (site.LastSuccess == nil || time.Since(*site.LastSuccess) > 10*time.Minute) {
 		return nil, errors.New("价格目录已过期，请先同步")
 	}
-	if model.Platform != "" && (site.Kind == "sub2api" || site.Kind == "kongfang" || site.Kind == "vividai" || site.Kind == "wuzu") && model.Platform != group.Platform {
+	if model.Platform != "" && (site.Kind == "sub2api" || site.Kind == "kongfang" || site.Kind == "vividai" || site.Kind == "wuzu" || model.LongXia != nil) && model.Platform != group.Platform {
 		return nil, errors.New("本地分组与上游模型的平台不匹配")
 	}
 	s.refreshBindingPrice(ctx, site, &input)
@@ -489,6 +489,9 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 			if site.Kind == "vividai" {
 				account.Extra[AccountExtraVividAI] = true
 			}
+			if model.LongXia != nil {
+				account.Extra[AccountExtraLongXia] = true
+			}
 			if s.preview {
 				account.Status = StatusDisabled
 				account.Extra["upstream_site_preview_pending"] = true
@@ -526,6 +529,7 @@ func BuildSiteAccountPolicy(site *UpstreamSite, b *SiteBinding) SiteAccountPolic
 		p.ManualPrice = effective.ManualPrice != nil
 		p.Image = effective.Image
 		p.VividAI = effective.VividAI
+		p.LongXia = effective.LongXia
 		p.Tiers = siteComparisonTiers(effective.Image, effective.Tiers)
 		p.Reason = effective.Reason
 	} else {
@@ -575,6 +579,13 @@ func (s *UpstreamSiteService) updatePolicies(ctx context.Context, site *Upstream
 			return err
 		}
 		accountChanged := false
+		if policy.LongXia != nil && !account.IsLongXia() {
+			if account.Extra == nil {
+				account.Extra = map[string]any{}
+			}
+			account.Extra[AccountExtraLongXia] = true
+			accountChanged = true
+		}
 		if site.Kind == "vividai" {
 			credentials, err := s.credentials(site)
 			if err != nil {

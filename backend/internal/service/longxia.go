@@ -251,7 +251,7 @@ func longXiaError(c *gin.Context, status int, code, message string) (*OpenAIForw
 	return nil, fmt.Errorf("LongXia: %s", message)
 }
 
-func (s *OpenAIGatewayService) forwardLongXiaVideo(ctx context.Context, c *gin.Context, account *Account, endpoint GrokMediaEndpoint, taskID string, body []byte) (*OpenAIForwardResult, error) {
+func (s *OpenAIGatewayService) forwardLongXiaVideo(ctx context.Context, c *gin.Context, account *Account, endpoint GrokMediaEndpoint, taskID string, body []byte) (siteResult *OpenAIForwardResult, siteErr error) {
 	if !endpoint.IsSeedance() {
 		return longXiaError(c, 400, "invalid_request_error", "LongXia requires the Seedance task endpoint")
 	}
@@ -260,6 +260,15 @@ func (s *OpenAIGatewayService) forwardLongXiaVideo(ctx context.Context, c *gin.C
 	}
 	if endpoint == SeedanceEndpointDelete {
 		return longXiaError(c, 405, "unsupported_operation", "LongXia does not expose task cancellation")
+	}
+	if endpoint == SeedanceEndpointCreate {
+		ctx = WithSitePriceRequest(ctx, body)
+		var observation *siteForwardObservation
+		ctx, observation = beginSiteForward(ctx, account)
+		defer func() { observation.finishOpenAI(ctx, c, siteResult, siteErr) }()
+		if err := CheckSitePriceBeforeSend(ctx, account, s.accountRepo); err != nil {
+			return nil, err
+		}
 	}
 	base, err := s.validateUpstreamBaseURL(account.GetCredential("base_url"))
 	if err != nil {
@@ -321,6 +330,14 @@ func (s *OpenAIGatewayService) forwardLongXiaVideo(ctx context.Context, c *gin.C
 		proxy = account.Proxy.URL()
 	}
 	started := time.Now()
+	// Recheck after request preparation; polling an accepted task is free and
+	// must not be blocked by a later creation-price change.
+	if endpoint == SeedanceEndpointCreate {
+		if err := CheckSitePriceBeforeSend(ctx, account, s.accountRepo); err != nil {
+			return nil, err
+		}
+		markSiteForwardStarted(ctx)
+	}
 	resp, err := s.httpUpstream.Do(req, proxy, account.ID, account.Concurrency)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(started).Milliseconds())
 	// A timeout or 5xx can follow task acceptance. No automatic resubmission.

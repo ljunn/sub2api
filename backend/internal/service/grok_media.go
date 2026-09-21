@@ -351,14 +351,14 @@ func (s *OpenAIGatewayService) SelectMediaVideoRequestAccount(
 	if accountID <= 0 || strings.TrimSpace(sessionHash) == "" {
 		return nil, decision, ErrNoAvailableAccounts
 	}
-	// Ownership was resolved by the handler. An accepted VividAI task must
+	// Ownership was resolved by the handler. An accepted managed video task must
 	// remain readable after its creation price expires or a tier is paused.
 	if NormalizeOpenAICompatiblePlatform(platform) == PlatformOpenAI && s.accountRepo != nil {
 		account, err := s.accountRepo.GetByID(ctx, accountID)
 		if err != nil {
 			return nil, decision, ErrNoAvailableAccounts
 		}
-		if account != nil && account.IsVividAI() && account.IsSiteManaged() {
+		if account != nil && (account.IsVividAI() || account.IsLongXia()) && account.IsSiteManaged() {
 			if !account.IsActive() || account.Platform != NormalizeOpenAICompatiblePlatform(platform) || !s.openAIAccountMatchesSchedulingGroup(account, groupID) {
 				return nil, decision, ErrNoAvailableAccounts
 			}
@@ -366,7 +366,7 @@ func (s *OpenAIGatewayService) SelectMediaVideoRequestAccount(
 			if err != nil {
 				return nil, decision, err
 			}
-			selection := &AccountSelectionResult{Account: account, acceptedVividAITask: true}
+			selection := &AccountSelectionResult{Account: account, acceptedSiteVideoTask: true}
 			if slot != nil && slot.Acquired {
 				selection.Acquired, selection.ReleaseFunc = true, slot.ReleaseFunc
 			} else {

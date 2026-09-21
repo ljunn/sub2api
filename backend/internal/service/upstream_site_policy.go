@@ -16,6 +16,9 @@ import (
 
 type siteRequestKey struct{}
 type SitePriceRequest struct {
+	LongXiaVideo        bool
+	LongXiaResolution   string
+	LongXiaDuration     int64
 	WuzuFields          map[string]string
 	VividAITier         string
 	VividAIDuration     int64
@@ -34,6 +37,10 @@ func WithSitePriceRequest(ctx context.Context, body []byte) context.Context {
 		request.VividAIDuration = duration.Int()
 		if duration.Exists() && (duration.Type != gjson.Number || duration.Float() != float64(duration.Int()) || duration.Int() <= 0) {
 			request.VividAIDuration = -1
+		}
+		request.LongXiaVideo, request.LongXiaResolution, request.LongXiaDuration = true, request.VividAITier, request.VividAIDuration
+		if resolution := gjson.GetBytes(body, "resolution"); resolution.Exists() && (resolution.Type != gjson.String || resolution.String() == "") {
+			request.LongXiaResolution = "unknown"
 		}
 	} else {
 		parsed := &OpenAIImagesRequest{N: 1, Model: "price", Prompt: "price", Size: gjson.GetBytes(body, "size").String(), Quality: gjson.GetBytes(body, "quality").String()}
@@ -178,7 +185,7 @@ func SitePriceVeto(ctx context.Context, a *Account) (bool, string) {
 	if a == nil {
 		return false, ""
 	}
-	if id, ok := ctx.Value(vividAIAcceptedAccountKey{}).(int64); ok && id == a.ID && a.IsVividAI() {
+	if id, ok := ctx.Value(siteAcceptedVideoAccountKey{}).(int64); ok && id == a.ID && (a.IsVividAI() || a.IsLongXia()) {
 		return false, ""
 	}
 	p, managed := a.SitePolicy()
@@ -207,6 +214,9 @@ func SitePriceVeto(ctx context.Context, a *Account) (bool, string) {
 	}
 	if p.SiteKind == "vividai" {
 		return vividAISitePriceVeto(p, request)
+	}
+	if p.LongXia != nil {
+		return longXiaSitePriceVeto(p, request)
 	}
 	for _, tier := range p.Tiers {
 		if tier.Key == "default" {

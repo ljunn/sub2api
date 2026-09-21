@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-type vividAIAcceptedAccountKey struct{}
+type siteAcceptedVideoAccountKey struct{}
 
 // The create gate covers balance -> first job receipt. Upstream running is
 // authoritative after that receipt, including videos with no active HTTP caller.

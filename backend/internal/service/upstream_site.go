@@ -27,6 +27,7 @@ type SitePriceTier struct {
 }
 
 type SiteModel struct {
+	LongXia      *SiteLongXiaModel `json:"longxia,omitempty"`
 	Wuzu         *WuzuModelConfig  `json:"wuzu,omitempty"`
 	VividAI      *SiteVividAIModel `json:"vividai,omitempty"`
 	ManualPrice  *SiteManualPrice  `json:"manual_price,omitempty"`
@@ -127,6 +128,7 @@ type SiteInput struct {
 }
 
 type SiteAccountPolicy struct {
+	LongXia       *SiteLongXiaModel `json:"longxia,omitempty"`
 	Wuzu          *WuzuModelConfig  `json:"wuzu,omitempty"`
 	VividAI       *SiteVividAIModel `json:"vividai,omitempty"`
 	ManualPrice   bool              `json:"manual_price,omitempty"`

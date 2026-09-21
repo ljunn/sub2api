@@ -154,7 +154,7 @@
                     <div v-if="bindingReason(binding)" class="mt-1 text-xs text-gray-500" :title="binding.error || (binding.status === 'preview' ? t('admin.sites.previewPaused') : '')">{{ binding.error || t(`admin.sites.status.${bindingReason(binding)}`) }}</div>
                   </td>
                   <td class="px-5 py-3 text-right whitespace-nowrap">
-                    <button v-if="bindingModel(binding) && bindingModel(binding)?.vividai?.kind !== 'video'" class="mr-3 text-primary-600" :disabled="busy" @click="priceModel = bindingModel(binding)!">{{ t('admin.sites.manualPrice.edit') }}</button>
+                    <button v-if="!bindingModel(binding)?.longxia && bindingModel(binding) && bindingModel(binding)?.vividai?.kind !== 'video'" class="mr-3 text-primary-600" :disabled="busy" @click="priceModel = bindingModel(binding)!">{{ t('admin.sites.manualPrice.edit') }}</button>
                     <button class="text-primary-600" :disabled="busy" @click="openBinding(binding)">{{ t('admin.sites.details') }}</button>
                     <button class="ml-3 text-red-600" :disabled="busy" @click="confirmAction = { kind: 'binding', id: binding.id }">{{ t('admin.sites.unbind') }}</button>
                   </td>

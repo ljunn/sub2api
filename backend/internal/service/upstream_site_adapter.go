@@ -502,6 +502,10 @@ func parseNewAPISiteCatalog(result gjson.Result) ([]SiteModel, error) {
 				out = append(out, m)
 				continue
 			}
+			if parseLongXiaSiteModel(&m, p, rate) {
+				out = append(out, m)
+				continue
+			}
 			if p.Get("quota_type").Int() == 1 {
 				price, ok := siteNumber(p.Get("model_price"))
 				if ok {

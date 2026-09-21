@@ -86,6 +86,9 @@ func (p SiteManualPrice) tiers() ([]SitePriceTier, error) {
 }
 
 func siteModelWithPrice(site *UpstreamSite, model SiteModel) SiteModel {
+	if model.LongXia != nil {
+		return model // Generic token/request overrides cannot describe these SKUs.
+	}
 	for i := range site.ManualPrices {
 		price := &site.ManualPrices[i]
 		if price.GroupID != model.GroupID || price.Model != model.Model {
@@ -134,6 +137,9 @@ func (s *UpstreamSiteService) SaveManualPrice(ctx context.Context, id string, in
 	}
 	if findSiteModel(site, input.GroupID, input.Model) == nil {
 		return nil, errors.New("模型不在同步目录中，请先同步站点")
+	}
+	if !input.Automatic && findSiteModel(site, input.GroupID, input.Model).LongXia != nil {
+		return nil, errors.New("LongXia 视频请使用自动同步的 SKU 单价和计费单位")
 	}
 	if site.Kind == "vividai" && !input.Automatic && !findSiteModel(site, input.GroupID, input.Model).Image {
 		return nil, errors.New("VividAI 视频请使用自动积分价格，并在站点设置填写积分美元换算倍率")

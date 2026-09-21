@@ -41,6 +41,7 @@ export interface SiteManualPrice {
   prices: Record<string, number>
 }
 export interface SiteModel {
+  longxia?: { resolution: string; duration_min: number; duration_max: number }
   vividai?: { kind: string; qualities: string[] }
   image?: boolean
   manual_price?: SiteManualPrice
