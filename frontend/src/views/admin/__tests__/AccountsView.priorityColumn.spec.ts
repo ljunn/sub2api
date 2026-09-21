@@ -137,6 +137,18 @@ describe('admin AccountsView priority column preferences', () => {
     ])
   })
 
+  it('does not sort per-size computed priorities by the saved database priority', async () => {
+    listAccounts.mockResolvedValue({
+      items: [{ id: 1, name: 'managed', platform: 'openai', type: 'apikey', group_ids: [], priority: 50,
+        site_scheduling: { status: 'ready', checked_at: new Date().toISOString(), tiers: [] } }],
+      total: 1, page: 1, page_size: 20, pages: 1
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('[data-column="priority"]').text()).toBe('fixed')
+    wrapper.unmount()
+  })
+
   it('keeps priority visible while migrating older saved preferences', async () => {
     localStorage.setItem('account-hidden-columns', JSON.stringify(['today_stats']))
 

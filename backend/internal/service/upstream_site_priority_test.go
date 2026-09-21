@@ -124,6 +124,42 @@ func TestSitePriorityAdvancedSchedulerRetainsAndOrdersEveryBackup(t *testing.T) 
 	require.Equal(t, int64(2), order[0].account.ID)
 	require.Equal(t, int64(3), order[1].account.ID)
 	require.Equal(t, int64(1), order[2].account.ID)
+	unmanaged := openAIAccountCandidateScore{account: &Account{ID: 99}, loadInfo: &AccountLoadInfo{}, score: 1000}
+	plan.candidates = append(plan.candidates, unmanaged)
+	order = scheduler.buildOpenAISelectionOrder(OpenAIAccountScheduleRequest{}, plan)
+	require.Len(t, order, 4, "mixed pools retain all managed backups too")
+	require.Equal(t, int64(99), order[0].account.ID, "retain the existing decision for independent accounts")
+	require.Equal(t, int64(2), order[1].account.ID)
+}
+
+func TestSitePriorityOpenAISchedulerSelectsBestAndFailsOverInBothModes(t *testing.T) {
+	for _, advanced := range []string{"false", "true"} {
+		t.Run(advanced, func(t *testing.T) {
+			resetOpenAIAdvancedSchedulerSettingCacheForTest()
+			defer resetOpenAIAdvancedSchedulerSettingCacheForTest()
+			pricing, _ := siteTestPricing()
+			ctx := WithSiteImageSize(context.WithValue(context.Background(), sitePricingKey{}, pricing), "2K")
+			accounts := []Account{sitePriorityTestAccount(31, "gpt-image-1", .15), sitePriorityTestAccount(32, "gpt-image-1", .05)}
+			for i := range accounts {
+				accounts[i].Extra["openai_passthrough"] = true
+			}
+			svc := &OpenAIGatewayService{accountRepo: schedulerTestOpenAIAccountRepo{accounts: accounts}, cfg: &config.Config{}, rateLimitService: newOpenAIAdvancedSchedulerRateLimitService(advanced), concurrencyService: NewConcurrencyService(stubConcurrencyCache{})}
+			groupID := int64(9)
+			for _, excluded := range []map[int64]struct{}{nil, {32: {}}} {
+				selected, _, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "", "gpt-image-1", excluded, OpenAIUpstreamTransportAny, false)
+				require.NoError(t, err)
+				require.NotNil(t, selected)
+				want := int64(32)
+				if excluded != nil {
+					want = 31
+				}
+				require.Equal(t, want, selected.Account.ID)
+				if selected.ReleaseFunc != nil {
+					selected.ReleaseFunc()
+				}
+			}
+		})
+	}
 }
 
 func TestSitePriorityObserversIgnoreLocalErrorsCancellationAndNestedConversions(t *testing.T) {
@@ -142,6 +178,9 @@ func TestSitePriorityObserversIgnoreLocalErrorsCancellationAndNestedConversions(
 	c.Status(400)
 	observation.finish(ctx, c, false, false, nil, errors.New("invalid prompt"))
 	require.Empty(t, pricing.performance.snapshot(key, time.Now()))
+	observation.finish(ctx, nil, false, false, nil, &OpenAIImagesUpstreamError{Code: "content_policy_violation", StatusCode: 400})
+	observation.finish(ctx, nil, false, false, nil, &OpenAIImagesUpstreamError{Param: "size", StatusCode: 400})
+	require.Empty(t, pricing.performance.snapshot(key, time.Now()), "structured refusals stay excluded even after an HTTP 200 stream begins")
 	observation.finish(ctx, c, false, false, nil, &UpstreamFailoverError{StatusCode: 400})
 	require.Len(t, pricing.performance.snapshot(key, time.Now()), 1, "retry-later failures count even when upstream uses 400")
 	cancelCtx, cancel := context.WithCancel(base)
@@ -174,4 +213,27 @@ func TestSitePriorityForwardImagesRecordsCompletedImageAndKeepsSize(t *testing.T
 	require.Len(t, samples, 1)
 	require.True(t, samples[0].Success)
 	require.Empty(t, pricing.performance.snapshot(sitePerformanceKey{account.ID, "gpt-image-2", "2K"}, time.Now()), "mapped upstream names must not mix local model pools")
+}
+
+type sitePriorityViewTestRepo struct {
+	AccountRepository
+	accounts []Account
+	reads    int
+}
+
+func (r *sitePriorityViewTestRepo) ListModelAvailabilityCandidates(context.Context, *int64, []string, bool) ([]Account, error) {
+	r.reads++
+	return r.accounts, nil
+}
+
+func TestSitePriorityAdminProjectionShowsSamePerSizeLeaders(t *testing.T) {
+	pricing, _ := siteTestPricing()
+	repo := &sitePriorityViewTestRepo{accounts: []Account{sitePriorityTestAccount(1, "model-a", .15), sitePriorityTestAccount(2, "model-a", .05)}}
+	pricing.accounts = repo
+	first := pricing.AccountScheduling(context.Background(), &repo.accounts[0])
+	second := pricing.AccountScheduling(context.Background(), &repo.accounts[1])
+	require.Equal(t, 200, first.Tiers[0].PriorityScore.Priority, "equal 1K prices break ties by ID")
+	require.GreaterOrEqual(t, first.Tiers[1].PriorityScore.Priority, 1000)
+	require.Equal(t, 200, second.Tiers[1].PriorityScore.Priority, "2K independently selects the cheaper account")
+	require.Equal(t, 3, repo.reads, "peer reads are shared across rows, once per size")
 }

@@ -329,6 +329,10 @@ func (s *siteForwardObservation) finish(ctx context.Context, c *gin.Context, suc
 		return
 	}
 	if err != nil {
+		var imageError *OpenAIImagesUpstreamError
+		if errors.As(err, &imageError) && (imageError.Param != "" || openAIContentPolicyCode(openAIImagesUpstreamErrorResponseBody(imageError)) != "") {
+			return
+		}
 		var failover *UpstreamFailoverError
 		accountFailure := errors.As(err, &failover) && failover.ShouldRetryNextAccount()
 		// Invalid client input and explicit refusals are not account failures.
