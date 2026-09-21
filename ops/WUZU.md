@@ -42,4 +42,6 @@ pnpm exec vue-tsc --noEmit
 
 可显式启用 `TestWuzuLiveReadOnly`，通过环境变量 `WUZU_LIVE_READ_ONLY=1`、`WUZU_LIVE_URL`、`WUZU_LIVE_USERNAME`、`WUZU_LIVE_PASSWORD` 验证真实后台登录、目录和余额。该测试不连接本地数据库、不创建调用 Key、不提交生图；凭据不写入测试或日志。真实生成及扣费未验证前，不将模拟转发测试描述成已完成真实出图。
 
+2026-09-21 已用用户提供的账号通过上述只读验证：真实登录、余额和 3 个图片模型配置均可读取，并成功同步账号总并发限制。未创建真实调用 Key，未发起收费生成。
+
 平台文档：<https://img.wuzuapi.com/api-docs/>。管理接口结构：<https://img.wuzuapi.com/openapi.json>。发布继续遵守 `ops/README.md` 的完整版本提交、推送、6556 审阅和生产确认流程。
