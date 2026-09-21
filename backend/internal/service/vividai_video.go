@@ -67,7 +67,16 @@ func vividAIVideoRequest(body []byte, upstreamModel string) (vividAIRequest, []v
 // The Ark task binding/ownership and completion billing remain in the existing
 // handler. Create returns the first receipt; status resumes that exact job with
 // a short wait. No in-memory worker or additional task database is required.
-func (s *OpenAIGatewayService) forwardVividAIVideo(ctx context.Context, c *gin.Context, account *Account, endpoint GrokMediaEndpoint, taskID string, body []byte) (*OpenAIForwardResult, error) {
+func (s *OpenAIGatewayService) forwardVividAIVideo(ctx context.Context, c *gin.Context, account *Account, endpoint GrokMediaEndpoint, taskID string, body []byte) (siteResult *OpenAIForwardResult, siteErr error) {
+	if endpoint == SeedanceEndpointCreate {
+		ctx = WithSitePriceRequest(ctx, body)
+		var observation *siteForwardObservation
+		ctx, observation = beginSiteForward(ctx, account)
+		defer func() { observation.finishOpenAI(ctx, c, siteResult, siteErr) }()
+		if err := CheckSitePriceBeforeSend(ctx, account, s.accountRepo); err != nil {
+			return nil, err
+		}
+	}
 	started := time.Now()
 	if endpoint == SeedanceEndpointDelete {
 		return s.vividAIForwardError(ctx, c, account, &vividAIError{Status: http.StatusMethodNotAllowed, Code: "unsupported_operation", Message: "VividAI does not provide task deletion or cancellation"}, false)

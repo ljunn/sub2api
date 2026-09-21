@@ -28,7 +28,7 @@
             @keydown.space.self.prevent="$emit('select', site.id)">
             <td class="px-4 py-2">
               <button type="button" class="block max-w-56 truncate font-semibold text-primary-700 dark:text-primary-400" :title="site.name" @click.stop="$emit('select', site.id)">{{ site.name }}</button>
-              <div class="mt-0.5 max-w-56 truncate text-xs text-gray-500" :title="site.base_url">{{ site.kind === 'kongfang' ? t('admin.sites.kongfang') : site.kind === 'newapi' ? 'New API' : 'Sub2API' }} · {{ site.base_url }}</div>
+              <div class="mt-0.5 max-w-56 truncate text-xs text-gray-500" :title="site.base_url">{{ site.kind === 'wuzu' ? 'WUZU' : site.kind === 'vividai' ? 'VividAI' : site.kind === 'kongfang' ? t('admin.sites.kongfang') : site.kind === 'newapi' ? 'New API' : 'Sub2API' }} · {{ site.base_url }}</div>
               <a :href="site.base_url" target="_blank" rel="noopener noreferrer"
                 class="mt-1 inline-flex items-center gap-1 text-xs text-primary-600 hover:underline"
                 :aria-label="t('admin.sites.overview.openSiteLabel', { name: site.name })"

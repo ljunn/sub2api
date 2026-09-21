@@ -147,6 +147,9 @@ func (s *sitePerformanceStore) snapshot(key sitePerformanceKey, now time.Time) [
 }
 
 func sitePerformanceTier(p SiteAccountPolicy, request SitePriceRequest) string {
+	if p.SiteKind == "vividai" && request.VividAITier != "" {
+		return request.VividAITier
+	}
 	if !p.Image {
 		return "default"
 	}

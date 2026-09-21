@@ -1,5 +1,9 @@
 export default {
   sites: {
+    wuzuAuthHint: '使用 WUZU 账号密码或后台登录令牌。绑定模型时创建独立 API Key，并按唯一模型配置关联。支持图片生成和文件上传编辑。',
+    wuzuConversionHint: '填写 1 USD 对应的实际充值额度，采购价和余额共用此倍率。留空可同步模型，自动价格调度暂停；也可为模型手动填写美元采购价。',
+    wuzuUnits: '额度',
+    vividaiAuthHint: '使用现有 vk_ API Key。所有模型共用此 Key，不会自动重新生成或使旧 Key 失效。余额和采购价按所填积分美元倍率换算；视频按最长支持时长核价，并需明确配置本地计费价格。',
     priority: {
       automatic: '自动', details: '查看优先级评分依据',
       hint: '同模型、同规格独立排序；第一名为 200，数值越小越优先。所有可用备用账号保留。',
@@ -50,7 +54,7 @@ export default {
     edit: '编辑站点',
     empty: '接入你的第一个上游站点',
     emptyHint:
-      '支持 Sub2API、New API 和空凡。连接后选择上游分组与模型，绑定到本地分组，系统按本地售价自动计算各档位采购上限。',
+      '支持 WUZU、Sub2API、New API 和空凡。连接后选择上游分组与模型，绑定到本地分组，系统按本地售价自动计算各档位采购上限。',
     bindingCount: '{count} 个绑定',
     lastSync: '最近成功同步：',
     sync: '立即同步',

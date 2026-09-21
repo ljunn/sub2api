@@ -135,6 +135,9 @@ func (s *UpstreamSiteService) SaveManualPrice(ctx context.Context, id string, in
 	if findSiteModel(site, input.GroupID, input.Model) == nil {
 		return nil, errors.New("模型不在同步目录中，请先同步站点")
 	}
+	if site.Kind == "vividai" && !input.Automatic && !findSiteModel(site, input.GroupID, input.Model).Image {
+		return nil, errors.New("VividAI 视频请使用自动积分价格，并在站点设置填写积分美元换算倍率")
+	}
 	prices := make([]SiteManualPrice, 0, len(site.ManualPrices)+1)
 	for _, price := range site.ManualPrices {
 		if price.GroupID != input.GroupID || price.Model != input.Model {

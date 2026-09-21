@@ -245,7 +245,7 @@ func convertSiteBalanceUSD(site *UpstreamSite) {
 		switch {
 		case b.Currency == "USD":
 			rate = 1
-		case site.Kind == "kongfang" && site.CreditUSD > 0:
+		case (site.Kind == "kongfang" || site.Kind == "vividai") && site.CreditUSD > 0:
 			rate = 1 / site.CreditUSD
 		default:
 			rate = b.NativeUnitsPerUSD
@@ -268,6 +268,23 @@ func convertSiteBalanceUSD(site *UpstreamSite) {
 }
 
 func (a *siteAdapter) balance(ctx context.Context) (float64, string, error) {
+	if a.site.Kind == "wuzu" {
+		if err := a.authenticate(ctx); err != nil {
+			return 0, "", err
+		}
+		if a.wuzuProfile.Get("unlimited").Type != gjson.False {
+			return 0, "", errors.New("WUZU 账号没有有限额度，无法折算美元余额")
+		}
+		amount, ok := siteBalanceNumber(a.wuzuProfile.Get("remaining"))
+		if !ok {
+			return 0, "", errors.New("WUZU 未提供有效剩余额度")
+		}
+		return amount, "额度", nil
+	}
+	if a.site.Kind == "vividai" {
+		amount, err := a.vividAIBalance(ctx)
+		return amount, "积分", err
+	}
 	if a.site.Kind != "sub2api" && a.site.Kind != "newapi" && a.site.Kind != "kongfang" {
 		return 0, "", errors.New("此站点类型暂不支持余额查询")
 	}

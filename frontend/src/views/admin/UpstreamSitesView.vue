@@ -154,7 +154,7 @@
                     <div v-if="bindingReason(binding)" class="mt-1 text-xs text-gray-500" :title="binding.error || (binding.status === 'preview' ? t('admin.sites.previewPaused') : '')">{{ binding.error || t(`admin.sites.status.${bindingReason(binding)}`) }}</div>
                   </td>
                   <td class="px-5 py-3 text-right whitespace-nowrap">
-                    <button v-if="bindingModel(binding)" class="mr-3 text-primary-600" :disabled="busy" @click="priceModel = bindingModel(binding)!">{{ t('admin.sites.manualPrice.edit') }}</button>
+                    <button v-if="bindingModel(binding) && bindingModel(binding)?.vividai?.kind !== 'video'" class="mr-3 text-primary-600" :disabled="busy" @click="priceModel = bindingModel(binding)!">{{ t('admin.sites.manualPrice.edit') }}</button>
                     <button class="text-primary-600" :disabled="busy" @click="openBinding(binding)">{{ t('admin.sites.details') }}</button>
                     <button class="ml-3 text-red-600" :disabled="busy" @click="confirmAction = { kind: 'binding', id: binding.id }">{{ t('admin.sites.unbind') }}</button>
                   </td>
@@ -230,9 +230,13 @@
             >{{ t('admin.sites.format')
             }}<select
               v-model="siteForm.kind"
+              data-testid="site-kind"
+              @change="changeSiteKind"
               class="input mt-1"
               :disabled="identityLocked"
             >
+              <option value="vividai">VividAI</option>
+              <option value="wuzu">WUZU（ChatGPT2API）</option>
               <option value="sub2api">Sub2API</option>
               <option value="newapi">New API</option>
               <option value="kongfang">{{ t('admin.sites.kongfang') }}</option>
@@ -244,10 +248,10 @@
               class="input mt-1"
               :disabled="identityLocked"
             >
-              <option value="password">
+              <option v-if="siteForm.kind !== 'vividai'" value="password">
                 {{ t('admin.sites.passwordLogin') }}
               </option>
-              <option value="token">{{ siteForm.kind === 'kongfang' ? 'Access Token' : 'Access / Refresh Token' }}</option>
+              <option value="token">{{ siteForm.kind === 'vividai' ? 'API Key' : ['kongfang', 'wuzu'].includes(siteForm.kind) ? 'Access Token' : 'Access / Refresh Token' }}</option>
             </select></label
           >
         </div>
@@ -274,14 +278,15 @@
         ></template>
         <template v-else
           ><label class="block text-sm"
-            >Access Token<textarea
+            >{{ siteForm.kind === 'vividai' ? 'API Key' : 'Access Token' }}<textarea
               v-model="siteForm.access_token"
+              data-testid="site-access-token"
               class="input mt-1 font-mono text-xs"
               rows="3"
               autocomplete="off"
               :placeholder="editingId ? t('admin.sites.keepSecret') : ''"
             /></label
-          ><label v-if="siteForm.kind !== 'kongfang'" class="block text-sm"
+          ><label v-if="!['kongfang', 'vividai', 'wuzu'].includes(siteForm.kind)" class="block text-sm"
             >Refresh Token<input
               v-model="siteForm.refresh_token"
               class="input mt-1"
@@ -299,7 +304,7 @@
               min="0"
               :disabled="identityLocked" /></label
         ></template>
-        <p class="text-xs text-gray-500">{{ t(siteForm.kind === 'kongfang' ? 'admin.sites.kongfangAuthHint' : 'admin.sites.authHint') }}</p>
+        <p class="text-xs text-gray-500">{{ t(siteForm.kind === 'wuzu' ? 'admin.sites.wuzuAuthHint' : siteForm.kind === 'vividai' ? 'admin.sites.vividaiAuthHint' : siteForm.kind === 'kongfang' ? 'admin.sites.kongfangAuthHint' : 'admin.sites.authHint') }}</p>
         <div class="space-y-2 text-sm">
           <label for="balance-conversion">{{ t('admin.siteBalance.conversion') }}</label>
           <div class="flex items-center gap-2">
@@ -311,7 +316,8 @@
             <button v-for="rate in [100, 10, 1]" :key="rate" type="button" class="rounded border border-gray-200 px-3 py-1 text-xs dark:border-dark-600" @click="siteForm.balance_units_per_usd = rate">1:{{ rate }}</button>
           </div>
           <p class="text-xs text-gray-500">{{ t('admin.siteBalance.conversionHint') }}</p>
-          <p v-if="siteForm.kind === 'kongfang'" class="text-xs text-gray-500">{{ t('admin.siteBalance.creditConversionHint') }}</p>
+          <p v-if="siteForm.kind === 'wuzu'" class="text-xs text-gray-500">{{ t('admin.sites.wuzuConversionHint') }}</p>
+          <p v-if="['kongfang', 'vividai'].includes(siteForm.kind)" class="text-xs text-gray-500">{{ t('admin.siteBalance.creditConversionHint') }}</p>
         </div>
         <label class="flex items-center gap-2 text-sm"
           ><input v-model="siteForm.enabled" type="checkbox" />{{
@@ -712,17 +718,34 @@ const emptySite = (): SiteInput => ({
 const siteDialog = ref(false)
 const editingId = ref('')
 const siteForm = ref<SiteInput>(emptySite())
-const conversionCurrency = computed(() => sites.value.find(s => s.id === editingId.value)?.balance?.currency || (siteForm.value.kind === 'kongfang' ? '积分' : siteForm.value.kind === 'sub2api' ? 'USD' : t('admin.siteBalance.originalUnit')))
+const conversionCurrency = computed(() => sites.value.find(s => s.id === editingId.value)?.balance?.currency || (siteForm.value.kind === 'wuzu' ? t('admin.sites.wuzuUnits') : ['kongfang', 'vividai'].includes(siteForm.value.kind) ? '积分' : siteForm.value.kind === 'sub2api' ? 'USD' : t('admin.siteBalance.originalUnit')))
 const identityLocked = computed(
   () => !!sites.value.find((s) => s.id === editingId.value)?.bindings.length,
 )
+function changeSiteKind() {
+  if (siteForm.value.kind === 'wuzu') {
+    siteForm.value.auth_mode = 'password'
+    if (!siteForm.value.base_url) siteForm.value.base_url = 'https://img.wuzuapi.com'
+  }
+  siteForm.value.password = ''
+  siteForm.value.access_token = ''
+  siteForm.value.refresh_token = ''
+  siteForm.value.username = ''
+  siteForm.value.user_id = 0
+  siteForm.value.usd_per_credit = 0
+  siteForm.value.balance_units_per_usd = undefined
+  if (siteForm.value.kind === 'vividai') {
+    siteForm.value.auth_mode = 'token'
+    if (!siteForm.value.base_url) siteForm.value.base_url = 'https://vividai.run'
+  }
+}
 function editSite(site?: UpstreamSite) {
   editingId.value = site?.id || ''
   siteForm.value = site
     ? {
         ...emptySite(),
         usd_per_credit: site.usd_per_credit || 0,
-        balance_units_per_usd: site.balance_units_per_usd || site.balance?.units_per_usd || (site.kind === 'kongfang' && site.usd_per_credit ? 1 / site.usd_per_credit : site.kind === 'sub2api' ? 1 : undefined),
+        balance_units_per_usd: site.balance_units_per_usd || site.balance?.units_per_usd || (['kongfang', 'vividai'].includes(site.kind) && site.usd_per_credit ? 1 / site.usd_per_credit : site.kind === 'sub2api' ? 1 : undefined),
         name: site.name,
         base_url: site.base_url,
         kind: site.kind,
@@ -744,7 +767,7 @@ async function saveSite() {
   const selectedWhenSaving = selectedId.value
   busy.value = true
   try {
-    const result = await upstreamSitesApi.save(editingId.value, { ...siteForm.value, balance_units_per_usd: Number(siteForm.value.balance_units_per_usd) || 0, usd_per_credit: Number(siteForm.value.usd_per_credit) || 0, refresh_token: siteForm.value.kind === 'kongfang' ? '' : siteForm.value.refresh_token })
+    const result = await upstreamSitesApi.save(editingId.value, { ...siteForm.value, balance_units_per_usd: Number(siteForm.value.balance_units_per_usd) || 0, usd_per_credit: Number(siteForm.value.usd_per_credit) || 0, refresh_token: ['kongfang', 'vividai', 'wuzu'].includes(siteForm.value.kind) ? '' : siteForm.value.refresh_token })
     replace(result)
     if (selectedId.value === selectedWhenSaving) selectSite(result.id)
     siteDialog.value = false
@@ -795,7 +818,7 @@ const compatibleGroups = computed(() =>
   groups.value.filter(
     (g) =>
       ['openai', 'anthropic', 'gemini'].includes(g.platform) &&
-      (!['sub2api', 'kongfang'].includes(selected.value?.kind || '') ||
+      (!['sub2api', 'kongfang', 'vividai', 'wuzu'].includes(selected.value?.kind || '') ||
         !chosenModel.value?.platform ||
         chosenModel.value.platform === g.platform),
   ),

@@ -100,6 +100,64 @@ async function click(text: string) {
 }
 
 describe('upstream sites', () => {
+  it('creates WUZU with console credentials and its credit conversion', async () => {
+    mocks.routeQuery = {}
+    wrapper = mountView()
+    await flushPromises()
+    await click('admin.sites.add')
+    await wrapper.get('[data-testid=site-kind]').setValue('wuzu')
+    expect(wrapper.get('#site-form').text()).toContain('admin.sites.wuzuAuthHint')
+    expect(wrapper.get('#site-form').text()).toContain('admin.sites.wuzuConversionHint')
+    expect(wrapper.get<HTMLInputElement>('#site-form input[type=url]').element.value).toBe('https://img.wuzuapi.com')
+    const auth = wrapper.findAll('#site-form select')[1]!
+    expect((auth.element as HTMLSelectElement).value).toBe('password')
+    await wrapper.get('#site-form input[maxlength="120"]').setValue('WUZU')
+    await wrapper.get('#site-form input[autocomplete="off"]').setValue('member')
+    await wrapper.get('#site-form input[type=password]').setValue('console-password')
+    await wrapper.get('[data-testid=balance-conversion]').setValue('100')
+    await wrapper.get('#site-form').trigger('submit')
+    await flushPromises()
+    expect(mocks.save).toHaveBeenCalledWith('', expect.objectContaining({
+      kind: 'wuzu', base_url: 'https://img.wuzuapi.com', auth_mode: 'password', username: 'member',
+      password: 'console-password', balance_units_per_usd: 100, refresh_token: '',
+    }))
+    expect(mocks.sync).toHaveBeenCalled()
+  })
+
+  it('displays WUZU and hides unsupported refresh credentials', async () => {
+    site.kind = 'wuzu'
+    site.auth_mode = 'token'
+    site.balance_units_per_usd = 100
+    wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.findComponent(SiteOverview).text()).toContain('WUZU')
+    await click('common.edit')
+    expect(wrapper.get('#site-form').text()).not.toContain('Refresh Token')
+    expect(wrapper.get<HTMLTextAreaElement>('#site-form textarea').element.value).toBe('')
+    expect(wrapper.get<HTMLInputElement>('[data-testid=balance-conversion]').element.value).toBe('100')
+  })
+
+  it('adds VividAI with an existing API key and excludes password and refresh token fields', async () => {
+    wrapper = mountView()
+    await flushPromises()
+    await click('admin.sites.add')
+    await wrapper.get('[data-testid=site-kind]').setValue('vividai')
+    expect(wrapper.get('[role=dialog]').text()).toContain('API Key')
+    expect(wrapper.get('[role=dialog]').text()).not.toContain('Refresh Token')
+    expect(wrapper.find('option[value=password]').exists()).toBe(false)
+    expect(wrapper.find('input[autocomplete=new-password]').exists()).toBe(false)
+    expect((wrapper.get('input[type=url]').element as HTMLInputElement).value).toBe('https://vividai.run')
+    await wrapper.get('input[maxlength="120"]').setValue('VividAI')
+    await wrapper.get('[data-testid=site-access-token]').setValue('vk_existing')
+    await wrapper.get('[data-testid=balance-conversion]').setValue('1000')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.save).toHaveBeenCalledWith('', expect.objectContaining({
+      kind: 'vividai', auth_mode: 'token', access_token: 'vk_existing', username: '', password: '', refresh_token: '', balance_units_per_usd: 1000,
+    }))
+    expect(mocks.sync).toHaveBeenCalled()
+  })
+
   it('opens the purchase price editor directly from a model and refreshes its price after saving', async () => {
     wrapper = mountView()
     await flushPromises()

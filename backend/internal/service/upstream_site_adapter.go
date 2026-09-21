@@ -39,6 +39,7 @@ type siteAdapter struct {
 	client            *http.Client
 	balanceNativeRate float64
 	warnings          []string
+	wuzuProfile       gjson.Result
 }
 
 func newSiteAdapter(site *UpstreamSite, credentials *SiteCredentials) *siteAdapter {
@@ -143,6 +144,13 @@ func (a *siteAdapter) acceptAuth(result gjson.Result) error {
 	return nil
 }
 func (a *siteAdapter) authenticate(ctx context.Context) error {
+	if a.site.Kind == "wuzu" {
+		return a.authenticateWuzu(ctx)
+	}
+	if a.site.Kind == "vividai" {
+		_, err := a.vividAIBalance(ctx)
+		return err
+	}
 	selfPath := "/api/v1/auth/me"
 	if a.site.Kind == "kongfang" {
 		selfPath = "/api/v1/user/profile"
@@ -238,6 +246,12 @@ func (a *siteAdapter) catalog(ctx context.Context) ([]SiteModel, error) {
 	}
 	if a.site.Kind == "kongfang" {
 		return a.kongfangCatalog(ctx)
+	}
+	if a.site.Kind == "wuzu" {
+		return a.wuzuCatalog(ctx)
+	}
+	if a.site.Kind == "vividai" {
+		return a.vividAICatalog(ctx)
 	}
 	if a.site.Kind == "newapi" {
 		result, err := a.request(ctx, http.MethodGet, "/api/pricing", nil)
@@ -537,6 +551,13 @@ func parseNewAPISiteCatalog(result gjson.Result) ([]SiteModel, error) {
 // Each binding owns a deterministic key name. Always search before creating,
 // including after an ambiguous timeout or a process restart.
 func (a *siteAdapter) ensureKey(ctx context.Context, b *SiteBinding) (string, error) {
+	if a.site.Kind == "vividai" {
+		if err := a.authenticate(ctx); err != nil {
+			return "", err
+		}
+		// VividAI has one key per user. Creating one would revoke every binding.
+		return a.credentials.AccessToken, nil
+	}
 	if key := a.credentials.Keys[b.ID]; key != "" {
 		return key, nil
 	}
@@ -545,7 +566,13 @@ func (a *siteAdapter) ensureKey(ctx context.Context, b *SiteBinding) (string, er
 	}
 	name := "s2site-" + b.ID
 	var key string
-	if a.site.Kind == "kongfang" {
+	if a.site.Kind == "wuzu" {
+		var err error
+		key, err = a.ensureWuzuKey(ctx, name, b)
+		if err != nil {
+			return "", err
+		}
+	} else if a.site.Kind == "kongfang" {
 		var err error
 		key, err = a.ensureKongfangKey(ctx, name)
 		if err != nil {

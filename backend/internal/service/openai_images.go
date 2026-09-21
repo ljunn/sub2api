@@ -572,7 +572,9 @@ func (s *OpenAIGatewayService) ForwardImages(
 		return nil, fmt.Errorf("parsed images request is required")
 	}
 	ctx = WithSiteImageSize(ctx, parsed.Size)
+	ctx = WithWuzuImageRequest(ctx, body, parsed.ContentType)
 	ctx, siteObservation := beginSiteForward(ctx, account)
+	ctx = WithSiteImageQuality(ctx, parsed.Size, parsed.Quality)
 	defer func() { siteObservation.finishOpenAI(ctx, c, siteResult, siteErr) }()
 	if err := CheckSitePriceBeforeSend(ctx, account, s.accountRepo); err != nil {
 		return nil, err

@@ -1,5 +1,9 @@
 export default {
   sites: {
+    wuzuAuthHint: 'Use a WUZU login and password or console access token. Each model binding creates a separate API key scoped to its unique model configuration. Supports image generation and multipart image editing.',
+    wuzuConversionHint: 'Enter the actual credits purchased per USD. This rate converts both balances and purchase prices. Without it, models sync with automatic price scheduling paused; manual USD purchase prices are also available.',
+    wuzuUnits: 'credits',
+    vividaiAuthHint: 'Use an existing vk_ API key. All models share it; saving never regenerates or revokes the key. Credit conversion applies to balances and purchase prices. Video costs use the longest supported duration and require explicit local billing prices.',
     priority: {
       automatic: 'Auto', details: 'View priority score details',
       hint: 'Ranked separately per model and size. The leader is 200; lower priorities go first. All eligible backups are retained.',

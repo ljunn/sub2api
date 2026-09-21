@@ -214,6 +214,21 @@ func (s *UpstreamSitePricing) selling(ctx context.Context, group *Group, model s
 					cost = s.billing.CalculateImageCost(model, tier.Key, 1, &ImagePriceConfig{Price1K: group.ImagePrice1K, Price2K: group.ImagePrice2K, Price4K: group.ImagePrice4K}, rate)
 				}
 				prices["request"] = cost.ActualCost
+			} else if tier.CreditUnits > 0 && resolved != nil && resolved.Mode == BillingModeToken && (resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel) {
+				// VividAI output is credit-equivalent usage, never native Ark tokens.
+				// Require explicit local pricing and use the lowest context unit rate.
+				videoSchedule, e := s.billing.ResolveContextPricingSchedule(ctx, s.resolver, ContextPricingScheduleInput{Model: model, Group: group, Platform: group.Platform})
+				if e == nil && videoSchedule != nil && len(videoSchedule.Tiers) > 0 {
+					unit := math.Inf(1)
+					for _, t := range videoSchedule.Tiers {
+						v := 0.0
+						if t.Output != nil {
+							v = *t.Output
+						}
+						unit = math.Min(unit, v)
+					}
+					prices["request"] = unit * tier.CreditUnits * rate * resolvedChannelTimeMultiplier(resolved, at)
+				}
 			} else if resolved != nil && resolved.Mode == BillingModePerRequest {
 				// For context-dependent request rates the lowest selling tier is safe.
 				v := resolved.DefaultPerRequestPrice

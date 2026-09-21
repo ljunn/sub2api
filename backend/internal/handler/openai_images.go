@@ -144,6 +144,8 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 
 	sessionHash := h.gatewayService.GenerateExplicitSessionHash(c, body)
 	requestCtx := service.WithSiteImageSize(service.WithOpenAIImagesEndpoint(service.WithOpenAIImageGenerationIntent(c.Request.Context())), parsed.Size)
+	requestCtx = service.WithWuzuImageRequest(requestCtx, body, parsed.ContentType)
+	requestCtx = service.WithSiteImageQuality(requestCtx, parsed.Size, parsed.Quality)
 
 	maxAccountSwitches := h.maxAccountSwitches
 	switchCount := 0

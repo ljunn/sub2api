@@ -15,25 +15,30 @@ type UpstreamSiteSecretEncryptor interface{ SecretEncryptor }
 // Prices and limits use USD per request/image or per million tokens. Missing is
 // unknown, never zero. A tier can carry several independently bounded components.
 type SitePriceTier struct {
-	Note   string             `json:"note,omitempty"`
-	Key    string             `json:"key"`
-	Unit   string             `json:"unit"`
-	Prices map[string]float64 `json:"prices"`
-	Reason string             `json:"reason,omitempty"`
+	// VividAI video bills 1000 output units per upstream credit. This is the
+	// maximum usage for this quality, used to compare a fixed request price.
+	CreditUnits float64            `json:"credit_units,omitempty"`
+	Note        string             `json:"note,omitempty"`
+	Key         string             `json:"key"`
+	Unit        string             `json:"unit"`
+	Prices      map[string]float64 `json:"prices"`
+	Reason      string             `json:"reason,omitempty"`
 }
 
 type SiteModel struct {
-	ManualPrice  *SiteManualPrice `json:"manual_price,omitempty"`
-	DiscoveryID  string           `json:"discovery_id,omitempty"`
-	DiscoveredAt *time.Time       `json:"discovered_at,omitempty"`
-	Unread       bool             `json:"unread,omitempty"`
-	Image        bool             `json:"image"`
-	GroupID      string           `json:"group_id"`
-	GroupName    string           `json:"group_name"`
-	Model        string           `json:"model"`
-	Platform     string           `json:"platform"`
-	Tiers        []SitePriceTier  `json:"tiers"`
-	Reason       string           `json:"reason,omitempty"`
+	Wuzu         *WuzuModelConfig  `json:"wuzu,omitempty"`
+	VividAI      *SiteVividAIModel `json:"vividai,omitempty"`
+	ManualPrice  *SiteManualPrice  `json:"manual_price,omitempty"`
+	DiscoveryID  string            `json:"discovery_id,omitempty"`
+	DiscoveredAt *time.Time        `json:"discovered_at,omitempty"`
+	Unread       bool              `json:"unread,omitempty"`
+	Image        bool              `json:"image"`
+	GroupID      string            `json:"group_id"`
+	GroupName    string            `json:"group_name"`
+	Model        string            `json:"model"`
+	Platform     string            `json:"platform"`
+	Tiers        []SitePriceTier   `json:"tiers"`
+	Reason       string            `json:"reason,omitempty"`
 }
 
 type SiteTierLimit struct {
@@ -97,6 +102,7 @@ type SitePriceChange struct {
 }
 
 type SiteCredentials struct {
+	SubjectID    string            `json:"subject_id,omitempty"`
 	Password     string            `json:"password,omitempty"`
 	AccessToken  string            `json:"access_token,omitempty"`
 	RefreshToken string            `json:"refresh_token,omitempty"`
@@ -120,20 +126,22 @@ type SiteInput struct {
 }
 
 type SiteAccountPolicy struct {
-	ManualPrice   bool            `json:"manual_price,omitempty"`
-	SiteKind      string          `json:"site_kind,omitempty"`
-	LocalGroupID  int64           `json:"local_group_id"`
-	Image         bool            `json:"image"`
-	SiteID        string          `json:"site_id"`
-	SiteName      string          `json:"site_name"`
-	BindingID     string          `json:"binding_id"`
-	LocalModel    string          `json:"local_model"`
-	UpstreamModel string          `json:"upstream_model"`
-	Enabled       bool            `json:"enabled"`
-	FreshUntil    time.Time       `json:"fresh_until"`
-	Tiers         []SitePriceTier `json:"tiers"`
-	Limits        []SiteTierLimit `json:"limits"`
-	Reason        string          `json:"reason,omitempty"`
+	Wuzu          *WuzuModelConfig  `json:"wuzu,omitempty"`
+	VividAI       *SiteVividAIModel `json:"vividai,omitempty"`
+	ManualPrice   bool              `json:"manual_price,omitempty"`
+	SiteKind      string            `json:"site_kind,omitempty"`
+	LocalGroupID  int64             `json:"local_group_id"`
+	Image         bool              `json:"image"`
+	SiteID        string            `json:"site_id"`
+	SiteName      string            `json:"site_name"`
+	BindingID     string            `json:"binding_id"`
+	LocalModel    string            `json:"local_model"`
+	UpstreamModel string            `json:"upstream_model"`
+	Enabled       bool              `json:"enabled"`
+	FreshUntil    time.Time         `json:"fresh_until"`
+	Tiers         []SitePriceTier   `json:"tiers"`
+	Limits        []SiteTierLimit   `json:"limits"`
+	Reason        string            `json:"reason,omitempty"`
 }
 
 type UpstreamSiteRepository interface {

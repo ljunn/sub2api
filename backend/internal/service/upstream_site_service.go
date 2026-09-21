@@ -147,7 +147,7 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return nil, errors.New("请输入有效站点地址，不要包含凭据、查询参数或 API 路径")
 	}
-	if input.Name == "" || len(input.Name) > 120 || (input.Kind != "sub2api" && input.Kind != "newapi" && input.Kind != "kongfang") || (input.AuthMode != "password" && input.AuthMode != "token") {
+	if input.Name == "" || len(input.Name) > 120 || (input.Kind != "sub2api" && input.Kind != "newapi" && input.Kind != "kongfang" && input.Kind != "vividai" && input.Kind != "wuzu") || (input.AuthMode != "password" && input.AuthMode != "token") {
 		return nil, errors.New("站点名称、格式或登录方式无效")
 	}
 	if strings.HasSuffix(u.Path, "/v1") || strings.HasSuffix(u.Path, "/api") {
@@ -161,16 +161,25 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 		if math.IsNaN(rate) || math.IsInf(rate, 0) || rate < 0 || rate > 1e12 || (rate > 0 && rate < 1e-12) {
 			return nil, errors.New("换算倍率必须是有效正数，0 表示使用上游倍率；格式为 1 USD = 所填数量原币或积分")
 		}
-		if input.Kind == "kongfang" && rate > 0 {
+		if (input.Kind == "kongfang" || input.Kind == "vividai") && rate > 0 {
 			input.CreditUSD = 1 / rate
 		}
-	} else if input.Kind == "kongfang" && input.CreditUSD > 0 {
+		if input.Kind == "vividai" && rate == 0 {
+			input.CreditUSD = 0
+		}
+	} else if (input.Kind == "kongfang" || input.Kind == "vividai") && input.CreditUSD > 0 {
 		// Older clients send USD/credit. Keep the reciprocal balance rate in sync.
 		rate := 1 / input.CreditUSD
 		input.BalanceUnitsPerUSD = &rate
 	}
 	if input.Kind == "kongfang" && u.Path != "" {
 		return nil, errors.New("空凡请填写站点首页地址，不要包含 /user/balance 等路径")
+	}
+	if input.Kind == "wuzu" && u.Path != "" {
+		return nil, errors.New("WUZU 请填写站点首页地址，不要包含 /profile 或 /api-docs 等路径")
+	}
+	if input.Kind == "vividai" && (input.AuthMode != "token" || input.RefreshToken != "" || input.Password != "" || input.Username != "" || input.UserID != 0 || u.Path != "") {
+		return nil, errors.New("VividAI 请填写首页地址和现有 API Key，不支持登录令牌、密码或自动重新生成 Key")
 	}
 	fresh := id == ""
 	if fresh {
@@ -230,7 +239,19 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	if input.Kind == "kongfang" && input.AuthMode == "token" && credentials.AccessToken == "" {
 		return nil, errors.New("空凡需要后台 Access Token，不支持仅使用 Refresh Token")
 	}
+	if input.Kind == "vividai" && (credentials.AccessToken == "" || !strings.HasPrefix(credentials.AccessToken, "vk_") || strings.ContainsAny(credentials.AccessToken, " \t\r\n")) {
+		return nil, errors.New("VividAI 需要以 vk_ 开头的现有 API Key")
+	}
 	priceChanged := site.CreditUSD != input.CreditUSD
+	if input.Kind == "wuzu" {
+		if input.AuthMode == "token" && credentials.AccessToken == "" {
+			return nil, errors.New("WUZU 需要后台登录令牌，不支持仅使用 Refresh Token")
+		}
+		credentials.RefreshToken = ""
+		if input.BalanceUnitsPerUSD != nil && site.BalanceUnitsPerUSD != *input.BalanceUnitsPerUSD {
+			priceChanged = true
+		}
+	}
 	site.CreditUSD = input.CreditUSD
 	site.Name = input.Name
 	site.BaseURL = input.BaseURL
@@ -388,7 +409,7 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 	if siteModelWithPrice(site, *model).ManualPrice == nil && (site.LastSuccess == nil || time.Since(*site.LastSuccess) > 10*time.Minute) {
 		return nil, errors.New("价格目录已过期，请先同步")
 	}
-	if model.Platform != "" && (site.Kind == "sub2api" || site.Kind == "kongfang") && model.Platform != group.Platform {
+	if model.Platform != "" && (site.Kind == "sub2api" || site.Kind == "kongfang" || site.Kind == "vividai" || site.Kind == "wuzu") && model.Platform != group.Platform {
 		return nil, errors.New("本地分组与上游模型的平台不匹配")
 	}
 	s.refreshBindingPrice(ctx, site, &input)
@@ -461,6 +482,9 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 			var policyMap map[string]any
 			_ = json.Unmarshal(raw, &policyMap)
 			account := &Account{Name: siteManagedAccountName(site.Name, binding.Model, model.GroupName), Platform: group.Platform, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: siteAccountConcurrency(site), Priority: 50, Credentials: map[string]any{"base_url": site.BaseURL, "api_key": key, "model_mapping": map[string]any{binding.LocalModel: binding.Model}, "pool_mode": true, "pool_mode_retry_count": 0, SiteBindingCredentialKey: binding.ID}, Extra: map[string]any{"upstream_site_binding_id": binding.ID, "upstream_site_id": site.ID, SitePolicyExtraKey: policyMap, UpstreamBillingProbeEnabledExtraKey: false}}
+			if site.Kind == "vividai" {
+				account.Extra[AccountExtraVividAI] = true
+			}
 			if s.preview {
 				account.Status = StatusDisabled
 				account.Extra["upstream_site_preview_pending"] = true
@@ -494,8 +518,10 @@ func BuildSiteAccountPolicy(site *UpstreamSite, b *SiteBinding) SiteAccountPolic
 	}
 	if m := findSiteModel(site, b.GroupID, b.Model); m != nil {
 		effective := siteModelWithPrice(site, *m)
+		p.Wuzu = effective.Wuzu
 		p.ManualPrice = effective.ManualPrice != nil
 		p.Image = effective.Image
+		p.VividAI = effective.VividAI
 		p.Tiers = siteComparisonTiers(effective.Image, effective.Tiers)
 		p.Reason = effective.Reason
 	} else {
@@ -545,6 +571,21 @@ func (s *UpstreamSiteService) updatePolicies(ctx context.Context, site *Upstream
 			return err
 		}
 		accountChanged := false
+		if site.Kind == "vividai" {
+			credentials, err := s.credentials(site)
+			if err != nil {
+				return err
+			}
+			if account.Credentials == nil {
+				account.Credentials = map[string]any{}
+			}
+			if account.Extra == nil {
+				account.Extra = map[string]any{}
+			}
+			accountChanged = !account.IsVividAI() || account.GetCredential("api_key") != credentials.AccessToken
+			account.Extra[AccountExtraVividAI] = true
+			account.Credentials["api_key"] = credentials.AccessToken
+		}
 		// Older bindings predate the explicit retry setting. Initialize them once
 		// without overwriting a subsequently configured account retry policy.
 		if _, configured := account.Credentials["pool_mode_retry_count"]; !configured {

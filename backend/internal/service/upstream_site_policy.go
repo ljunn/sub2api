@@ -16,6 +16,9 @@ import (
 
 type siteRequestKey struct{}
 type SitePriceRequest struct {
+	WuzuFields          map[string]string
+	VividAITier         string
+	VividAIDuration     int64
 	KongfangTier        string
 	KongfangBillingTier string
 	Tier                string
@@ -25,6 +28,21 @@ type SitePriceRequest struct {
 
 func WithSitePriceRequest(ctx context.Context, body []byte) context.Context {
 	request := SitePriceRequest{Model: gjson.GetBytes(body, "model").String()}
+	if gjson.GetBytes(body, "content").IsArray() {
+		request.VividAITier = gjson.GetBytes(body, "resolution").String()
+		duration := gjson.GetBytes(body, "duration")
+		request.VividAIDuration = duration.Int()
+		if duration.Exists() && (duration.Type != gjson.Number || duration.Float() != float64(duration.Int()) || duration.Int() <= 0) {
+			request.VividAIDuration = -1
+		}
+	} else {
+		parsed := &OpenAIImagesRequest{N: 1, Model: "price", Prompt: "price", Size: gjson.GetBytes(body, "size").String(), Quality: gjson.GetBytes(body, "quality").String()}
+		if vivid, err := vividAIImageRequest(parsed, "price"); err == nil {
+			request.VividAITier = vivid.Quality
+		} else {
+			request.VividAITier = "unknown"
+		}
+	}
 	request.KongfangTier = kongfangRequestTier(body)
 	request.KongfangBillingTier = kongfangLocalBillingTier(body)
 	if tier := gjson.GetBytes(body, "service_tier").String(); tier != "" && tier != "default" && tier != "auto" {
@@ -44,6 +62,12 @@ func WithSitePriceRequest(ctx context.Context, body []byte) context.Context {
 func WithSiteImageSize(ctx context.Context, size string) context.Context {
 	request, _ := ctx.Value(siteRequestKey{}).(SitePriceRequest)
 	request.Tier = siteRequestTier(size)
+	if request.VividAITier == "" {
+		request.VividAITier = request.Tier
+		if request.VividAITier == "" {
+			request.VividAITier = "1K"
+		}
+	}
 	if request.KongfangTier == "" {
 		request.KongfangTier = kongfangSizeTier(size)
 	}
@@ -154,6 +178,9 @@ func SitePriceVeto(ctx context.Context, a *Account) (bool, string) {
 	if a == nil {
 		return false, ""
 	}
+	if id, ok := ctx.Value(vividAIAcceptedAccountKey{}).(int64); ok && id == a.ID && a.IsVividAI() {
+		return false, ""
+	}
 	p, managed := a.SitePolicy()
 	if !managed {
 		return false, ""
@@ -174,6 +201,12 @@ func SitePriceVeto(ctx context.Context, a *Account) (bool, string) {
 	}
 	if p.SiteKind == "kongfang" {
 		return kongfangPriceVeto(p, request)
+	}
+	if p.SiteKind == "wuzu" {
+		return wuzuPriceVeto(p, request)
+	}
+	if p.SiteKind == "vividai" {
+		return vividAISitePriceVeto(p, request)
 	}
 	for _, tier := range p.Tiers {
 		if tier.Key == "default" {
@@ -248,6 +281,11 @@ func (s *sitePriceHTTPUpstream) check(req *http.Request) error {
 	// Retrieving an already-paid result or model metadata must remain possible.
 	if req.Method == http.MethodGet || req.Method == http.MethodHead {
 		return nil
+	}
+	if p, ok := s.account.SitePolicy(); ok && p.SiteKind == "wuzu" {
+		if err := prepareWuzuRequest(req, p.Wuzu); err != nil {
+			return err
+		}
 	}
 	if p, ok := s.account.SitePolicy(); ok && p.SiteKind == "kongfang" {
 		if err := prepareKongfangRequest(req); err != nil {

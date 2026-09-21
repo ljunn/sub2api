@@ -23,7 +23,7 @@
           <p v-if="model.reason" class="mt-1 text-xs text-amber-700">{{ t('admin.sites.manualPrice.missing') }}</p>
         </div>
         <div class="shrink-0 space-x-3 text-right text-xs">
-          <button class="text-primary-600" :disabled="busy" data-testid="edit-model-price" @click="$emit('price', model)">{{ t(model.manual_price ? 'admin.sites.manualPrice.edit' : 'admin.sites.manualPrice.fill') }}</button>
+          <button v-if="model.vividai?.kind !== 'video'" class="text-primary-600" :disabled="busy" data-testid="edit-model-price" @click="$emit('price', model)">{{ t(model.manual_price ? 'admin.sites.manualPrice.edit' : 'admin.sites.manualPrice.fill') }}</button>
           <span v-if="isBound(model)" class="mr-3 text-gray-500">{{ t('admin.sites.discovery.bound') }}</span>
           <button class="text-primary-600" :disabled="busy" data-testid="bind-model" @click="$emit('bind', model)">{{ t('admin.sites.bind') }}</button>
         </div>

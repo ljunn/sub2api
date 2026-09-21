@@ -41,6 +41,7 @@ export interface SiteManualPrice {
   prices: Record<string, number>
 }
 export interface SiteModel {
+  vividai?: { kind: string; qualities: string[] }
   image?: boolean
   manual_price?: SiteManualPrice
  discovery_id?: string
@@ -91,7 +92,7 @@ export interface UpstreamSite {
   id: string
   name: string
   base_url: string
-  kind: 'sub2api' | 'newapi' | 'kongfang'
+  kind: 'sub2api' | 'newapi' | 'kongfang' | 'vividai' | 'wuzu'
   auth_mode: 'password' | 'token'
   username: string
   user_id: number
@@ -110,7 +111,7 @@ export interface SiteInput {
   usd_per_credit?: number
   name: string
   base_url: string
-  kind: 'sub2api' | 'newapi' | 'kongfang'
+  kind: 'sub2api' | 'newapi' | 'kongfang' | 'vividai' | 'wuzu'
   auth_mode: 'password' | 'token'
   username: string
   user_id: number

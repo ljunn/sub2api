@@ -576,10 +576,11 @@ type AccountWaitPlan struct {
 }
 
 type AccountSelectionResult struct {
-	Account     *Account
-	Acquired    bool
-	ReleaseFunc func()
-	WaitPlan    *AccountWaitPlan // nil means no wait allowed
+	acceptedVividAITask bool // Set only after video ownership has been resolved.
+	Account             *Account
+	Acquired            bool
+	ReleaseFunc         func()
+	WaitPlan            *AccountWaitPlan // nil means no wait allowed
 	// profitGate 携带本次选号真实生效的利润门（无门为 nil）。门安装在调度栈的
 	// 局部 ctx 上，handler 必须经 ContextWithSelectionProfitGate 重放后才能在
 	// 调度栈之外做抢槽后终检与准入后粘性绑定。

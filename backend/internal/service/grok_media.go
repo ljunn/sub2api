@@ -351,6 +351,32 @@ func (s *OpenAIGatewayService) SelectMediaVideoRequestAccount(
 	if accountID <= 0 || strings.TrimSpace(sessionHash) == "" {
 		return nil, decision, ErrNoAvailableAccounts
 	}
+	// Ownership was resolved by the handler. An accepted VividAI task must
+	// remain readable after its creation price expires or a tier is paused.
+	if NormalizeOpenAICompatiblePlatform(platform) == PlatformOpenAI && s.accountRepo != nil {
+		account, err := s.accountRepo.GetByID(ctx, accountID)
+		if err != nil {
+			return nil, decision, ErrNoAvailableAccounts
+		}
+		if account != nil && account.IsVividAI() && account.IsSiteManaged() {
+			if !account.IsActive() || account.Platform != NormalizeOpenAICompatiblePlatform(platform) || !s.openAIAccountMatchesSchedulingGroup(account, groupID) {
+				return nil, decision, ErrNoAvailableAccounts
+			}
+			slot, err := s.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
+			if err != nil {
+				return nil, decision, err
+			}
+			selection := &AccountSelectionResult{Account: account, acceptedVividAITask: true}
+			if slot != nil && slot.Acquired {
+				selection.Acquired, selection.ReleaseFunc = true, slot.ReleaseFunc
+			} else {
+				cfg := s.schedulingConfig()
+				selection.WaitPlan = &AccountWaitPlan{AccountID: accountID, MaxConcurrency: account.Concurrency, Timeout: cfg.StickySessionWaitTimeout, MaxWaiting: cfg.StickySessionMaxWaiting}
+			}
+			decision.StickySessionHit, decision.SelectedAccountID, decision.SelectedAccountType = true, account.ID, account.Type
+			return selection, decision, nil
+		}
+	}
 	ctx = s.withOpenAIGroupPrivacyRequirement(WithOpenAIProfitControlSuppressed(ctx), groupID)
 	scheduler := &defaultOpenAIAccountScheduler{service: s}
 	selection, _, err := scheduler.selectBySessionHash(ctx, OpenAIAccountScheduleRequest{

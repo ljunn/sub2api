@@ -93,9 +93,27 @@ func (s *OpenAIGatewayService) vividAIPost(ctx context.Context, account *Account
 	if waitSeconds > 0 {
 		req.Header.Set("X-Wait-Seconds", fmt.Sprint(waitSeconds))
 	}
+	managedCreate := false
+	if p, ok := payload.(vividAIRequest); ok && p.JobID == "" && endpoint == "generate" && account.IsSiteManaged() {
+		if err := CheckSitePriceBeforeSend(ctx, account, s.accountRepo); err != nil {
+			return nil, err
+		}
+		release, err := s.acquireVividAICreate(ctx, account)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+		if err := CheckSitePriceBeforeSend(ctx, account, s.accountRepo); err != nil {
+			return nil, err
+		}
+		managedCreate = true
+	}
 	proxy := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxy = account.Proxy.URL()
+	}
+	if managedCreate {
+		markSiteForwardStarted(ctx)
 	}
 	resp, err := s.httpUpstream.Do(req, proxy, account.ID, account.Concurrency)
 	if err != nil {
@@ -117,6 +135,12 @@ func (s *OpenAIGatewayService) vividAIPost(ctx context.Context, account *Account
 			message = fmt.Sprintf("upstream HTTP %d", resp.StatusCode)
 		}
 		return nil, &vividAIError{Status: resp.StatusCode, Code: envelope.Error.Code, Message: message, Rejected: decodeErr == nil && envelope.JobID == "" && resp.StatusCode < 500}
+	}
+	if managedCreate {
+		if err := vividAIReadReceipt(resp); err != nil {
+			resp.Body.Close()
+			return nil, err
+		}
 	}
 	return resp, nil
 }
@@ -209,6 +233,10 @@ func (s *OpenAIGatewayService) vividAIWait(ctx context.Context, account *Account
 }
 
 func (s *OpenAIGatewayService) vividAIForwardError(ctx context.Context, c *gin.Context, account *Account, err error, allowFailover bool) (*OpenAIForwardResult, error) {
+	var priceFailure *UpstreamFailoverError
+	if allowFailover && errors.As(err, &priceFailure) {
+		return nil, priceFailure
+	}
 	status, code, message := http.StatusBadGateway, "upstream_error", "VividAI request failed; an accepted task must not be recreated"
 	var upstreamErr *vividAIError
 	if errors.As(err, &upstreamErr) {

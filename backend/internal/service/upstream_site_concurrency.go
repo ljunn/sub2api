@@ -26,6 +26,9 @@ func siteConcurrencyFromProfile(kind string, profile gjson.Result) (*SiteConcurr
 		return nil, errors.New("上游账号资料格式无效，无法读取并发限制")
 	}
 	fields := []string{"concurrency"}
+	if kind == "vividai" {
+		fields = []string{"concurrency_limit"}
+	}
 	if kind == "kongfang" || kind == "newapi" {
 		fields = []string{"effective_max_concurrency", "max_concurrency", "concurrency"}
 	}
