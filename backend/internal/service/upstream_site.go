@@ -12,11 +12,12 @@ const SiteBindingCredentialKey = "upstream_site_binding_id"
 // whose unconfigured key is ephemeral on some existing installations.
 type UpstreamSiteSecretEncryptor interface{ SecretEncryptor }
 
-// Prices and limits use USD per request/image or per million tokens. Missing is
+// Prices and limits use USD per request/image/second or per million tokens. Missing is
 // unknown, never zero. A tier can carry several independently bounded components.
 type SitePriceTier struct {
+	MaxDurationSeconds int64 `json:"max_duration_seconds,omitempty"`
 	// VividAI video bills 1000 output units per upstream credit. This is the
-	// maximum usage for this quality, used to compare a fixed request price.
+	// usage per tier unit (per second for video).
 	CreditUnits float64            `json:"credit_units,omitempty"`
 	Note        string             `json:"note,omitempty"`
 	Key         string             `json:"key"`

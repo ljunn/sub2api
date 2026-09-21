@@ -117,6 +117,7 @@ export default {
     managed: '站点托管',
     unknown: '价格未知',
     components: {
+      second: '每秒',
       request: '按次 / 张',
       input_price: '输入',
       output_price: '输出',

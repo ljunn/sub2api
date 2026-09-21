@@ -115,6 +115,7 @@ export default {
     managed: 'Site managed',
     unknown: 'Unknown price',
     components: {
+      second: 'Per second',
       request: 'Request / image',
       input_price: 'Input',
       output_price: 'Output',

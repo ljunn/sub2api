@@ -181,12 +181,14 @@ func parseVividAICatalog(available, catalogue gjson.Result, usdPerCredit float64
 				}
 			}
 			known = known && count == 1
+			component := "request"
 			if kind == "video" {
-				tier.Unit = "USD/request"
+				tier.Unit = "USD/second"
+				component = "second"
 				duration := vividAIDurationMax(metadata)
+				tier.MaxDurationSeconds = duration
 				known = known && duration > 0
-				tier.Note = fmt.Sprintf("%g 积分/秒；按最长 %d 秒核价；1 积分 = 1000 输出计费单位", amount, duration)
-				amount *= float64(duration)
+				tier.Note = fmt.Sprintf("%g 积分/秒；每积分 %g USD；最长 %d 秒", amount, usdPerCredit, duration)
 				if units := amount * 1000; !math.IsNaN(units) && !math.IsInf(units, 0) {
 					tier.CreditUnits = units
 				} else {
@@ -199,7 +201,7 @@ func parseVividAICatalog(available, catalogue gjson.Result, usdPerCredit float64
 			if !known || m.Reason != "" || math.IsNaN(price) || math.IsInf(price, 0) {
 				tier.Reason = "缺少有效价格、时长或积分换算"
 			} else {
-				tier.Prices["request"] = price
+				tier.Prices[component] = price
 			}
 			m.Tiers = append(m.Tiers, tier)
 		}
@@ -215,6 +217,32 @@ func parseVividAICatalog(available, catalogue gjson.Result, usdPerCredit float64
 		return models[i].Model < models[j].Model
 	})
 	return models
+}
+
+// Upgrade cached per-task quotes on read; no catalogue refresh or DB rewrite is
+// required before the price preview and admission use the same per-second unit.
+func vividAIPerSecondTiers(metadata *SiteVividAIModel, tiers []SitePriceTier) []SitePriceTier {
+	duration := vividAIDurationMax(metadata)
+	if metadata == nil || metadata.Kind != "video" || duration <= 0 {
+		return tiers
+	}
+	out := append([]SitePriceTier(nil), tiers...)
+	for i, tier := range out {
+		if tier.Unit != "USD/request" {
+			continue
+		}
+		out[i].Unit = "USD/second"
+		out[i].MaxDurationSeconds = duration
+		out[i].CreditUnits = tier.CreditUnits / float64(duration)
+		if out[i].CreditUnits > 0 {
+			out[i].Note = fmt.Sprintf("%g 积分/秒；最长 %d 秒", out[i].CreditUnits/1000, duration)
+		}
+		out[i].Prices = map[string]float64{}
+		if price, ok := tier.Prices["request"]; ok {
+			out[i].Prices["second"] = price / float64(duration)
+		}
+	}
+	return out
 }
 
 func vividAISitePriceVeto(p SiteAccountPolicy, request SitePriceRequest) (bool, string) {

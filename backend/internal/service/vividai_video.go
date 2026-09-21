@@ -94,6 +94,11 @@ func (s *OpenAIGatewayService) forwardVividAIVideo(ctx context.Context, c *gin.C
 			return s.vividAIForwardError(ctx, c, account, err, false)
 		}
 		request = parsed
+		if request.Duration == 0 {
+			if policy, ok := account.SitePolicy(); ok && policy.VividAI != nil && policy.VividAI.DurationMode == "options" && len(policy.VividAI.DurationOptions) == 1 {
+				request.Duration = policy.VividAI.DurationOptions[0]
+			}
+		}
 		for _, reference := range refs {
 			data, err := s.vividAIReference(ctx, account, reference.URL)
 			if err != nil {
@@ -131,6 +136,8 @@ func (s *OpenAIGatewayService) forwardVividAIVideo(ctx context.Context, c *gin.C
 	SetActualOpenAIUpstreamEndpoint(c, "/v1/generate")
 	result := &OpenAIForwardResult{ResponseID: SeedanceTaskKey(publicID), Model: model, BillingModel: model, UpstreamModel: upstreamModel, UpstreamEndpoint: "/v1/generate", Duration: time.Since(started)}
 	if endpoint == SeedanceEndpointCreate {
+		result.VideoDurationSeconds = int(request.Duration)
+		result.VideoResolution = request.Quality
 		c.JSON(http.StatusOK, gin.H{"id": publicID})
 		return result, nil
 	}

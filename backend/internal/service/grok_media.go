@@ -483,10 +483,10 @@ func (s *OpenAIGatewayService) StoreGrokVideoPendingBilling(
 	pending.BillingModel = strings.TrimSpace(pending.BillingModel)
 	pending.UpstreamModel = strings.TrimSpace(pending.UpstreamModel)
 	pending.OriginalModel = strings.TrimSpace(pending.OriginalModel)
-	if pending.VideoResolution != "" && !IsLongXiaTask(requestID) {
+	if pending.VideoResolution != "" && !IsLongXiaTask(requestID) && !strings.HasPrefix(requestID, "seedance:vividai:") {
 		pending.VideoResolution = NormalizeVideoBillingResolutionOrDefault(pending.VideoResolution)
 	}
-	if pending.VideoDurationSeconds > 0 && !IsLongXiaTask(requestID) {
+	if pending.VideoDurationSeconds > 0 && !IsLongXiaTask(requestID) && !strings.HasPrefix(requestID, "seedance:vividai:") {
 		pending.VideoDurationSeconds = NormalizeVideoBillingDurationSecondsOrDefault(pending.VideoDurationSeconds)
 	}
 	// Always stamp create-accept time when missing so deferred duration_ms is E2E.

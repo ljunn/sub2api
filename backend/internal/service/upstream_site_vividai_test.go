@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -134,7 +135,7 @@ func TestVividAISiteCatalogueAndRequestPriceGuards(t *testing.T) {
 	for _, m := range models {
 		p := SiteAccountPolicy{SiteKind: "vividai", VividAI: m.VividAI, Image: m.Image, Enabled: true, FreshUntil: now.Add(time.Minute), Tiers: m.Tiers}
 		for _, tier := range m.Tiers {
-			p.Limits = append(p.Limits, SiteTierLimit{Key: tier.Key, Unit: tier.Unit, Enabled: true, Limits: map[string]float64{"request": 1}})
+			p.Limits = append(p.Limits, SiteTierLimit{Key: tier.Key, Unit: tier.Unit, Enabled: true, Limits: map[string]float64{"request": 1, "second": 1}})
 		}
 		if m.Image {
 			for _, tc := range []struct {
@@ -150,8 +151,9 @@ func TestVividAISiteCatalogueAndRequestPriceGuards(t *testing.T) {
 			veto, _ := vividAISitePriceVeto(p, SitePriceRequest{VividAITier: "4K"})
 			require.True(t, veto, "manual pricing cannot invent a supported resolution")
 		} else {
-			require.InDelta(t, .21, m.Tiers[0].Prices["request"], 1e-12)
-			require.Equal(t, 210000.0, m.Tiers[0].CreditUnits)
+			require.InDelta(t, .014, m.Tiers[0].Prices["second"], 1e-12)
+			require.Equal(t, "USD/second", m.Tiers[0].Unit)
+			require.Equal(t, 14000.0, m.Tiers[0].CreditUnits)
 			for _, d := range []int64{0, 15, 8, -1, 30} {
 				veto, _ := vividAISitePriceVeto(p, SitePriceRequest{VividAITier: "720p", VividAIDuration: d})
 				require.Equal(t, d != 0 && d != 15, veto)
@@ -169,17 +171,72 @@ func TestVividAIVideoCostUsesExplicitCreditBillingPrice(t *testing.T) {
 	p := SiteAccountPolicy{LocalGroupID: 9, LocalModel: "local-video", SiteKind: "vividai", VividAI: m.VividAI, Enabled: true, FreshUntil: time.Now().Add(time.Minute), Tiers: m.Tiers}
 	groups.group.ModelPricing = []ChannelModelPricing{{Models: []string{"local-video"}, BillingMode: BillingModeToken, InputPrice: sitePricePtr(0), OutputPrice: sitePricePtr(2e-6)}}
 	got := pricing.apply(context.Background(), p, false)
-	require.InDelta(t, .42, got.Limits[0].Limits["request"], 1e-12)
+	require.InDelta(t, .028, got.Limits[0].Limits["second"], 1e-12)
 	require.Empty(t, siteTierReason(got, "720p", time.Now()))
 	groups.group.ModelPricing[0].OutputPrice = sitePricePtr(.5e-6)
 	got = pricing.apply(context.Background(), p, false)
 	require.Equal(t, "site_price_exceeded", siteTierReason(got, "720p", time.Now()))
 	groups.group.ModelPricing = []ChannelModelPricing{{Models: []string{"local-video"}, BillingMode: BillingModePerRequest, PerRequestPrice: sitePricePtr(.3)}}
 	got = pricing.apply(context.Background(), p, false)
-	require.InDelta(t, .3, got.Limits[0].Limits["request"], 1e-12)
+	require.InDelta(t, .02, got.Limits[0].Limits["second"], 1e-12)
 	groups.group.ModelPricing = nil
 	got = pricing.apply(context.Background(), p, false)
 	require.NotEmpty(t, got.Limits[0].Reason)
+}
+
+func TestVividAIVideoPerSecondPriceMatchesCompletionBilling(t *testing.T) {
+	pricing, groups := siteTestPricing()
+	m := parseVividAICatalog(gjson.Parse(vividSiteModels), gjson.Parse(vividSiteCatalogue), .01)[1]
+	groups.group.ModelPricing = []ChannelModelPricing{{Models: []string{"seedance-2.0"}, BillingMode: BillingModeVideo, PerRequestPrice: sitePricePtr(.2)}}
+	groups.group.PeakRateEnabled, groups.group.PeakStart, groups.group.PeakEnd, groups.group.PeakRateMultiplier = true, "00:00", "23:59", 10
+	p := SiteAccountPolicy{LocalGroupID: 9, LocalModel: "seedance-2.0", SiteKind: "vividai", VividAI: m.VividAI, Enabled: true, FreshUntil: time.Now().Add(time.Minute), Tiers: m.Tiers}
+	got := pricing.apply(context.Background(), p, false)
+	require.Equal(t, "USD/second", got.Limits[0].Unit)
+	require.InDelta(t, .14, got.Tiers[0].Prices["second"], 1e-12)
+	require.InDelta(t, .2, got.Limits[0].Selling["second"], 1e-12)
+	require.Empty(t, got.Limits[0].Reason)
+	require.Empty(t, siteTierReason(got, "720p", time.Now()))
+
+	// The same card and resolution must charge 15 seconds, not one request.
+	svc := &OpenAIGatewayService{billingService: pricing.billing, resolver: pricing.resolver}
+	key := &APIKey{GroupID: &groups.group.ID, Group: groups.group}
+	result := &OpenAIForwardResult{ResponseID: "seedance:vividai:test", VideoDurationSeconds: 15, VideoResolution: "720p"}
+	cost, err := svc.calculateOpenAIRecordUsageCost(context.Background(), result, key, []string{"seedance-2.0"}, 10, 1, 1, 1, UsageTokens{OutputTokens: 210000}, "", nil, time.Now())
+	require.NoError(t, err)
+	require.InDelta(t, 3, cost.ActualCost, 1e-12)
+	require.Equal(t, string(BillingModeVideo), cost.BillingMode)
+	require.Equal(t, 1, result.VideoCount)
+	result.VideoDurationSeconds = 0
+	_, err = svc.calculateOpenAIRecordUsageCost(context.Background(), result, key, []string{"seedance-2.0"}, 1, 1, 1, 1, UsageTokens{}, "", nil, time.Now())
+	require.Error(t, err, "missing duration must never be priced as one second or a default duration")
+
+	groups.group.ModelPricing[0].Intervals = []PricingInterval{{TierLabel: "720p", PerRequestPrice: sitePricePtr(.1)}}
+	got = pricing.apply(context.Background(), p, false)
+	require.InDelta(t, .1, got.Limits[0].Selling["second"], 1e-12)
+	require.Equal(t, "site_price_exceeded", siteTierReason(got, "720p", time.Now()))
+	groups.group.VideoRateIndependent, groups.group.VideoRateMultiplier = true, 2
+	pricing.rates = &sitePricingRates{rate: sitePricePtr(.01)}
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(7))
+	got = pricing.apply(ctx, p, true)
+	require.InDelta(t, .2, got.Limits[0].Selling["second"], 1e-12)
+	require.Empty(t, siteTierReason(got, "720p", time.Now()))
+	groups.group.VideoRateIndependent = false
+	got = pricing.apply(ctx, p, true)
+	require.InDelta(t, .001, got.Limits[0].Selling["second"], 1e-12)
+	require.Equal(t, "site_price_exceeded", siteTierReason(got, "720p", time.Now()))
+}
+
+func TestVividAILegacyTaskQuoteConvertsWithoutMutatingCache(t *testing.T) {
+	pricing, groups := siteTestPricing()
+	groups.group.ModelPricing = []ChannelModelPricing{{Models: []string{"seedance-2.0"}, BillingMode: BillingModeVideo, PerRequestPrice: sitePricePtr(.2)}}
+	tiers := []SitePriceTier{{Key: "720p", Unit: "USD/request", Prices: map[string]float64{"request": 2.1}, CreditUnits: 210000}}
+	p := SiteAccountPolicy{LocalGroupID: 9, LocalModel: "seedance-2.0", VividAI: &SiteVividAIModel{Kind: "video", DurationMode: "options", DurationOptions: []int64{15}}, Tiers: tiers, Limits: []SiteTierLimit{{Key: "720p", Enabled: false}}}
+	got := pricing.apply(context.Background(), p, false)
+	require.InDelta(t, .14, got.Tiers[0].Prices["second"], 1e-12)
+	require.InDelta(t, .2, got.Limits[0].Selling["second"], 1e-12)
+	require.False(t, got.Limits[0].Enabled)
+	require.Equal(t, "USD/request", tiers[0].Unit)
+	require.Equal(t, 2.1, tiers[0].Prices["request"])
 }
 
 type vividGateCache struct {

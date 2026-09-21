@@ -4,6 +4,7 @@ import (
 	"context"
 	"mime"
 	"net/http"
+	"strings"
 	"time"
 
 	middleware "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -38,8 +39,8 @@ func (h *OpenAIGatewayHandler) SeedanceTasks(c *gin.Context) {
 	h.handleGrokMedia(c, endpoint, taskID)
 }
 
-// Ark reports actual completion tokens. Never infer tokens from duration or use
-// Grok's per-second video tariff. Repeated polls share the durable task dedup key.
+// Native Ark uses completion tokens. VividAI also preserves the accepted
+// duration for explicitly configured per-second resale pricing.
 func prepareSeedanceCompletionBilling(ctx context.Context, h *OpenAIGatewayHandler, key *service.APIKey, subject middleware.AuthSubject, taskID string, result *service.OpenAIForwardResult) *service.OpenAIForwardResult {
 	if result != nil && service.IsLongXiaTask(taskID) {
 		return prepareLongXiaCompletionBilling(ctx, h, key, subject, taskID, result)
@@ -59,6 +60,10 @@ func prepareSeedanceCompletionBilling(ctx context.Context, h *OpenAIGatewayHandl
 	merged.Model = pending.Model
 	merged.BillingModel = firstNonEmptyString(pending.BillingModel, pending.Model)
 	merged.UpstreamModel = firstNonEmptyString(pending.UpstreamModel, result.UpstreamModel)
+	if strings.HasPrefix(taskID, "seedance:vividai:") {
+		merged.VideoDurationSeconds = pending.VideoDurationSeconds
+		merged.VideoResolution = pending.VideoResolution
+	}
 	merged.RequestID = service.StableGrokVideoBillingRequestID(taskID)
 	merged.ResponseID = taskID
 	merged.Duration = service.GrokVideoE2EDuration(pending.CreatedAt, time.Now())

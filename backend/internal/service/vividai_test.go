@@ -246,6 +246,8 @@ func TestVividAIVideoCreateStatusAndBilling(t *testing.T) {
 	result, err := svc.ForwardSeedance(context.Background(), c, vividAIAccount(), SeedanceEndpointCreate, "", body)
 	require.NoError(t, err)
 	require.Equal(t, "seedance:vividai:v1", result.ResponseID)
+	require.Equal(t, 5, result.VideoDurationSeconds)
+	require.Equal(t, "720p", result.VideoResolution)
 	require.JSONEq(t, `{"id":"vividai:v1"}`, rec.Body.String())
 	require.Zero(t, result.Usage.OutputTokens)
 	c, rec = newOpenAIImagesTestContext(t, nil)

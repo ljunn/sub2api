@@ -60,7 +60,7 @@ const filteredModels = computed(() => props.site.models.filter(model =>
   `${model.model} ${model.group_name}`.toLowerCase().includes(search.value.trim().toLowerCase()),
 ).slice().sort((a, b) => Number(visitDiscoveries.value.has(b.discovery_id || '')) - Number(visitDiscoveries.value.has(a.discovery_id || ''))))
 const isBound = (model: SiteModel) => props.site.bindings.some(binding => binding.group_id === model.group_id && binding.model === model.model)
-const prices = (tier: SitePriceTier) => Object.entries(tier.prices).map(([key, value]) => `${key === 'request' ? '' : t(`admin.sites.components.${key}`) + ' '}$${Number(value.toPrecision(6))}`).join(' / ') || '—'
+const prices = (tier: SitePriceTier) => Object.entries(tier.prices).map(([key, value]) => `${['request', 'second'].includes(key) ? '' : t(`admin.sites.components.${key}`) + ' '}$${Number(value.toPrecision(6))}${tier.unit === 'USD/second' ? '/s' : ''}`).join(' / ') || '—'
 const notes = (model: SiteModel) => [...new Set(model.tiers.flatMap(tier => tier.note ? [tier.note] : []))]
 
 async function flushRead() {

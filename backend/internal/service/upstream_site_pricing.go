@@ -46,6 +46,7 @@ func siteComparisonTiers(image bool, tiers []SitePriceTier) []SitePriceTier {
 }
 
 func (s *UpstreamSitePricing) apply(ctx context.Context, p SiteAccountPolicy, request bool) SiteAccountPolicy {
+	p.Tiers = vividAIPerSecondTiers(p.VividAI, p.Tiers)
 	p.Tiers = siteComparisonTiers(p.Image, p.Tiers)
 	old := p.Limits
 	p.Limits = make([]SiteTierLimit, 0, len(p.Tiers))
@@ -165,8 +166,13 @@ func (s *UpstreamSitePricing) selling(ctx context.Context, group *Group, model s
 			break
 		}
 	}
+	resolved := s.resolver.Resolve(ctx, PricingInput{Model: model, GroupID: &group.ID, Group: group})
+	perVideo := false
+	for _, tier := range tiers {
+		perVideo = perVideo || (tier.Unit == "USD/second" && resolved != nil && resolved.Mode == BillingModeVideo)
+	}
 	rate := group.RateMultiplier
-	if request && !(perImage && group.ImageRateIndependent) {
+	if request && !(perImage && group.ImageRateIndependent) && !(perVideo && group.VideoRateIndependent) {
 		if userID, _ := ctx.Value(ctxkey.UserID).(int64); userID > 0 {
 			if s.rates == nil {
 				return nil, errors.New("user pricing unavailable")
@@ -182,19 +188,56 @@ func (s *UpstreamSitePricing) selling(ctx context.Context, group *Group, model s
 	}
 	if perImage {
 		rate = resolveImageRateMultiplier(&APIKey{Group: group}, rate)
+	} else if perVideo {
+		rate = resolveVideoRateMultiplier(&APIKey{Group: group}, rate)
 	} else {
 		rate *= group.PeakMultiplierAt(at)
 	}
 	if rate < 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
 		return nil, ErrModelPricingUnavailable
 	}
-	resolved := s.resolver.Resolve(ctx, PricingInput{Model: model, GroupID: &group.ID, Group: group})
 	out := map[string]map[string]float64{}
 	var schedule *ContextPricingSchedule
 	var scheduleErr error
 	for _, tier := range tiers {
 		prices := map[string]float64{}
 		out[tier.Key] = prices
+		if tier.Unit == "USD/second" {
+			if resolved == nil || (resolved.Source != PricingSourceGroup && resolved.Source != PricingSourceChannel) {
+				continue
+			}
+			switch resolved.Mode {
+			case BillingModeVideo:
+				cost, e := s.billing.CalculateCostUnified(CostInput{Ctx: ctx, Model: model, Group: group, GroupID: &group.ID, UsageUnits: 1, SizeTier: tier.Key, RateMultiplier: rate, Resolver: s.resolver, Resolved: resolved})
+				if e == nil && cost != nil {
+					prices["second"] = cost.ActualCost
+				}
+			case BillingModePerRequest:
+				if tier.MaxDurationSeconds > 0 {
+					v := resolved.DefaultPerRequestPrice
+					for _, t := range resolved.RequestTiers {
+						if t.PerRequestPrice != nil {
+							v = math.Min(v, *t.PerRequestPrice)
+						}
+					}
+					prices["second"] = v * rate / float64(tier.MaxDurationSeconds)
+				}
+			case BillingModeToken:
+				videoSchedule, e := s.billing.ResolveContextPricingSchedule(ctx, s.resolver, ContextPricingScheduleInput{Model: model, Group: group, Platform: group.Platform})
+				if tier.CreditUnits > 0 && e == nil && videoSchedule != nil && len(videoSchedule.Tiers) > 0 {
+					unit := math.Inf(1)
+					for _, t := range videoSchedule.Tiers {
+						v := 0.0
+						if t.Output != nil {
+							v = *t.Output
+						}
+						unit = math.Min(unit, v)
+					}
+					prices["second"] = unit * tier.CreditUnits * rate * resolvedChannelTimeMultiplier(resolved, at)
+				}
+			}
+			continue
+		}
 		if tier.Unit == "USD/request" || tier.Unit == "USD/image" {
 			if image {
 				// A local token/video card cannot be compared with a per-image

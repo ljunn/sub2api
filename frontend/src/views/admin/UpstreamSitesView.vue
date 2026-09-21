@@ -448,6 +448,9 @@
           <p v-if="limit.reason" class="mt-2 text-xs text-amber-700">
             {{ limit.reason }}
           </p>
+          <p v-if="bindingForm.price_tiers?.find((p) => p.key === limit.key)?.note" class="mt-2 text-xs text-gray-500">
+            {{ bindingForm.price_tiers?.find((p) => p.key === limit.key)?.note }}
+          </p>
           <div class="mt-3 grid gap-3 sm:grid-cols-3 text-xs">
             <div>
               <span class="text-gray-500">{{ t('admin.sites.price') }}</span>

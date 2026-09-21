@@ -4,6 +4,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -94,4 +95,25 @@ func TestSeedanceHandlerLifecycleAndOwnership(t *testing.T) {
 		}
 	}
 	require.Len(t, bindings.billed, 1)
+}
+
+func TestVividAICompletionPreservesAcceptedDurationAndBillsOnce(t *testing.T) {
+	h, _, bindings, _ := newGrokMediaSlotHandler(t, false, false, service.PlatformOpenAI)
+	c, _ := grokMediaSlotContext(context.Background(), false)
+	key, _ := middleware.GetAPIKeyFromContext(c)
+	subject, _ := middleware.GetAuthSubjectFromContext(c)
+	ctx := context.Background()
+	for _, duration := range []int{15, 45} {
+		task := fmt.Sprintf("seedance:vividai:duration-%d", duration)
+		err := h.gatewayService.StoreGrokVideoPendingBilling(ctx, task, subject.UserID, key.ID, service.GrokVideoPendingBilling{Model: "seedance-2.0", VideoResolution: "720p", VideoDurationSeconds: duration})
+		require.NoError(t, err)
+		result := &service.OpenAIForwardResult{ResponseID: task, Usage: service.OpenAIUsage{OutputTokens: duration * 14000}}
+		billed := prepareSeedanceCompletionBilling(ctx, h, key, subject, task, result)
+		require.NotNil(t, billed)
+		require.Equal(t, duration, billed.VideoDurationSeconds)
+		require.Equal(t, "720p", billed.VideoResolution)
+		require.Equal(t, "seedance-2.0", billed.BillingModel)
+		require.Nil(t, prepareSeedanceCompletionBilling(ctx, h, key, subject, task, result))
+	}
+	require.Len(t, bindings.billed, 2)
 }

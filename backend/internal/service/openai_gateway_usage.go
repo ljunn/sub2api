@@ -419,7 +419,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.VideoCount = result.VideoCount
 		usageLog.VideoResolution = optionalTrimmedStringPtr(NormalizeVideoBillingResolutionOrDefault(result.VideoResolution))
 		videoDurationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
-		if IsLongXiaTask(result.ResponseID) {
+		if IsLongXiaTask(result.ResponseID) || strings.HasPrefix(result.ResponseID, "seedance:vividai:") {
 			usageLog.VideoResolution = optionalTrimmedStringPtr(result.VideoResolution)
 			videoDurationSeconds = result.VideoDurationSeconds
 		}
@@ -583,6 +583,23 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	pricingAt time.Time,
 ) (*CostBreakdown, error) {
 	billingModel := firstUsageBillingModel(billingModels)
+	if result != nil && strings.HasPrefix(result.ResponseID, "seedance:vividai:") {
+		resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey)
+		if resolved != nil && resolved.Mode == BillingModeVideo {
+			if result.VideoDurationSeconds <= 0 || result.VideoDurationSeconds > 3600 || result.VideoResolution == "" {
+				return nil, fmt.Errorf("VividAI per-second billing requires the accepted video duration and resolution")
+			}
+			cost, err := s.billingService.CalculateCostUnified(CostInput{
+				Ctx: ctx, Model: billingModel, GroupID: &apiKey.Group.ID, Group: apiKey.Group,
+				UsageUnits: float64(result.VideoDurationSeconds), SizeTier: result.VideoResolution,
+				RateMultiplier: videoMultiplier, Resolver: s.resolver, Resolved: resolved,
+			})
+			if err == nil {
+				result.VideoCount = 1
+			}
+			return cost, err
+		}
+	}
 	if result != nil && IsLongXiaTask(result.ResponseID) {
 		return s.calculateLongXiaCost(ctx, billingModel, apiKey, result, videoMultiplier)
 	}

@@ -3,7 +3,7 @@
     <span v-for="tier in tiers" :key="tier.key" :title="details(tier)" class="inline-flex items-center gap-1"
       :class="tier.status === 'ready' ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'">
       <span class="font-medium">{{ tier.key === 'default' ? t('admin.sites.defaultTier') : tier.key }}</span>
-      <span>{{ amount(tier.prices) }}</span>
+      <span>{{ amount(tier.prices) }}{{ tier.unit === 'USD/second' ? '/s' : '' }}</span>
       <span>{{ tier.status === 'ready' ? '✓' : '×' }}</span>
       <span class="sr-only">{{ t(`admin.sites.status.${tier.status}`) }}</span>
     </span>
@@ -18,7 +18,7 @@ const { t } = useI18n()
 const amount = (prices?: Record<string, number>) => {
   const entries = Object.entries(prices || {})
   if (!entries.length) return '—'
-  if (entries.length === 1 && entries[0]![0] === 'request') return `$${Number(entries[0]![1].toPrecision(6))}`
+  if (entries.length === 1 && ['request', 'second'].includes(entries[0]![0])) return `$${Number(entries[0]![1].toPrecision(6))}`
   return t('admin.sites.tokenPricing')
 }
 const components = (prices?: Record<string, number>) => Object.entries(prices || {})

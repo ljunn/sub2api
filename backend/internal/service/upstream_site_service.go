@@ -107,6 +107,10 @@ func (s *UpstreamSiteService) List(ctx context.Context) ([]UpstreamSite, error) 
 	}
 	for i := range sites {
 		convertSiteBalanceUSD(&sites[i])
+		for j := range sites[i].Models {
+			model := &sites[i].Models[j]
+			model.Tiers = vividAIPerSecondTiers(model.VividAI, model.Tiers)
+		}
 		for j := range sites[i].Bindings {
 			s.refreshBindingPrice(ctx, &sites[i], &sites[i].Bindings[j])
 		}
