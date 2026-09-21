@@ -3,6 +3,7 @@ import { flushPromises, shallowMount } from '@vue/test-utils'
 import UpstreamSitesView from '../UpstreamSitesView.vue'
 import SitePriceSummary from '@/components/admin/sites/SitePriceSummary.vue'
 import SiteOverview from '@/components/admin/sites/SiteOverview.vue'
+import SiteManualPriceDialog from '@/components/admin/sites/SiteManualPriceDialog.vue'
 import SiteModelCatalogue from '@/components/admin/sites/SiteModelCatalogue.vue'
 import SiteBalanceCard from '@/components/admin/sites/SiteBalanceCard.vue'
 import type { UpstreamSite } from '@/api/admin/upstreamSites'
@@ -99,6 +100,23 @@ async function click(text: string) {
 }
 
 describe('upstream sites', () => {
+  it('opens the purchase price editor directly from a model and refreshes its price after saving', async () => {
+    wrapper = mountView()
+    await flushPromises()
+    await click('admin.sites.models')
+    wrapper.findComponent(SiteModelCatalogue).vm.$emit('price', site.models[0])
+    await flushPromises()
+    const editor = wrapper.findComponent(SiteManualPriceDialog)
+    expect(editor.props('model').model).toBe('upstream-image')
+    expect(wrapper.findComponent(SiteModelCatalogue).exists()).toBe(false)
+    const updated = { ...site, models: [{ ...site.models[0]!, manual_price: { group_id: '2', model: 'upstream-image', billing_mode: 'image', prices: { '1K': .05 } }, tiers: [{ key: '1K', unit: 'USD/image', prices: { request: .05 } }] }] }
+    editor.vm.$emit('saved', updated)
+    await flushPromises()
+    expect(wrapper.findComponent(SiteManualPriceDialog).exists()).toBe(false)
+    expect(wrapper.findComponent(SiteModelCatalogue).props('site').models[0].tiers[0].prices.request).toBe(.05)
+    expect(mocks.bind).not.toHaveBeenCalled()
+  })
+
   it('shows partial catalogue warnings while allowing binding and resync', async () => {
     site.warnings = ['某分组没有有效 Key，其他分组已同步']
     wrapper = mountView()

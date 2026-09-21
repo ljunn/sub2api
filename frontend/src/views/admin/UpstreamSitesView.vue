@@ -52,7 +52,7 @@
       </div>
     </div>
     <BaseDialog
-      v-if="selected && detailsOpen && !siteDialog && !bindingDialog && !confirmAction"
+      v-if="selected && detailsOpen && !siteDialog && !bindingDialog && !priceModel && !confirmAction"
       key="site-details"
       :show="true"
       :title="selected.name"
@@ -154,6 +154,7 @@
                     <div v-if="bindingReason(binding)" class="mt-1 text-xs text-gray-500" :title="binding.error || (binding.status === 'preview' ? t('admin.sites.previewPaused') : '')">{{ binding.error || t(`admin.sites.status.${bindingReason(binding)}`) }}</div>
                   </td>
                   <td class="px-5 py-3 text-right whitespace-nowrap">
+                    <button v-if="bindingModel(binding)" class="mr-3 text-primary-600" :disabled="busy" @click="priceModel = bindingModel(binding)!">{{ t('admin.sites.manualPrice.edit') }}</button>
                     <button class="text-primary-600" :disabled="busy" @click="openBinding(binding)">{{ t('admin.sites.details') }}</button>
                     <button class="ml-3 text-red-600" :disabled="busy" @click="confirmAction = { kind: 'binding', id: binding.id }">{{ t('admin.sites.unbind') }}</button>
                   </td>
@@ -162,7 +163,7 @@
             </table>
           </div>
           <SiteModelCatalogue v-else-if="activeTab === 'models'" :key="selected.id" :site="selected" :busy="busy" :initial-only-new="onlyNewModels"
-            @bind="model => openBinding(undefined, model)" @read="modelsRead" />
+            @bind="model => openBinding(undefined, model)" @price="priceModel = $event" @read="modelsRead" />
           <div v-else class="space-y-3 p-5">
             <p
               v-if="!selected.history.length"
@@ -516,6 +517,8 @@
         </button></template
       ></BaseDialog
     >
+    <SiteManualPriceDialog v-if="selected && priceModel" :site-id="selected.id" :model="priceModel"
+      @close="priceModel = null" @saved="manualPriceSaved" />
   </AppLayout>
 </template>
 <script setup lang="ts">
@@ -526,6 +529,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import SiteBalanceCard from '@/components/admin/sites/SiteBalanceCard.vue'
 import SitePriceSummary from '@/components/admin/sites/SitePriceSummary.vue'
 import SiteOverview from '@/components/admin/sites/SiteOverview.vue'
+import SiteManualPriceDialog from '@/components/admin/sites/SiteManualPriceDialog.vue'
 import SiteModelCatalogue from '@/components/admin/sites/SiteModelCatalogue.vue'
 import { upstreamSiteBalanceApi, type SiteBalanceSettings } from '@/api/admin/upstreamSiteBalance'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -555,6 +559,11 @@ const tabs = ['bindings', 'models', 'history']
 const onlyNewModels = ref(false)
 const now = ref(Date.now())
 const detailsOpen = ref(Boolean(route.query.site))
+const priceModel = ref<SiteModel | null>(null)
+function manualPriceSaved(site: UpstreamSite) {
+  replace(site)
+  priceModel.value = null
+}
 const acknowledgedDiscoveries = new Map<string, Set<string>>()
 const selected = computed(() =>
   sites.value.find((s) => s.id === selectedId.value),
@@ -627,7 +636,8 @@ const tierStatus = (b: SiteBinding, tier: SitePriceTier) => {
         : '',
       tiers: b.price_tiers || bindingModel(b)?.tiers || [],
       limits: b.limits,
-      reason: bindingModel(b)?.reason,
+      reason: bindingModel(b)?.reason || (!bindingModel(b) ? t('admin.sites.modelMissing') : undefined),
+      manual_price: !!bindingModel(b)?.manual_price,
     },
     tier,
   )
@@ -946,7 +956,7 @@ onMounted(async () => {
     error(e)
   }
   refreshTimer = setInterval(() => {
-    if (!busy.value && !siteDialog.value && !bindingDialog.value) void load()
+    if (!busy.value && !siteDialog.value && !bindingDialog.value && !priceModel.value) void load()
   }, 30000)
 })
 onUnmounted(() => {

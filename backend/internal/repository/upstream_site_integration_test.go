@@ -40,6 +40,18 @@ func TestUpstreamSitePersistenceAtomicPolicyAndLocks(t *testing.T) {
 	site.Models[0].Tiers[0].Prices["request"] = 0.3
 	require.NoError(t, repo.Save(ctx, site))
 	require.Error(t, service.CheckSitePriceBeforeSend(service.WithSiteImageSize(ctx, "1K"), account, accounts))
+	// Manual prices persist separately and publish to every bound account in the
+	// same transaction, while preserving the latest automatic price underneath.
+	site.ManualPrices = []service.SiteManualPrice{{GroupID: "vip", Model: "image", BillingMode: "image", Prices: map[string]float64{"1K": 0.05}}}
+	require.NoError(t, repo.Save(ctx, site))
+	loaded, err = repo.Get(ctx, site.ID)
+	require.NoError(t, err)
+	require.Equal(t, site.ManualPrices, loaded.ManualPrices)
+	require.Equal(t, 0.3, loaded.Models[0].Tiers[0].Prices["request"])
+	require.NoError(t, service.CheckSitePriceBeforeSend(service.WithSiteImageSize(ctx, "1K"), account, accounts))
+	site.ManualPrices = nil
+	require.NoError(t, repo.Save(ctx, site))
+	require.Error(t, service.CheckSitePriceBeforeSend(service.WithSiteImageSize(ctx, "1K"), account, accounts))
 	var count int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT count(*) FROM scheduler_outbox WHERE account_id=$1", account.ID).Scan(&count))
 	assert.Positive(t, count)

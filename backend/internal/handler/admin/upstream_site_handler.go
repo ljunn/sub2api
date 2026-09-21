@@ -27,6 +27,9 @@ func (h *UpstreamSiteHandler) List(c *gin.Context) {
 		response.InternalError(c, err.Error())
 		return
 	}
+	for i := range sites {
+		service.ApplySiteManualPrices(&sites[i])
+	}
 	response.Success(c, sites)
 }
 
@@ -37,6 +40,7 @@ func (h *UpstreamSiteHandler) respondSite(c *gin.Context, site *service.Upstream
 		response.InternalError(c, err.Error())
 		return
 	}
+	service.ApplySiteManualPrices(&sites[0])
 	response.Success(c, sites[0])
 }
 
@@ -127,4 +131,18 @@ func (h *UpstreamSiteHandler) PricePreview(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+func (h *UpstreamSiteHandler) SaveManualPrice(c *gin.Context) {
+	var input service.SiteManualPriceInput
+	if c.ShouldBindJSON(&input) != nil {
+		response.BadRequest(c, "采购价参数无效")
+		return
+	}
+	site, err := h.service.SaveManualPrice(c.Request.Context(), c.Param("id"), input)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	h.respondSite(c, site)
 }

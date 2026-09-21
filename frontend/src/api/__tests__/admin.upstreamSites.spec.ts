@@ -24,3 +24,14 @@ describe('site tier equal-price display', () => {
     expect(siteTierStatus(policy, tier)).toBe('ready')
   })
 })
+
+// Manual purchase prices do not inherit automatic catalogue expiry.
+it('keeps manual prices subject to caps while allowing stale automatic catalogue timestamps', () => {
+  const tier = { key: '1K', unit: 'USD/image', prices: { request: .01 } }
+  const policy: SiteAccountPolicy = { site_id: 's', site_name: 's', binding_id: 'b', enabled: true, fresh_until: '', manual_price: true, tiers: [tier], limits: [{ key: '1K', unit: 'USD/image', enabled: true, limits: { request: .02 } }] }
+  expect(siteTierStatus(policy, tier)).toBe('ready')
+  policy.limits[0]!.limits.request = .01
+  expect(siteTierStatus(policy, tier)).toBe('equal')
+  policy.manual_price = false
+  expect(siteTierStatus(policy, tier)).toBe('expired')
+})

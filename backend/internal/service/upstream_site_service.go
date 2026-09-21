@@ -203,6 +203,7 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 		site.Balance = nil
 		site.Concurrency = nil
 		site.ModelCatalogue = nil
+		site.ManualPrices = nil
 		credentials = &SiteCredentials{Keys: map[string]string{}}
 	}
 	if input.Password != "" {
@@ -381,7 +382,7 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 	if model == nil {
 		return nil, errors.New("模型不在同步目录中，请先同步站点")
 	}
-	if site.LastSuccess == nil || time.Since(*site.LastSuccess) > 10*time.Minute {
+	if siteModelWithPrice(site, *model).ManualPrice == nil && (site.LastSuccess == nil || time.Since(*site.LastSuccess) > 10*time.Minute) {
 		return nil, errors.New("价格目录已过期，请先同步")
 	}
 	if model.Platform != "" && (site.Kind == "sub2api" || site.Kind == "kongfang") && model.Platform != group.Platform {
@@ -489,9 +490,11 @@ func BuildSiteAccountPolicy(site *UpstreamSite, b *SiteBinding) SiteAccountPolic
 		p.FreshUntil = site.LastSuccess.Add(10 * time.Minute)
 	}
 	if m := findSiteModel(site, b.GroupID, b.Model); m != nil {
-		p.Image = m.Image
-		p.Tiers = siteComparisonTiers(m.Image, m.Tiers)
-		p.Reason = m.Reason
+		effective := siteModelWithPrice(site, *m)
+		p.ManualPrice = effective.ManualPrice != nil
+		p.Image = effective.Image
+		p.Tiers = siteComparisonTiers(effective.Image, effective.Tiers)
+		p.Reason = effective.Reason
 	} else {
 		p.Reason = "上游模型或分组已不可用"
 	}

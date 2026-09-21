@@ -20,11 +20,12 @@
           </div>
           <p v-for="note in notes(model)" :key="note"
             class="mt-1 text-xs text-gray-500">{{ note }}</p>
-          <p v-if="model.reason" class="mt-1 text-xs text-amber-700">{{ model.reason }}</p>
+          <p v-if="model.reason" class="mt-1 text-xs text-amber-700">{{ t('admin.sites.manualPrice.missing') }}</p>
         </div>
-        <div class="shrink-0 text-right text-xs">
+        <div class="shrink-0 space-x-3 text-right text-xs">
+          <button class="text-primary-600" :disabled="busy" data-testid="edit-model-price" @click="$emit('price', model)">{{ t(model.manual_price ? 'admin.sites.manualPrice.edit' : 'admin.sites.manualPrice.fill') }}</button>
           <span v-if="isBound(model)" class="mr-3 text-gray-500">{{ t('admin.sites.discovery.bound') }}</span>
-          <button class="text-primary-600" :disabled="busy" @click="$emit('bind', model)">{{ t('admin.sites.bind') }}</button>
+          <button class="text-primary-600" :disabled="busy" data-testid="bind-model" @click="$emit('bind', model)">{{ t('admin.sites.bind') }}</button>
         </div>
       </div>
       <p v-if="!filteredModels.length" class="p-6 text-center text-sm text-gray-500">{{ t('admin.sites.overview.noResults') }}</p>
@@ -36,7 +37,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { upstreamSitesApi, type UpstreamSite, type SiteModel, type SitePriceTier } from '@/api/admin/upstreamSites'
 const props = defineProps<{ site: UpstreamSite; busy: boolean; initialOnlyNew: boolean }>()
-const emit = defineEmits<{ bind: [model: SiteModel]; read: [siteId: string, ids: string[]] }>()
+const emit = defineEmits<{ price: [model: SiteModel]; bind: [model: SiteModel]; read: [siteId: string, ids: string[]] }>()
 const { t } = useI18n()
 const search = ref('')
 const onlyNew = ref(props.initialOnlyNew)

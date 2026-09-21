@@ -71,9 +71,11 @@ describe('model discovery read receipts', () => {
     site.models[1]!.tiers[0]!.note = '分组图片参考价，尚未确认实际计费'
     const wrapper = mount(SiteModelCatalogue, { props: { site, busy: false, initialOnlyNew: false } })
     expect(wrapper.text()).toContain('分组图片参考价')
-    expect(wrapper.text()).toContain('暂不参与价格调度')
-    await wrapper.get('[data-testid=catalogue-model] button').trigger('click')
+    expect(wrapper.text()).toContain('admin.sites.manualPrice.missing')
+    await wrapper.get('[data-testid=catalogue-model] [data-testid=bind-model]').trigger('click')
     expect(wrapper.emitted('bind')).toEqual([[site.models[0]]])
+    await wrapper.get('[data-testid=edit-model-price]').trigger('click')
+    expect(wrapper.emitted('price')).toEqual([[site.models[0]]])
     wrapper.unmount()
   })
   function mountCatalogue() {
@@ -111,7 +113,7 @@ describe('model discovery read receipts', () => {
     view([1])
     await flushPromises()
     expect(mocks.markModelsRead).toHaveBeenLastCalledWith('site', ['two'])
-    await wrapper.findAll('[data-testid=catalogue-model] button')[0]!.trigger('click')
+    await wrapper.findAll('[data-testid=catalogue-model] [data-testid=bind-model]')[0]!.trigger('click')
     expect(wrapper.emitted('bind')?.[0]?.[0]).toMatchObject({ model: 'one' })
     wrapper.unmount()
   })

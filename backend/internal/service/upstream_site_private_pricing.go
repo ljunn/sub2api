@@ -13,7 +13,7 @@ import (
 
 // Available groups are authoritative for this login. Exclusive groups can be
 // intentionally absent from the public price page even though the user can use
-// them. Read their model list with an existing key; discovery never creates keys.
+// them. Reuse existing keys, or provision one discovery key per available group.
 func (a *siteAdapter) privatePricingCatalog(ctx context.Context, public, available, rates gjson.Result) ([]SiteModel, error) {
 	publicGroups := map[string]bool{}
 	platforms := map[string]string{}
@@ -37,9 +37,13 @@ func (a *siteAdapter) privatePricingCatalog(ctx context.Context, public, availab
 		if id == "" || publicGroups[id] || (group.Get("status").Exists() && group.Get("status").String() != StatusActive) {
 			continue
 		}
-		catalog, err := a.existingKeyModelCatalog(ctx, id)
+		catalog, err := a.groupKeyModelCatalog(ctx, id)
 		if err != nil {
-			return nil, fmt.Errorf("读取专属分组「%s」模型失败：%w", group.Get("name").String(), err)
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			a.warnings = append(a.warnings, fmt.Sprintf("分组「%s」同步失败：%s", group.Get("name").String(), err))
+			continue
 		}
 		seen := map[string]bool{}
 		for _, item := range catalog.Array() {
@@ -71,6 +75,8 @@ func (a *siteAdapter) privatePricingCatalog(ctx context.Context, public, availab
 	}
 	return models, nil
 }
+
+var errNoSiteGroupKey = errors.New("该分组没有可用 API Key")
 
 func (a *siteAdapter) existingKeyModelCatalog(ctx context.Context, groupID string) (gjson.Result, error) {
 	var lastErr error
@@ -108,9 +114,52 @@ func (a *siteAdapter) existingKeyModelCatalog(ctx context.Context, groupID strin
 		if len(items.Array()) < 100 || (keys.Get("data.total").Exists() && int64(page*100) >= keys.Get("data.total").Int()) {
 			break
 		}
+		if page == 20 {
+			return gjson.Result{}, errors.New("上游 Key 数量过多，未完成查找，请缩小分组 Key 列表后重试")
+		}
 	}
 	if lastErr != nil {
 		return gjson.Result{}, lastErr
 	}
-	return gjson.Result{}, errors.New("该分组没有可读取的有效 API Key，请在上游配置该分组的 Key 后重试同步")
+	return gjson.Result{}, errNoSiteGroupKey
+}
+
+// A stable identity plus the site lock makes retries recover the same key,
+// including after a successful upstream create followed by a local save failure.
+func (a *siteAdapter) groupKeyModelCatalog(ctx context.Context, groupID string) (gjson.Result, error) {
+	id := "catalog-" + a.site.ID + "-" + groupID
+	read := func(key string) (gjson.Result, error) {
+		result, err := a.requestWithHeaders(ctx, http.MethodGet, "/v1/models", nil, map[string]string{"Authorization": "Bearer " + key})
+		if err != nil {
+			return gjson.Result{}, err
+		}
+		if !result.Get("data").IsArray() {
+			return gjson.Result{}, errors.New("上游未返回完整的模型目录")
+		}
+		return result.Get("data"), nil
+	}
+	if key := a.credentials.Keys[id]; key != "" {
+		result, err := read(key)
+		if err == nil {
+			return result, nil
+		}
+		var remote *siteRemoteError
+		if !errors.As(err, &remote) || (remote.Status != 401 && remote.Status != 403) {
+			return gjson.Result{}, err
+		}
+		delete(a.credentials.Keys, id)
+	}
+	result, err := a.existingKeyModelCatalog(ctx, groupID)
+	if err == nil {
+		return result, nil
+	}
+	var remote *siteRemoteError
+	if !errors.Is(err, errNoSiteGroupKey) && (!errors.As(err, &remote) || (remote.Status != 401 && remote.Status != 403)) {
+		return gjson.Result{}, err
+	}
+	key, err := a.ensureKey(ctx, &SiteBinding{ID: id, GroupID: groupID})
+	if err != nil {
+		return gjson.Result{}, fmt.Errorf("自动创建或复用 API Key 失败：%w", err)
+	}
+	return read(key)
 }

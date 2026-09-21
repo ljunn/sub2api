@@ -1,5 +1,23 @@
 export default {
   sites: {
+    manualPrice: {
+      "title": "填写采购价",
+      "fill": "填写采购价",
+      "edit": "修改采购价",
+      "missing": "未获取到采购价，请手动填写。",
+      "hint": "填写你在上游实际支付的单价（美元）。保存后用于调度判断，自动同步不会覆盖。",
+      "mode": "计费方式",
+      "image": "按图片（USD / 张）",
+      "request": "按次（USD / 次）",
+      "token": "按 Token（USD / 百万 Token）",
+      "imageHint": "填写需要使用的分辨率价格；留空的档位暂停调度。",
+      "optional": "缓存和图片 Token 价格（可选）",
+      "tokenHint": "留空时按对应的输入或输出单价计算；免费请填 0。",
+      "auto": "恢复自动价格",
+      "reference": "参考：{price}",
+      "invalid": "请输入非负有效数字。",
+      "required": "请填写采购价。"
+},
     overview: {
       openSite: '打开站点', openSiteLabel: '在新标签页打开 {name}',
       all: '全部站点', new: '有新模型', low: '余额不足', error: '连接异常',

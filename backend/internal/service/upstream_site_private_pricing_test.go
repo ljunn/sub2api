@@ -60,17 +60,27 @@ func TestUpstreamSitePrivateGroupUsesExistingMatchingKeyAndOwnPrices(t *testing.
 	assert.NotContains(t, string(raw), "private-key")
 }
 
-func TestUpstreamSitePrivateGroupCannotSilentlyDisappearWithoutAKey(t *testing.T) {
+func TestUpstreamSitePrivateGroupReportsKeyCreationFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method)
+		if r.URL.Path == "/api/v1/auth/me" {
+			fmt.Fprint(w, `{"data":{"id":1}}`)
+			return
+		}
 		require.Equal(t, "/api/v1/keys", r.URL.Path)
+		if r.Method == http.MethodPost {
+			w.WriteHeader(403)
+			return
+		}
 		fmt.Fprint(w, `{"code":0,"data":{"items":[],"total":0}}`)
 	}))
 	defer server.Close()
-	adapter := newSiteAdapter(&UpstreamSite{BaseURL: server.URL}, &SiteCredentials{})
-	_, err := adapter.privatePricingCatalog(context.Background(), gjson.Parse(sitePublicPrices), gjson.Parse(`[`+sitePrivateImageGroup+`]`), gjson.Parse(`{}`))
-	require.ErrorContains(t, err, "GPT生图对接组")
-	require.ErrorContains(t, err, "有效 API Key")
+	adapter := newSiteAdapter(&UpstreamSite{BaseURL: server.URL, Kind: "sub2api"}, &SiteCredentials{AccessToken: "login"})
+	models, err := adapter.privatePricingCatalog(context.Background(), gjson.Parse(sitePublicPrices), gjson.Parse(`[`+sitePrivateImageGroup+`]`), gjson.Parse(`{}`))
+	require.NoError(t, err)
+	require.Empty(t, models)
+	require.Len(t, adapter.warnings, 1)
+	require.Contains(t, adapter.warnings[0], "GPT生图对接组")
+	require.Contains(t, adapter.warnings[0], "自动创建或复用 API Key 失败")
 }
 
 func TestUpstreamSiteDisabledModelPlazaStillReadsPublicPrices(t *testing.T) {

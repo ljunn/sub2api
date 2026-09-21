@@ -550,6 +550,9 @@ func (a *siteAdapter) ensureKey(ctx context.Context, b *SiteBinding) (string, er
 		}
 		for _, item := range result.Get("data.items").Array() {
 			if item.Get("name").String() == name && item.Get("group_id").String() == b.GroupID {
+				if status := item.Get("status").String(); status != "" && status != StatusActive {
+					return "", errors.New("已创建的 API Key 已停用或过期，请在上游恢复后重试")
+				}
 				key = item.Get("key").String()
 				if key == "" {
 					return "", errors.New("已找到上游 API Key，但上游未允许读取完整密钥")

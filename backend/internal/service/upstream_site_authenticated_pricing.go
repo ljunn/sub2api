@@ -14,8 +14,7 @@ import (
 )
 
 // The plaza is an optional presentation feature, not an API connectivity
-// requirement. These are ordinary authenticated user endpoints; discovery never
-// creates keys or accesses admin endpoints on the upstream.
+// requirement. Use authenticated user endpoints and provision missing group keys.
 func (a *siteAdapter) authenticatedPricingCatalog(ctx context.Context) ([]SiteModel, error) {
 	available, err := a.request(ctx, http.MethodGet, "/api/v1/groups/available", nil)
 	if err != nil {
@@ -38,7 +37,7 @@ func (a *siteAdapter) authenticatedPricingCatalog(ctx context.Context) ([]SiteMo
 	} else if !channels.Get("data").IsArray() {
 		return nil, errors.New("上游可用渠道数据不完整")
 	}
-	a.warnings = append(a.warnings, "模型广场及公开价格不可用，已改用登录后的分组、渠道和现有 Key 同步；缺失价格会逐模型提示，不影响其他模型同步。")
+	a.warnings = append(a.warnings, "已自动同步可用模型，缺少的采购价可手动填写。")
 	out := []SiteModel{}
 	for _, group := range groups.Array() {
 		id := group.Get("id").String()
@@ -70,7 +69,7 @@ func (a *siteAdapter) authenticatedPricingCatalog(ctx context.Context) ([]SiteMo
 				}
 			}
 		}
-		catalog, keyErr := a.existingKeyModelCatalog(ctx, id)
+		catalog, keyErr := a.groupKeyModelCatalog(ctx, id)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
@@ -169,7 +168,7 @@ func siteAuthenticatedMultiplierRedacted(group, rates gjson.Result, image bool) 
 }
 
 func siteAuthenticatedUnpricedModel(group gjson.Result, name string, rates gjson.Result) SiteModel {
-	m := SiteModel{GroupID: group.Get("id").String(), GroupName: group.Get("name").String(), Model: name, Platform: group.Get("platform").String(), Tiers: []SitePriceTier{}, Reason: "已读取模型；上游未提供此模型的计费方式和完整价格，暂不参与价格调度"}
+	m := SiteModel{GroupID: group.Get("id").String(), GroupName: group.Get("name").String(), Model: name, Platform: group.Get("platform").String(), Tiers: []SitePriceTier{}, Reason: "未获取到采购价，请手动填写。"}
 	// A model name can establish image capability, but cannot establish whether
 	// this upstream bills it by image, token, or a model-specific override.
 	// Show useful group reference prices without admitting them as verified cost.
@@ -202,7 +201,7 @@ func siteAuthenticatedUnpricedModel(group gjson.Result, name string, rates gjson
 				m.Tiers[i].Prices["request"] = value
 			}
 		}
-		m.Tiers[i].Note = "分组图片参考价（含倍率），尚未确认此模型的实际计费方式及覆盖价"
+		m.Tiers[i].Note = "上游分组参考价，可在填写采购价时参考"
 		m.Tiers[i].Reason = m.Reason
 	}
 	return m

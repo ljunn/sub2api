@@ -17,7 +17,6 @@ import (
 func TestUpstreamSiteAuthenticatedCatalogKeepsModelsAndReportsPartialGroups(t *testing.T) {
 	plazaEnabled := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method, "sync must not create upstream keys")
 		switch r.URL.Path {
 		case "/api/v1/auth/me":
 			fmt.Fprint(w, `{"data":{"id":1}}`)
@@ -41,6 +40,14 @@ func TestUpstreamSiteAuthenticatedCatalogKeepsModelsAndReportsPartialGroups(t *t
 		case "/api/v1/channels/available":
 			fmt.Fprint(w, `{"data":[]}`)
 		case "/api/v1/keys":
+			if r.Method == http.MethodPost {
+				w.WriteHeader(403)
+				return
+			}
+			if r.URL.Query().Get("search") != "" {
+				fmt.Fprint(w, `{"data":{"items":[]}}`)
+				return
+			}
 			id := r.URL.Query().Get("group_id")
 			if id == "17" {
 				fmt.Fprint(w, `{"data":{"items":[]}}`)

@@ -83,7 +83,7 @@ func siteTierReason(p SiteAccountPolicy, key string, now time.Time) string {
 	if !p.Enabled {
 		return "site_disabled"
 	}
-	if p.FreshUntil.IsZero() || !now.Before(p.FreshUntil) {
+	if !p.ManualPrice && (p.FreshUntil.IsZero() || !now.Before(p.FreshUntil)) {
 		return "site_price_expired"
 	}
 	if p.Reason != "" {
@@ -138,7 +138,7 @@ func (a *Account) siteHasEligibleTier() bool {
 	}
 	// Auto ceilings can recover after a local price edit without an upstream scan.
 	if p.LocalGroupID > 0 {
-		return p.Enabled && time.Now().Before(p.FreshUntil) && p.Reason == "" && len(p.Tiers) > 0
+		return p.Enabled && (p.ManualPrice || time.Now().Before(p.FreshUntil)) && p.Reason == "" && len(p.Tiers) > 0
 	}
 	for _, tier := range p.Tiers {
 		if siteTierReason(p, tier.Key, time.Now()) == "" {

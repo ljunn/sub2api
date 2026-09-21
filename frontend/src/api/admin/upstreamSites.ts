@@ -19,7 +19,15 @@ export interface SiteAccountScheduling {
   checked_at: string
   tiers: SiteSchedulingTier[]
 }
+export interface SiteManualPrice {
+  group_id: string
+  model: string
+  billing_mode: 'image' | 'per_request' | 'token'
+  prices: Record<string, number>
+}
 export interface SiteModel {
+  image?: boolean
+  manual_price?: SiteManualPrice
  discovery_id?: string
  discovered_at?: string
  unread?: boolean
@@ -97,6 +105,7 @@ export interface SiteInput {
   refresh_token: string
 }
 export interface SiteAccountPolicy {
+  manual_price?: boolean
   local_group_id?: number
   site_id: string
   site_name: string
@@ -109,6 +118,8 @@ export interface SiteAccountPolicy {
 }
 const base = '/admin/upstream-sites'
 export const upstreamSitesApi = {
+  saveModelPrice: async (id: string, input: SiteManualPrice & { automatic?: boolean }) =>
+    (await apiClient.put<UpstreamSite>(`${base}/${id}/model-price`, input)).data,
   markModelsRead: async (id: string, discovery_ids: string[]) =>
   (await apiClient.post<{ discovery_ids: string[] }>(`${base}/${id}/models/read`, { discovery_ids })).data,
   list: async () => (await apiClient.get<UpstreamSite[]>(base)).data,
@@ -158,7 +169,7 @@ export function siteTierStatus(
 ): string {
   if (!policy.enabled) return 'disabled'
   const expiry = Date.parse(policy.fresh_until)
-  if (!Number.isFinite(expiry) || expiry <= now) return 'expired'
+  if (!policy.manual_price && (!Number.isFinite(expiry) || expiry <= now)) return 'expired'
   if (policy.reason || tier.reason || !Object.keys(tier.prices).length)
     return 'unknown'
   const limit = policy.limits.find((item) => item.key === tier.key)

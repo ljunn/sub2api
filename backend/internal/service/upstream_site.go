@@ -23,16 +23,17 @@ type SitePriceTier struct {
 }
 
 type SiteModel struct {
-	DiscoveryID  string          `json:"discovery_id,omitempty"`
-	DiscoveredAt *time.Time      `json:"discovered_at,omitempty"`
-	Unread       bool            `json:"unread,omitempty"`
-	Image        bool            `json:"image"`
-	GroupID      string          `json:"group_id"`
-	GroupName    string          `json:"group_name"`
-	Model        string          `json:"model"`
-	Platform     string          `json:"platform"`
-	Tiers        []SitePriceTier `json:"tiers"`
-	Reason       string          `json:"reason,omitempty"`
+	ManualPrice  *SiteManualPrice `json:"manual_price,omitempty"`
+	DiscoveryID  string           `json:"discovery_id,omitempty"`
+	DiscoveredAt *time.Time       `json:"discovered_at,omitempty"`
+	Unread       bool             `json:"unread,omitempty"`
+	Image        bool             `json:"image"`
+	GroupID      string           `json:"group_id"`
+	GroupName    string           `json:"group_name"`
+	Model        string           `json:"model"`
+	Platform     string           `json:"platform"`
+	Tiers        []SitePriceTier  `json:"tiers"`
+	Reason       string           `json:"reason,omitempty"`
 }
 
 type SiteTierLimit struct {
@@ -61,6 +62,7 @@ type SiteBinding struct {
 }
 
 type UpstreamSite struct {
+	ManualPrices       []SiteManualPrice   `json:"manual_prices,omitempty"`
 	ModelCatalogue     *SiteModelCatalogue `json:"model_catalogue,omitempty"`
 	Balance            *SiteBalance        `json:"balance,omitempty"`
 	Concurrency        *SiteConcurrency    `json:"concurrency,omitempty"`
@@ -118,6 +120,7 @@ type SiteInput struct {
 }
 
 type SiteAccountPolicy struct {
+	ManualPrice   bool            `json:"manual_price,omitempty"`
 	SiteKind      string          `json:"site_kind,omitempty"`
 	LocalGroupID  int64           `json:"local_group_id"`
 	Image         bool            `json:"image"`

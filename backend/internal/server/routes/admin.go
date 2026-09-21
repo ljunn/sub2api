@@ -54,6 +54,7 @@ func RegisterAdminRoutes(
 		sites.DELETE("/:id", h.Admin.UpstreamSite.Delete)
 		sites.POST("/:id/sync", h.Admin.UpstreamSite.Sync)
 		sites.POST("/:id/models/read", h.Admin.UpstreamSite.MarkModelsRead)
+		sites.PUT("/:id/model-price", h.Admin.UpstreamSite.SaveManualPrice)
 		sites.POST("/:id/price-preview", h.Admin.UpstreamSite.PricePreview)
 		sites.POST("/:id/bindings", h.Admin.UpstreamSite.Bind)
 		sites.PUT("/:id/bindings/:binding_id", h.Admin.UpstreamSite.Bind)

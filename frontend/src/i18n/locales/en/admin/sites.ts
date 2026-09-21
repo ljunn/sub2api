@@ -1,5 +1,23 @@
 export default {
   sites: {
+    manualPrice: {
+      "title": "Set purchase price",
+      "fill": "Set purchase price",
+      "edit": "Edit purchase price",
+      "missing": "Purchase price unavailable. Enter it manually.",
+      "hint": "Enter the actual USD unit price you pay upstream. Scheduling uses this price; automatic sync will not overwrite it.",
+      "mode": "Billing method",
+      "image": "Per image (USD / image)",
+      "request": "Per request (USD / request)",
+      "token": "Per token (USD / million tokens)",
+      "imageHint": "Enter the resolutions you use. Blank resolutions stay paused.",
+      "optional": "Cache and image token prices (optional)",
+      "tokenHint": "Blank fields use the corresponding input or output price. Enter 0 for free components.",
+      "auto": "Restore automatic pricing",
+      "reference": "Reference: {price}",
+      "invalid": "Enter a valid non-negative number.",
+      "required": "Enter a purchase price."
+},
     overview: {
       openSite: 'Open site', openSiteLabel: 'Open {name} in a new tab',
       all: 'All sites', new: 'New models', low: 'Low balance', error: 'Connection issues',
