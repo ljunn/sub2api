@@ -385,8 +385,8 @@
               @probe="handleProbeUpstreamBilling(row)"
             />
           </template>
-          <template #cell-priority="{ value }">
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ value }}</span>
+          <template #cell-priority="{ value, row }">
+            <AccountSitePriority :scheduling="row.site_scheduling" :fallback="value" />
           </template>
           <template #header-scheduler_score="{ column }">
             <div class="flex items-center">
@@ -494,6 +494,7 @@
 
 <script setup lang="ts">
 import AccountSitePrice from '@/components/account/AccountSitePrice.vue'
+import AccountSitePriority from '@/components/account/AccountSitePriority.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'

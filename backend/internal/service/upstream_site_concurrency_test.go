@@ -79,6 +79,7 @@ func TestUpstreamSiteConcurrencyAfterTokenRefresh(t *testing.T) {
 func TestUpstreamSiteConcurrencySynchronizationPreservesScheduling(t *testing.T) {
 	svc, repo, accounts := siteTestService()
 	a := siteAutomaticAccount(siteAutomaticPolicy())
+	a.Type = AccountTypeAPIKey
 	a.Concurrency, a.Schedulable = 1, false
 	accounts.accounts[a.ID] = a
 	accounts.accounts[100] = &Account{ID: 100, Concurrency: 33}
@@ -93,6 +94,8 @@ func TestUpstreamSiteConcurrencySynchronizationPreservesScheduling(t *testing.T)
 		site.Concurrency.Limit = limit
 		require.NoError(t, svc.updatePolicies(context.Background(), site))
 		require.Equal(t, limit, accounts.accounts[a.ID].Concurrency)
+		require.True(t, accounts.accounts[a.ID].IsPoolMode())
+		require.Zero(t, accounts.accounts[a.ID].GetPoolModeRetryCount(), "existing site bindings are initialized with no retries")
 		require.False(t, accounts.accounts[a.ID].Schedulable)
 		require.Equal(t, 33, accounts.accounts[100].Concurrency, "standalone accounts stay unchanged")
 	}

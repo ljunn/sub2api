@@ -567,11 +567,13 @@ func (s *OpenAIGatewayService) ForwardImages(
 	body []byte,
 	parsed *OpenAIImagesRequest,
 	channelMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (siteResult *OpenAIForwardResult, siteErr error) {
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}
 	ctx = WithSiteImageSize(ctx, parsed.Size)
+	ctx, siteObservation := beginSiteForward(ctx, account)
+	defer func() { siteObservation.finishOpenAI(ctx, c, siteResult, siteErr) }()
 	if err := CheckSitePriceBeforeSend(ctx, account, s.accountRepo); err != nil {
 		return nil, err
 	}

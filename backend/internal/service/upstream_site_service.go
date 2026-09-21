@@ -37,6 +37,9 @@ func NewUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountReposit
 func ProvideUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor, pricing *UpstreamSitePricing, settings SettingRepository, email *NotificationEmailService, users UserRepository) *UpstreamSiteService {
 	s := NewUpstreamSiteService(repo, accounts, admin, encryptor)
 	s.pricing = pricing
+	if pricing != nil {
+		pricing.accounts = accounts
+	}
 	s.balanceSettings, s.balanceMailer = settings, email
 	s.balanceUsers = users
 	s.Start()
@@ -457,7 +460,7 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 			raw, _ := json.Marshal(policy)
 			var policyMap map[string]any
 			_ = json.Unmarshal(raw, &policyMap)
-			account := &Account{Name: siteManagedAccountName(site.Name, binding.Model, model.GroupName), Platform: group.Platform, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: siteAccountConcurrency(site), Priority: 50, Credentials: map[string]any{"base_url": site.BaseURL, "api_key": key, "model_mapping": map[string]any{binding.LocalModel: binding.Model}, SiteBindingCredentialKey: binding.ID}, Extra: map[string]any{"upstream_site_binding_id": binding.ID, "upstream_site_id": site.ID, SitePolicyExtraKey: policyMap, UpstreamBillingProbeEnabledExtraKey: false}}
+			account := &Account{Name: siteManagedAccountName(site.Name, binding.Model, model.GroupName), Platform: group.Platform, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: siteAccountConcurrency(site), Priority: 50, Credentials: map[string]any{"base_url": site.BaseURL, "api_key": key, "model_mapping": map[string]any{binding.LocalModel: binding.Model}, "pool_mode": true, "pool_mode_retry_count": 0, SiteBindingCredentialKey: binding.ID}, Extra: map[string]any{"upstream_site_binding_id": binding.ID, "upstream_site_id": site.ID, SitePolicyExtraKey: policyMap, UpstreamBillingProbeEnabledExtraKey: false}}
 			if s.preview {
 				account.Status = StatusDisabled
 				account.Extra["upstream_site_preview_pending"] = true
@@ -542,9 +545,19 @@ func (s *UpstreamSiteService) updatePolicies(ctx context.Context, site *Upstream
 			return err
 		}
 		accountChanged := false
+		// Older bindings predate the explicit retry setting. Initialize them once
+		// without overwriting a subsequently configured account retry policy.
+		if _, configured := account.Credentials["pool_mode_retry_count"]; !configured {
+			if account.Credentials == nil {
+				account.Credentials = make(map[string]any)
+			}
+			account.Credentials["pool_mode"] = true
+			account.Credentials["pool_mode_retry_count"] = 0
+			accountChanged = true
+		}
 		if model := findSiteModel(site, b.GroupID, b.Model); model != nil {
 			name := siteManagedAccountName(site.Name, b.Model, model.GroupName)
-			accountChanged = account.Name != name
+			accountChanged = accountChanged || account.Name != name
 			account.Name = name
 		}
 		if site.Concurrency != nil && account.Concurrency != siteAccountConcurrency(site) {

@@ -13,14 +13,17 @@ import (
 // UpstreamSitePricing uses the same group/model price resolution as billing.
 // Saved limits are display snapshots only; admission always resolves local prices.
 type UpstreamSitePricing struct {
-	groups   GroupRepository
-	billing  *BillingService
-	resolver *ModelPricingResolver
-	rates    UserGroupRateRepository
+	groups        GroupRepository
+	billing       *BillingService
+	resolver      *ModelPricingResolver
+	rates         UserGroupRateRepository
+	performance   sitePerformanceStore
+	accounts      AccountRepository
+	priorityViews sitePriorityViewCache
 }
 
 func NewUpstreamSitePricing(groups GroupRepository, billing *BillingService, resolver *ModelPricingResolver, rates UserGroupRateRepository) *UpstreamSitePricing {
-	return &UpstreamSitePricing{groups, billing, resolver, rates}
+	return &UpstreamSitePricing{groups: groups, billing: billing, resolver: resolver, rates: rates}
 }
 
 type sitePricingKey struct{}

@@ -1,5 +1,14 @@
 export default {
   sites: {
+    priority: {
+      automatic: 'Auto', details: 'View priority score details',
+      hint: 'Ranked separately per model and size. The leader is 200; lower priorities go first. All eligible backups are retained.',
+      score: 'Score {score}',
+      success: 'Smoothed success rate {rate}% ({successes} successes / {samples} attempts)',
+      speed: 'Weighted latency {seconds}s', estimated: 'Estimated; insufficient samples',
+      cost: 'Purchase / selling price {ratio}%',
+      window: 'Last hour, up to 200 account attempts. Images use full generation time. Samples accumulate since this process started.',
+    },
     manualPrice: {
       "title": "Set purchase price",
       "fill": "Set purchase price",

@@ -21,6 +21,8 @@ import (
 )
 
 type Account struct {
+	// Set only on request-local copies of managed accounts.
+	sitePriority            bool
 	ID                      int64
 	Name                    string
 	Notes                   *string
@@ -1114,8 +1116,11 @@ const (
 )
 
 // GetPoolModeRetryCount 返回池模式同账号重试次数。
-// 未配置或配置非法时回退为默认值 3；小于 0 按 0 处理；过大则截断到 10。
+// 站点托管账号未配置时默认不重试；其他账号默认 3；小于 0 按 0 处理；过大则截断到 10。
 func (a *Account) GetPoolModeRetryCount() int {
+	if siteAccountRetriesDisabled(a) {
+		return 0
+	}
 	if a == nil || !a.IsPoolMode() || a.Credentials == nil {
 		return defaultPoolModeRetryCount
 	}

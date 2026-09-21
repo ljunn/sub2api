@@ -206,6 +206,8 @@ func TestUpstreamSiteLifecyclePriceChangeRecoveryAndStaleQueue(t *testing.T) {
 	account, err := accounts.GetByID(ctx, site.Bindings[0].AccountID)
 	require.NoError(t, err)
 	assert.Equal(t, 5000, account.Concurrency, "new binding uses the upstream profile limit")
+	assert.True(t, account.IsPoolMode())
+	assert.Zero(t, account.GetPoolModeRetryCount(), "new site bindings must not retry a slow failed upstream")
 	assert.Equal(t, "image-upstream", account.GetMappedModel("my-image"))
 	assert.False(t, account.IsModelSupported("unbound-model"))
 	for size, want := range map[string]bool{"1K": false, "2K": true, "4K": false, "auto": true, "nonsense": true} {

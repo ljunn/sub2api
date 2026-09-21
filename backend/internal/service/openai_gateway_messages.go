@@ -32,7 +32,9 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	body []byte,
 	promptCacheKey string,
 	defaultMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (siteResult *OpenAIForwardResult, siteErr error) {
+	ctx, siteObservation := beginSiteForward(ctx, account)
+	defer func() { siteObservation.finishOpenAI(ctx, c, siteResult, siteErr) }()
 	rememberOpenCodeInboundBody(c, body)
 	beginUpstreamResponseModelObservation(c)
 	ClearActualOpenAIUpstreamEndpoint(c)

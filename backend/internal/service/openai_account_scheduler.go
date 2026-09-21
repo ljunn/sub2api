@@ -1055,9 +1055,19 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 	req OpenAIAccountScheduleRequest,
 	plan openAIAccountLoadPlan,
 ) []openAIAccountCandidateScore {
-	buildSelectionOrder := func(pool []openAIAccountCandidateScore) []openAIAccountCandidateScore {
+	buildSelectionOrder := func(pool []openAIAccountCandidateScore) (order []openAIAccountCandidateScore) {
 		if len(pool) == 0 || plan.topK <= 0 {
 			return nil
+		}
+		defer func() { order = orderSitePriorityCandidates(pool, order) }()
+		managedPool := true
+		for _, candidate := range pool {
+			managedPool = managedPool && candidate.account.sitePriority
+		}
+		if managedPool {
+			// Managed model pools use the three-factor priority directly. Keep
+			// every eligible backup, even when advanced scheduling has a small K.
+			return pool
 		}
 		groupTopK := plan.topK
 		if groupTopK > len(pool) {
@@ -1126,6 +1136,42 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 	}
 
 	return buildSelectionOrder(plan.candidates)
+}
+
+// In mixed pools preserve the non-managed scheduler's relative order. Replace
+// its managed positions with the best managed candidates and retain all their
+// remaining backups instead of letting Top-K silently remove them.
+func orderSitePriorityCandidates(pool, order []openAIAccountCandidateScore) []openAIAccountCandidateScore {
+	managed := make([]openAIAccountCandidateScore, 0)
+	for _, candidate := range pool {
+		if candidate.account.sitePriority {
+			managed = append(managed, candidate)
+		}
+	}
+	if len(managed) == 0 {
+		return order
+	}
+	sort.SliceStable(managed, func(i, j int) bool {
+		left, right := managed[i], managed[j]
+		if left.account.Priority != right.account.Priority {
+			return left.account.Priority < right.account.Priority
+		}
+		if left.loadInfo.LoadRate != right.loadInfo.LoadRate {
+			return left.loadInfo.LoadRate < right.loadInfo.LoadRate
+		}
+		return left.account.ID < right.account.ID
+	})
+	result := make([]openAIAccountCandidateScore, 0, len(order)+len(managed))
+	next := 0
+	for _, candidate := range order {
+		if candidate.account.sitePriority {
+			result = append(result, managed[next])
+			next++
+		} else {
+			result = append(result, candidate)
+		}
+	}
+	return append(result, managed[next:]...)
 }
 
 func sortOpenAICompactRetryCandidates(pool []openAIAccountCandidateScore) []openAIAccountCandidateScore {

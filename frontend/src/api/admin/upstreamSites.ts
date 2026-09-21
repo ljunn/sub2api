@@ -12,6 +12,21 @@ export interface SiteSchedulingTier extends SitePriceTier {
   selling?: Record<string, number>
   ceiling?: Record<string, number>
   status: string
+  priority_score?: SitePriorityScore
+}
+export interface SitePriorityScore {
+  score: number
+  priority: number
+  samples: number
+  successes: number
+  success_rate: number
+  p50_seconds: number
+  p90_seconds: number
+  speed_seconds: number
+  speed_reference: number
+  speed_estimated: boolean
+  cost_ratio: number
+  ready: boolean
 }
 export interface SiteAccountScheduling {
   status: 'ready' | 'partial' | 'blocked'

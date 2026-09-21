@@ -17,9 +17,10 @@ type SiteAccountScheduling struct {
 
 type SiteSchedulingTier struct {
 	SitePriceTier
-	Selling map[string]float64 `json:"selling"`
-	Ceiling map[string]float64 `json:"ceiling"`
-	Status  string             `json:"status"`
+	Selling       map[string]float64 `json:"selling"`
+	Ceiling       map[string]float64 `json:"ceiling"`
+	Status        string             `json:"status"`
+	PriorityScore *SitePriorityScore `json:"priority_score,omitempty"`
 }
 
 func (s *UpstreamSitePricing) AccountScheduling(ctx context.Context, account *Account) *SiteAccountScheduling {
@@ -60,6 +61,13 @@ func (s *UpstreamSitePricing) AccountScheduling(ctx context.Context, account *Ac
 			status = accountReason
 		}
 		row := SiteSchedulingTier{SitePriceTier: tier, Status: status}
+		if status == "ready" {
+			score := s.priorityScore(account.ID, p, tier.Key, now)
+			if priority, ok := s.adminPriority(ctx, account, p, tier.Key, now); ok {
+				score.Priority = priority
+			}
+			row.PriorityScore = &score
+		}
 		for _, limit := range p.Limits {
 			if limit.Key == tier.Key {
 				row.Selling, row.Ceiling = limit.Selling, limit.Limits

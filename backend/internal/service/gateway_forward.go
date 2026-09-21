@@ -92,6 +92,8 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	if err := CheckSitePriceBeforeSend(ctx, account, s.accountRepo); err != nil {
 		return nil, err
 	}
+	ctx, siteObservation := beginSiteForward(ctx, account)
+	defer func() { siteObservation.finishGateway(ctx, c, result, err) }()
 	startTime := time.Now()
 	if parsed == nil {
 		return nil, fmt.Errorf("parse request: empty request")

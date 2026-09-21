@@ -58,7 +58,9 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	body []byte,
 	promptCacheKey string,
 	defaultMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (siteResult *OpenAIForwardResult, siteErr error) {
+	ctx, siteObservation := beginSiteForward(ctx, account)
+	defer func() { siteObservation.finishOpenAI(ctx, c, siteResult, siteErr) }()
 	return s.forwardAsChatCompletions(ctx, c, account, body, promptCacheKey, defaultMappedModel, false)
 }
 

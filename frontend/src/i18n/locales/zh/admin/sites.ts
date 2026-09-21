@@ -1,5 +1,14 @@
 export default {
   sites: {
+    priority: {
+      automatic: '自动', details: '查看优先级评分依据',
+      hint: '同模型、同规格独立排序；第一名为 200，数值越小越优先。所有可用备用账号保留。',
+      score: '综合分 {score}',
+      success: '平滑成功率 {rate}%（成功 {successes} / 尝试 {samples}）',
+      speed: '加权耗时 {seconds} 秒', estimated: '样本不足，暂用估计',
+      cost: '采购价 / 售价 {ratio}%',
+      window: '统计最近 1 小时，最多 200 次账号转发；图片统计完整出图时间。数据从当前进程启动后积累。',
+    },
     manualPrice: {
       "title": "填写采购价",
       "fill": "填写采购价",

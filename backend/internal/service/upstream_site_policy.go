@@ -233,12 +233,14 @@ func (s *sitePriceHTTPUpstream) Do(req *http.Request, proxy string, id int64, co
 	if err := s.check(req); err != nil {
 		return nil, err
 	}
+	markSiteForwardStarted(req.Context())
 	return s.HTTPUpstream.Do(req, proxy, id, concurrency)
 }
 func (s *sitePriceHTTPUpstream) DoWithTLS(req *http.Request, proxy string, id int64, concurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
 	if err := s.check(req); err != nil {
 		return nil, err
 	}
+	markSiteForwardStarted(req.Context())
 	return s.HTTPUpstream.DoWithTLS(req, proxy, id, concurrency, profile)
 }
 
