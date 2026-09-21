@@ -20,17 +20,22 @@
         </tr></thead>
         <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
           <tr v-for="site in filteredSites" :key="site.id" :data-site="site.id"
-            :class="selectedId === site.id ? 'bg-primary-50/70 dark:bg-primary-900/10' : ''">
+            tabindex="0" :aria-current="selectedId === site.id ? 'true' : undefined"
+            class="cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500"
+            :class="selectedId === site.id ? 'bg-primary-50/70 dark:bg-primary-900/10' : 'hover:bg-gray-50 dark:hover:bg-dark-700/50'"
+            @click="$emit('select', site.id)"
+            @keydown.enter.self.prevent="$emit('select', site.id)"
+            @keydown.space.self.prevent="$emit('select', site.id)">
             <td class="px-4 py-2">
-              <button class="block max-w-56 truncate font-semibold text-primary-700 dark:text-primary-400" :title="site.name" @click="$emit('select', site.id)">{{ site.name }}</button>
+              <button type="button" class="block max-w-56 truncate font-semibold text-primary-700 dark:text-primary-400" :title="site.name" @click.stop="$emit('select', site.id)">{{ site.name }}</button>
               <div class="mt-0.5 max-w-56 truncate text-xs text-gray-500" :title="site.base_url">{{ site.kind === 'kongfang' ? t('admin.sites.kongfang') : site.kind === 'newapi' ? 'New API' : 'Sub2API' }} · {{ site.base_url }}</div>
             </td>
             <td class="px-4 py-2 whitespace-nowrap">
-              <button v-if="unreadCount(site)" class="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" @click="$emit('models', site.id)">{{ t('admin.sites.overview.newCount', { count: unreadCount(site) }) }}</button>
+              <button v-if="unreadCount(site)" type="button" class="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" @click.stop="$emit('models', site.id)">{{ t('admin.sites.overview.newCount', { count: unreadCount(site) }) }}</button>
               <span v-else class="text-xs text-gray-400">{{ t('admin.sites.overview.noNew') }}</span>
             </td>
             <td class="px-4 py-2 whitespace-nowrap">
-              <button class="text-left" :title="site.balance?.error || site.balance?.last_success" @click="$emit('select', site.id)">
+              <button type="button" class="text-left" :title="site.balance?.error || site.balance?.last_success" @click.stop="$emit('select', site.id)">
                 <span class="font-medium" :class="isLow(site) ? 'text-red-600' : ''">{{ amount(site) }} {{ site.balance?.currency }}</span>
                 <span v-if="isLow(site)" class="ml-2 text-xs text-red-600">{{ t('admin.siteBalance.low') }}</span>
                 <span v-if="!isFresh(site)" class="ml-2 text-xs text-amber-600">{{ t('admin.sites.overview.balancePending') }}</span>

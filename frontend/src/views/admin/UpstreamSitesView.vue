@@ -632,7 +632,6 @@ function replace(site: UpstreamSite) {
   const i = sites.value.findIndex((s) => s.id === site.id)
   if (i < 0) sites.value.push(site)
   else sites.value[i] = site
-  selectedId.value = site.id
 }
 async function load() {
   now.value = Date.now()
@@ -703,10 +702,12 @@ function closeSite() {
   }
 }
 async function saveSite() {
+  const selectedWhenSaving = selectedId.value
   busy.value = true
   try {
     const result = await upstreamSitesApi.save(editingId.value, { ...siteForm.value, usd_per_credit: Number(siteForm.value.usd_per_credit) || 0, refresh_token: siteForm.value.kind === 'kongfang' ? '' : siteForm.value.refresh_token })
     replace(result)
+    if (selectedId.value === selectedWhenSaving) selectedId.value = result.id
     siteDialog.value = false
     siteForm.value = emptySite()
     const synced = await upstreamSitesApi.sync(result.id)

@@ -4,6 +4,7 @@ import UpstreamSitesView from '../UpstreamSitesView.vue'
 import SitePriceSummary from '@/components/admin/sites/SitePriceSummary.vue'
 import SiteOverview from '@/components/admin/sites/SiteOverview.vue'
 import SiteModelCatalogue from '@/components/admin/sites/SiteModelCatalogue.vue'
+import SiteBalanceCard from '@/components/admin/sites/SiteBalanceCard.vue'
 import type { UpstreamSite } from '@/api/admin/upstreamSites'
 
 const mocks = vi.hoisted(() => ({
@@ -96,6 +97,29 @@ async function click(text: string) {
 }
 
 describe('upstream sites', () => {
+  it('switches site details from row cells and keeps the choice when prior requests finish', async () => {
+    const second = { ...site, id: 'second', name: 'Second site' }
+    mocks.list.mockResolvedValue([site, second])
+    let finishSync!: (value: UpstreamSite) => void
+    mocks.sync.mockImplementation(() => new Promise(resolve => { finishSync = resolve }))
+    wrapper = mountView()
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'admin.sites.sync')!.trigger('click')
+    await wrapper.get('[data-site=second] td:first-child div').trigger('click')
+    expect(wrapper.get('section.min-w-0 h2').text()).toBe('Second site')
+    finishSync({ ...site })
+    await flushPromises()
+    expect(wrapper.get('section.min-w-0 h2').text()).toBe('Second site')
+    wrapper.findComponent(SiteBalanceCard).vm.$emit('updated', { ...site })
+    await flushPromises()
+    expect(wrapper.get('section.min-w-0 h2').text()).toBe('Second site')
+    await click('common.refresh')
+    expect(wrapper.get('section.min-w-0 h2').text()).toBe('Second site')
+    await wrapper.get('[data-site=site] td:nth-child(4)').trigger('click')
+    expect(wrapper.get('section.min-w-0 h2').text()).toBe('Upstream')
+    await wrapper.get('[data-site=second]').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.get('section.min-w-0 h2').text()).toBe('Second site')
+  })
   it('opens new models without binding and preserves read receipts across an older poll response', async () => {
     site.models[0]!.discovery_id = 'new-one'
     site.models[0]!.unread = true

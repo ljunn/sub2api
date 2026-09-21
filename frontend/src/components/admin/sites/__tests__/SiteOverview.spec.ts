@@ -16,6 +16,23 @@ const makeSite = (id = 'site'): UpstreamSite => ({
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 
 describe('site overview', () => {
+  it('selects a site from the full row and keyboard without swallowing the new-model action', async () => {
+    const wrapper = mount(SiteOverview, { props: { sites: [makeSite('first'), makeSite('second')], selectedId: 'first', threshold: 20, now: Date.now() } })
+    const row = wrapper.get('[data-site=second]')
+    for (const selector of ['td:first-child div', 'td:nth-child(4)', 'td:last-child']) {
+      await row.get(selector).trigger('click')
+    }
+    await row.trigger('click')
+    await row.trigger('keydown', { key: 'Enter' })
+    await row.trigger('keydown', { key: ' ' })
+    expect(wrapper.emitted('select')).toEqual(Array.from({ length: 6 }, () => ['second']))
+    await row.get('button.bg-blue-50').trigger('click')
+    expect(wrapper.emitted('models')).toEqual([['second']])
+    expect(wrapper.emitted('select')).toHaveLength(6)
+    await row.get('td:first-child button').trigger('click')
+    expect(wrapper.emitted('select')).toHaveLength(7)
+    wrapper.unmount()
+  })
   it('shows low balances and unread models across sites and filters without reading anything', async () => {
     const low = makeSite('low'); low.balance!.amount = 0
     const normal = makeSite('normal'); normal.models = []
