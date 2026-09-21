@@ -23,7 +23,7 @@
 
 余额功能细节见 [UPSTREAM_SITE_BALANCE.md](UPSTREAM_SITE_BALANCE.md)，空凡接入见 [KONGFANG.md](KONGFANG.md)。此前仅含空凡适配的预览不能作为本次完整功能的发布依据。
 
-2026-09-21 后续整合新增：多站点总览直接展示余额和新增模型数，支持异常筛选与搜索；上游新增模型按管理员保存已读状态，实际查看后清除未读提示，绑定仍由管理员决定。后续审阅修复同时包含站点整行切换与异步结果不抢选择、列表主页面与站点详情弹窗，以及飞羽公开价格与登录专属分组兼容、supergpt 上游关闭模型广场的准确提示，以及余额统一折算 USD、可填写 1:100/1:10/1:1 倍率、按 USD 阈值发送全中文余额提醒。这些功能与上述余额、空凡、价格调度、紧凑布局及命名修改合入同一个完整 HEAD，详见 [UPSTREAM_SITES.md](UPSTREAM_SITES.md)。
+2026-09-21 后续整合新增：多站点总览直接展示余额和新增模型数，支持异常筛选与搜索；上游新增模型按管理员保存已读状态，实际查看后清除未读提示，绑定仍由管理员决定。后续审阅修复同时包含站点整行切换与异步结果不抢选择、列表主页面与站点详情弹窗，以及飞羽公开价格与登录专属分组兼容、无模型广场时通过公开价格及登录接口继续同步（含 supergpt，分组参考价与完整模型采购价分别展示），以及余额统一折算 USD、可填写 1:100/1:10/1:1 倍率、按 USD 阈值发送全中文余额提醒。这些功能与上述余额、空凡、价格调度、紧凑布局及命名修改合入同一个完整 HEAD，详见 [UPSTREAM_SITES.md](UPSTREAM_SITES.md)。
 
 ## 日常修改与构建
 
@@ -75,13 +75,13 @@ systemd-run --unit=sub2api-preview --collect \
   --property=Restart=on-failure \
   --setenv=DATA_DIR=/opt/sub2api/preview \
   --setenv=CONFIG_FILE=/opt/sub2api/preview/config.yaml \
-  --setenv=UPSTREAM_SITES_PREVIEW=true \
+  --setenv=UPSTREAM_SITES_PREVIEW=false \
   "$release_dir/sub2api"
 curl -fsS http://127.0.0.1:6556/health
 systemctl status sub2api-preview --no-pager
 ```
 
-站点管理、价格口径及预览托管账号的行为见 [UPSTREAM_SITES.md](UPSTREAM_SITES.md)。预览必须设置 `UPSTREAM_SITES_PREVIEW=true`，禁用重复的价格同步任务，并暂停新建托管账号直到确认发布。按用户 2026-09-21 的要求，余额每 5 分钟自动扫描与系统邮件提醒在 6556 也正常运行；它们与价格同步独立，配置和收件人统一复用系统邮件管理，见 [UPSTREAM_SITE_BALANCE.md](UPSTREAM_SITE_BALANCE.md)。
+站点管理、价格口径及预览托管账号的行为见 [UPSTREAM_SITES.md](UPSTREAM_SITES.md)。用户于 2026-09-21 明确要求通过新分组隔离测试、允许符合条件的账号参与调度，因此预览设置 `UPSTREAM_SITES_PREVIEW=false`，恢复每 5 分钟的模型/价格自动同步；新建托管账号正常启用，原先带待上线标记的账号在同步时解除统一停用。仍执行分组、模型、档位价格、有效期及手动调度开关检查，不得再仅因运行于 6556 而统一停用账号。已核对测试分组 10、11 独立于历史分组，启用时没有 API Key、调用记录或路由引用；这不改变共用生产 PostgreSQL 的约定，也不代表允许发布或重启生产。余额每 5 分钟自动扫描与系统邮件提醒继续运行；它们与价格同步独立，配置和收件人统一复用系统邮件管理，见 [UPSTREAM_SITE_BALANCE.md](UPSTREAM_SITE_BALANCE.md)。
 
 两种新增媒体协议的配置和计费说明分别见 [VIVIDAI.md](VIVIDAI.md) 和 [LONGXIA.md](LONGXIA.md)。验证使用模拟上游，没有实际客户 Key 时不把模拟测试视作真实上游生成验证。
 
