@@ -27,9 +27,13 @@ import (
 type siteRemoteError struct {
 	Status int
 	Path   string
+	Code   string
 }
 
 func (e *siteRemoteError) Error() string {
+	if detail := siteAuthErrorDetail(e.Code); detail != "" {
+		return fmt.Sprintf("上游接口 %s 返回 HTTP %d（%s）：%s", e.Path, e.Status, e.Code, detail)
+	}
 	return fmt.Sprintf("上游接口 %s 返回 HTTP %d，请检查登录凭据、权限或站点验证要求", e.Path, e.Status)
 }
 
@@ -103,7 +107,7 @@ func (a *siteAdapter) requestWithHeaders(ctx context.Context, method, path strin
 		return gjson.Result{}, errors.New("上游响应过大或读取失败")
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return gjson.Result{}, &siteRemoteError{Status: resp.StatusCode, Path: path}
+		return gjson.Result{}, &siteRemoteError{Status: resp.StatusCode, Path: path, Code: gjson.GetBytes(raw, "code").String()}
 	}
 	if !gjson.ValidBytes(raw) {
 		return gjson.Result{}, errors.New("上游没有返回 JSON，请检查站点地址或人机验证")
@@ -167,15 +171,12 @@ func (a *siteAdapter) authenticate(ctx context.Context) error {
 		if !errors.As(err, &remote) || (remote.Status != 401 && remote.Status != 403) {
 			return err
 		}
+		if a.site.Kind == "newapi" && remote.Status == http.StatusForbidden {
+			return err // Permission failures do not mean the login session expired.
+		}
 	}
 	if a.credentials.RefreshToken != "" && a.site.Kind != "kongfang" {
-		path := "/api/v1/auth/refresh"
-		var payload any = map[string]string{"refresh_token": a.credentials.RefreshToken}
-		if a.site.Kind == "newapi" {
-			path = "/api/user/auth/refresh"
-			payload = map[string]string{}
-		}
-		result, err := a.request(ctx, http.MethodPost, path, payload)
+		result, err := a.refreshSiteAuth(ctx)
 		if err == nil {
 			if err := a.acceptAuth(result); err != nil {
 				return err
@@ -185,6 +186,9 @@ func (a *siteAdapter) authenticate(ctx context.Context) error {
 		var remote *siteRemoteError
 		if !errors.As(err, &remote) || (remote.Status != 401 && remote.Status != 403 && remote.Status != 404) {
 			return err
+		}
+		if a.site.Kind == "newapi" && remote.Status == http.StatusForbidden {
+			return err // Do not create a fresh session on an Origin/permission error.
 		}
 	}
 	if a.site.AuthMode != "password" || a.credentials.Password == "" {
