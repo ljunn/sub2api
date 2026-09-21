@@ -51,6 +51,7 @@
           @select="selectSite" @models="openNewModels" />
         <section
           v-if="selected"
+          ref="siteDetails"
           class="min-w-0 rounded-xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800"
         >
           <div class="border-b border-gray-200 p-5 dark:border-dark-700">
@@ -495,7 +496,7 @@
   </AppLayout>
 </template>
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -530,6 +531,7 @@ const activeTab = ref('bindings')
 const tabs = ['bindings', 'models', 'history']
 const onlyNewModels = ref(false)
 const now = ref(Date.now())
+const siteDetails = ref<HTMLElement>()
 const acknowledgedDiscoveries = new Map<string, Set<string>>()
 const selected = computed(() =>
   sites.value.find((s) => s.id === selectedId.value),
@@ -551,6 +553,7 @@ function openNewModels(id: string) {
   selectedId.value = id
   onlyNewModels.value = true
   activeTab.value = 'models'
+  void nextTick(() => siteDetails.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }))
 }
 function selectTab(tab: string) {
   onlyNewModels.value = false
