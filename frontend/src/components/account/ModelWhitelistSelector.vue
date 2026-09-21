@@ -56,6 +56,7 @@
             <button
               type="button"
               data-testid="select-model"
+              :aria-pressed="modelValue.includes(model.value)"
               class="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm"
               @click="toggleModel(model.value)"
             >
@@ -224,10 +225,6 @@ const canSyncUpstream = computed(() => {
 })
 
 const availableOptions = computed(() => {
-  if (normalizedPlatforms.value.length === 0) {
-    return allModels
-  }
-
   const allowedModels = new Set<string>()
   for (const platform of normalizedPlatforms.value) {
     for (const model of getModelsByPlatform(platform)) {
@@ -235,7 +232,19 @@ const availableOptions = computed(() => {
     }
   }
 
-  return allModels.filter(model => allowedModels.has(model.value))
+  const options = normalizedPlatforms.value.length === 0
+    ? [...allModels]
+    : allModels.filter(model => allowedModels.has(model.value))
+  const seen = new Set(options.map(model => model.value))
+  // Saved and upstream-synced names can be newer than the built-in catalogue.
+  // Keep them visible and checked when the user opens or searches the dropdown.
+  for (const model of props.modelValue) {
+    if (!seen.has(model)) {
+      options.push({ value: model, label: model })
+      seen.add(model)
+    }
+  }
+  return options
 })
 
 const filteredModels = computed(() => {

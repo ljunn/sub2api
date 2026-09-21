@@ -81,6 +81,22 @@ function findModelRow(wrapper: ReturnType<typeof mountSelector>, modelId: string
 }
 
 describe('ModelWhitelistSelector', () => {
+  it('shows saved Gemini preview and custom models as checked searchable options', async () => {
+    const selected = ['gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview', 'custom-banana']
+    const wrapper = mountSelector({ platform: 'gemini', modelValue: selected })
+    await wrapper.get('div.cursor-pointer').trigger('click')
+    for (const model of selected) {
+      const row = findModelRow(wrapper, model)
+      expect(row.get('[data-testid="select-model"]').attributes('aria-pressed')).toBe('true')
+    }
+    const search = wrapper.findAll('input').find(input => input.attributes('placeholder') === 'admin.accounts.searchModels')
+    expect(search).toBeDefined()
+    await search!.setValue('gemini-3-pro-image-preview')
+    expect(wrapper.findAll('[data-testid="model-option"]')).toHaveLength(1)
+    await findModelRow(wrapper, selected[1]!).get('[data-testid="select-model"]').trigger('click')
+    expect(wrapper.emitted('update:modelValue')).toEqual([[[selected[0], selected[2]]]])
+  })
+
   beforeEach(() => {
     copyToClipboard.mockClear()
     showError.mockReset()

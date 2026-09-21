@@ -1653,6 +1653,18 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 		return nil, s.writeGeminiNativeUpstreamError(c, account, resp, respBody, requestID, isOAuth)
 	}
 
+	if policy, managed := account.SitePolicy(); managed && policy.SiteKind == "kongfang" && policy.Image {
+		if err := prepareKongfangGeminiResponse(resp); err != nil {
+			var failover *UpstreamFailoverError
+			if errors.As(err, &failover) {
+				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{Platform: account.Platform, AccountID: account.ID, AccountName: account.Name,
+					UpstreamStatusCode: failover.StatusCode, UpstreamRequestID: requestID, Kind: "failover",
+					Message: extractUpstreamErrorMessage(failover.ResponseBody)})
+			}
+			return nil, err
+		}
+	}
+
 	var usage *ClaudeUsage
 	var firstTokenMs *int
 

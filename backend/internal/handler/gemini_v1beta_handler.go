@@ -72,6 +72,18 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 		c.JSON(http.StatusOK, gemini.ModelsListResponse{Models: filterGeminiModels(agModels)})
 		return
 	}
+	configured, complete, err := h.geminiCompatService.GeminiConfiguredModelIDs(c.Request.Context(), apiKey.GroupID)
+	if err != nil {
+		googleError(c, http.StatusServiceUnavailable, "Unable to list configured Gemini models")
+		return
+	}
+	for _, name := range configured {
+		agModels = mergeGeminiModelLists(agModels, []gemini.Model{gemini.FallbackModel(name)})
+	}
+	if complete {
+		c.JSON(http.StatusOK, gemini.ModelsListResponse{Models: filterGeminiModels(agModels)})
+		return
+	}
 
 	account, err := h.geminiCompatService.SelectAccountForAIStudioEndpoints(c.Request.Context(), apiKey.GroupID)
 	if err != nil {
@@ -247,6 +259,34 @@ func (h *GatewayHandler) GeminiV1BetaGetModel(c *gin.Context) {
 	// 强制 antigravity 模式：返回 antigravity 模型信息
 	if forcePlatform == service.PlatformAntigravity {
 		c.JSON(http.StatusOK, antigravity.FallbackGeminiModel(modelName))
+		return
+	}
+	configured, complete, err := h.geminiCompatService.GeminiConfiguredModelIDs(c.Request.Context(), apiKey.GroupID)
+	if err != nil {
+		googleError(c, http.StatusServiceUnavailable, "Unable to list configured Gemini models")
+		return
+	}
+	for _, name := range configured {
+		if name == modelName {
+			if apiKey.Group != nil && !apiKey.Group.ModelAllowlist.Allows(name) {
+				googleError(c, http.StatusNotFound, "Model is not available in this group")
+				return
+			}
+			c.JSON(http.StatusOK, gemini.FallbackModel(name))
+			return
+		}
+	}
+	if complete {
+		agModels, err := h.geminiCompatService.AntigravityGeminiModelIDs(c.Request.Context(), apiKey.GroupID, true)
+		if err == nil {
+			for _, name := range agModels {
+				if name == modelName && (apiKey.Group == nil || apiKey.Group.ModelAllowlist.Allows(name)) {
+					c.JSON(http.StatusOK, gemini.FallbackModel(name))
+					return
+				}
+			}
+		}
+		googleError(c, http.StatusNotFound, "Model is not available in this group")
 		return
 	}
 
