@@ -1,6 +1,7 @@
 export default {
   sites: {
     overview: {
+      openSite: '打开站点', openSiteLabel: '在新标签页打开 {name}',
       all: '全部站点', new: '有新模型', low: '余额不足', error: '连接异常',
       search: '搜索站点名称或地址', updates: '模型动态', connection: '连接状态',
       newCount: '{count} 个新模型', noNew: '无未读更新', balancePending: '余额待更新', noResults: '暂无符合条件的结果',
@@ -97,6 +98,7 @@ export default {
       audio_output_price: '音频输出',
     },
     status: {
+      equal: '等价暂停',
       unavailable: '暂不可调度',
       preview: '预览待上线',
       pending: '待连接',

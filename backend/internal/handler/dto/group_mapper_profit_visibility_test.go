@@ -11,6 +11,7 @@ import (
 // rate_multiplier 相乘即可反推出运营方的上游采购成本上限，属于内部经营信息，
 // 只能出现在管理员 DTO 中。
 var profitControlJSONFields = []string{
+	"allow_equal_price_scheduling",
 	"profit_control_enabled",
 	"profit_min_margin",
 	"profit_safety_buffer",
@@ -18,14 +19,15 @@ var profitControlJSONFields = []string{
 
 func profitControlServiceGroup() *service.Group {
 	return &service.Group{
-		ID:                   7,
-		Name:                 "profit-gated",
-		Platform:             service.PlatformAnthropic,
-		RateMultiplier:       2.0,
-		Status:               service.StatusActive,
-		ProfitControlEnabled: true,
-		ProfitMinMargin:      0.3,
-		ProfitSafetyBuffer:   0.05,
+		ID:                        7,
+		Name:                      "profit-gated",
+		Platform:                  service.PlatformAnthropic,
+		RateMultiplier:            2.0,
+		Status:                    service.StatusActive,
+		ProfitControlEnabled:      true,
+		AllowEqualPriceScheduling: true,
+		ProfitMinMargin:           0.3,
+		ProfitSafetyBuffer:        0.05,
 	}
 }
 
@@ -63,7 +65,7 @@ func TestGroupFromServiceOmitsProfitControl(t *testing.T) {
 // TestGroupFromServiceAdminIncludesProfitControl 钉死管理端仍能读写利润控制配置。
 func TestGroupFromServiceAdminIncludesProfitControl(t *testing.T) {
 	admin := GroupFromServiceAdmin(profitControlServiceGroup())
-	if admin.ProfitControlEnabled != true || admin.ProfitMinMargin != 0.3 || admin.ProfitSafetyBuffer != 0.05 {
+	if !admin.AllowEqualPriceScheduling || admin.ProfitControlEnabled != true || admin.ProfitMinMargin != 0.3 || admin.ProfitSafetyBuffer != 0.05 {
 		t.Fatalf("管理员 DTO 未透传利润控制配置: %+v", admin)
 	}
 	fields := marshalToMap(t, admin)

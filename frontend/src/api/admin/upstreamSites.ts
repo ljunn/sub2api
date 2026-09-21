@@ -31,6 +31,7 @@ export interface SiteModel {
   reason?: string
 }
 export interface SiteTierLimit {
+  allow_equal_price_scheduling?: boolean
   selling?: Record<string, number>
   reason?: string
   key: string
@@ -163,6 +164,8 @@ export function siteTierStatus(
   const limit = policy.limits.find((item) => item.key === tier.key)
   if (!limit || limit.unit !== tier.unit || limit.reason) return 'unknown'
   if (!limit.enabled) return 'disabled'
+  let hasPositivePrice = false
+  let equalPrice = false
   for (const [key, value] of Object.entries(tier.prices)) {
     const cap = limit.limits[key]
     if (
@@ -172,7 +175,13 @@ export function siteTierStatus(
       value < 0
     )
       return 'unknown'
-    if (value - cap > 1e-12 * Math.max(1, Math.abs(cap))) return 'exceeded'
+    const tolerance = 1e-12 * Math.max(1, Math.abs(cap))
+    if (value - cap > tolerance) return 'exceeded'
+    if (value > 0 || cap > 0) {
+      hasPositivePrice = true
+      equalPrice ||= Math.abs(value - cap) <= tolerance
+    }
   }
+  if (!limit.allow_equal_price_scheduling && (equalPrice || !hasPositivePrice)) return 'equal'
   return 'ready'
 }

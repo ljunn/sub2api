@@ -45,6 +45,8 @@ func (s *UpstreamSitePricing) AccountScheduling(ctx context.Context, account *Ac
 		switch status {
 		case "":
 			status = "ready"
+		case "price_equal":
+			status = "equal"
 		case "price_exceeded":
 			status = "exceeded"
 		case "price_expired":

@@ -1069,6 +1069,10 @@ export default {
         peakMultiplier: 'Peak multiplier',
         multiplierHint: 'Applies to token billing multiplier; image tokens in token billing are also affected. 0 means peak token requests are billed at 0x.'
       },
+      equalPriceScheduling: {
+        enable: 'Allow equal-price model scheduling',
+        hint: 'Applies to site-managed models in this group. Off by default: purchase prices must be below the ceiling. Enable to also allow equal prices. The ceiling follows group selling prices and profit protection; unknown, expired, or over-limit prices remain blocked.'
+      },
       profitControl: {
         enable: 'Enable profit control',
         enabledHint: 'Scheduling only admits accounts whose account multiplier ≤ the request\'s effective downstream multiplier × (1 − min margin − safety buffer). Account multipliers may be maintained manually or synchronized from probes; existing ordering, stickiness and breakers keep working among qualified accounts. Image/video scheduling is not covered yet.',

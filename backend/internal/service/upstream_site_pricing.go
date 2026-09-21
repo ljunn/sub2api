@@ -89,7 +89,7 @@ func (s *UpstreamSitePricing) apply(ctx context.Context, p SiteAccountPolicy, re
 		factor = math.Min(factor, clampProfitControlThreshold(1-authGroup.ProfitMinMargin-authGroup.ProfitSafetyBuffer))
 	}
 	for _, tier := range p.Tiers {
-		limit := SiteTierLimit{Key: tier.Key, Unit: tier.Unit, Enabled: true, Limits: map[string]float64{}, Selling: map[string]float64{}}
+		limit := SiteTierLimit{AllowEqualPriceScheduling: group != nil && group.AllowEqualPriceScheduling, Key: tier.Key, Unit: tier.Unit, Enabled: true, Limits: map[string]float64{}, Selling: map[string]float64{}}
 		for _, prior := range old {
 			if prior.Key == tier.Key || prior.Key == "default" {
 				limit.Enabled = prior.Enabled

@@ -109,14 +109,25 @@ func siteTierReason(p SiteAccountPolicy, key string, now time.Time) string {
 	if !limit.Enabled {
 		return "site_tier_disabled"
 	}
+	hasPositivePrice, equalPrice := false, false
 	for component, v := range price.Prices {
 		cap, ok := limit.Limits[component]
 		if !ok || math.IsNaN(v) || math.IsInf(v, 0) || v < 0 || math.IsNaN(cap) || math.IsInf(cap, 0) || cap < 0 {
 			return "site_price_unknown"
 		}
-		if v-cap > 1e-12*math.Max(1, math.Abs(cap)) {
+		tolerance := 1e-12 * math.Max(1, math.Abs(cap))
+		if v-cap > tolerance {
 			return "site_price_exceeded"
 		}
+		// Zero-priced optional components (e.g. cache writes) do not block a
+		// discounted paid component. An entirely free tier is still equal.
+		if v > 0 || cap > 0 {
+			hasPositivePrice = true
+			equalPrice = equalPrice || math.Abs(v-cap) <= tolerance
+		}
+	}
+	if !limit.AllowEqualPriceScheduling && (equalPrice || !hasPositivePrice) {
+		return "site_price_equal"
 	}
 	return ""
 }

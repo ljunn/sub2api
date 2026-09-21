@@ -22172,6 +22172,7 @@ type GroupMutation struct {
 	max_reasoning_effort_over_limit         *string
 	reasoning_effort_mappings               *[]domain.ReasoningEffortMapping
 	appendreasoning_effort_mappings         []domain.ReasoningEffortMapping
+	allow_equal_price_scheduling            *bool
 	profit_control_enabled                  *bool
 	profit_min_margin                       *float64
 	addprofit_min_margin                    *float64
@@ -25415,6 +25416,42 @@ func (m *GroupMutation) ResetReasoningEffortMappings() {
 	m.appendreasoning_effort_mappings = nil
 }
 
+// SetAllowEqualPriceScheduling sets the "allow_equal_price_scheduling" field.
+func (m *GroupMutation) SetAllowEqualPriceScheduling(b bool) {
+	m.allow_equal_price_scheduling = &b
+}
+
+// AllowEqualPriceScheduling returns the value of the "allow_equal_price_scheduling" field in the mutation.
+func (m *GroupMutation) AllowEqualPriceScheduling() (r bool, exists bool) {
+	v := m.allow_equal_price_scheduling
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAllowEqualPriceScheduling returns the old "allow_equal_price_scheduling" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldAllowEqualPriceScheduling(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAllowEqualPriceScheduling is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAllowEqualPriceScheduling requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAllowEqualPriceScheduling: %w", err)
+	}
+	return oldValue.AllowEqualPriceScheduling, nil
+}
+
+// ResetAllowEqualPriceScheduling resets all changes to the "allow_equal_price_scheduling" field.
+func (m *GroupMutation) ResetAllowEqualPriceScheduling() {
+	m.allow_equal_price_scheduling = nil
+}
+
 // SetProfitControlEnabled sets the "profit_control_enabled" field.
 func (m *GroupMutation) SetProfitControlEnabled(b bool) {
 	m.profit_control_enabled = &b
@@ -25921,7 +25958,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 66)
+	fields := make([]string, 0, 67)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -26111,6 +26148,9 @@ func (m *GroupMutation) Fields() []string {
 	if m.reasoning_effort_mappings != nil {
 		fields = append(fields, group.FieldReasoningEffortMappings)
 	}
+	if m.allow_equal_price_scheduling != nil {
+		fields = append(fields, group.FieldAllowEqualPriceScheduling)
+	}
 	if m.profit_control_enabled != nil {
 		fields = append(fields, group.FieldProfitControlEnabled)
 	}
@@ -26254,6 +26294,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.MaxReasoningEffortOverLimit()
 	case group.FieldReasoningEffortMappings:
 		return m.ReasoningEffortMappings()
+	case group.FieldAllowEqualPriceScheduling:
+		return m.AllowEqualPriceScheduling()
 	case group.FieldProfitControlEnabled:
 		return m.ProfitControlEnabled()
 	case group.FieldProfitMinMargin:
@@ -26395,6 +26437,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldMaxReasoningEffortOverLimit(ctx)
 	case group.FieldReasoningEffortMappings:
 		return m.OldReasoningEffortMappings(ctx)
+	case group.FieldAllowEqualPriceScheduling:
+		return m.OldAllowEqualPriceScheduling(ctx)
 	case group.FieldProfitControlEnabled:
 		return m.OldProfitControlEnabled(ctx)
 	case group.FieldProfitMinMargin:
@@ -26850,6 +26894,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetReasoningEffortMappings(v)
+		return nil
+	case group.FieldAllowEqualPriceScheduling:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAllowEqualPriceScheduling(v)
 		return nil
 	case group.FieldProfitControlEnabled:
 		v, ok := value.(bool)
@@ -27571,6 +27622,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldReasoningEffortMappings:
 		m.ResetReasoningEffortMappings()
+		return nil
+	case group.FieldAllowEqualPriceScheduling:
+		m.ResetAllowEqualPriceScheduling()
 		return nil
 	case group.FieldProfitControlEnabled:
 		m.ResetProfitControlEnabled()

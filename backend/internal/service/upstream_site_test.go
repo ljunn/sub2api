@@ -147,6 +147,7 @@ func writeSiteJSON(w http.ResponseWriter, value any) {
 func TestUpstreamSiteLifecyclePriceChangeRecoveryAndStaleQueue(t *testing.T) {
 	ctx := context.Background()
 	price2K := 0.25
+	concurrency := 5000
 	failCatalog := false
 	keyCreates := 0
 	keyName := ""
@@ -156,7 +157,7 @@ func TestUpstreamSiteLifecyclePriceChangeRecoveryAndStaleQueue(t *testing.T) {
 			writeSiteJSON(w, map[string]any{"code": 0, "data": map[string]any{"access_token": "access", "refresh_token": "refresh", "user": map[string]any{"id": 7}}})
 		case "/api/v1/auth/me":
 			require.Equal(t, "Bearer access", r.Header.Get("Authorization"))
-			writeSiteJSON(w, map[string]any{"code": 0, "data": map[string]any{"id": 7}})
+			writeSiteJSON(w, map[string]any{"code": 0, "data": map[string]any{"id": 7, "concurrency": concurrency}})
 		case "/api/v1/groups/rates":
 			writeSiteJSON(w, map[string]any{"code": 0, "data": map[string]float64{"2": 0.5}})
 		case "/api/v1/model-plaza":
@@ -204,6 +205,7 @@ func TestUpstreamSiteLifecyclePriceChangeRecoveryAndStaleQueue(t *testing.T) {
 	assert.Equal(t, "partial", site.Bindings[0].Status)
 	account, err := accounts.GetByID(ctx, site.Bindings[0].AccountID)
 	require.NoError(t, err)
+	assert.Equal(t, 5000, account.Concurrency, "new binding uses the upstream profile limit")
 	assert.Equal(t, "image-upstream", account.GetMappedModel("my-image"))
 	assert.False(t, account.IsModelSupported("unbound-model"))
 	for size, want := range map[string]bool{"1K": false, "2K": true, "4K": false, "auto": true, "nonsense": true} {
@@ -216,8 +218,10 @@ func TestUpstreamSiteLifecyclePriceChangeRecoveryAndStaleQueue(t *testing.T) {
 	assert.Equal(t, 1, accounts.creates)
 	// Price recovers on the next successful scan.
 	price2K = 0.18
+	concurrency = 150
 	site, err = svc.Sync(ctx, site.ID)
 	require.NoError(t, err)
+	assert.Equal(t, 150, accounts.accounts[account.ID].Concurrency, "existing bindings follow upstream limit changes")
 	assert.Equal(t, "ready", site.Bindings[0].Status)
 	require.Len(t, site.History, 1)
 	require.NoError(t, CheckSitePriceBeforeSend(WithSiteImageSize(ctx, "2K"), account, accounts), "queued request sees latest authoritative price")
@@ -294,7 +298,11 @@ func TestUpstreamSiteNewAPIPasswordEncryptionAndCookieRefresh(t *testing.T) {
 			http.SetCookie(w, &http.Cookie{Name: "new_api_refresh", Value: "cookie-refresh", Path: "/"})
 			writeSiteJSON(w, map[string]any{"success": true, "data": map[string]any{"access_token": "access", "user": map[string]int{"id": 12}}})
 		case "/api/user/self":
-			w.WriteHeader(401)
+			if r.Header.Get("Authorization") == "Bearer expired" {
+				w.WriteHeader(401)
+				return
+			}
+			writeSiteJSON(w, map[string]any{"success": true, "data": map[string]any{"id": 12}})
 		case "/api/user/auth/refresh":
 			refreshCalls++
 			cookie, err := r.Cookie("new_api_refresh")
@@ -314,6 +322,7 @@ func TestUpstreamSiteNewAPIPasswordEncryptionAndCookieRefresh(t *testing.T) {
 	require.NoError(t, adapter.authenticate(context.Background()))
 	assert.Equal(t, int64(12), site.UserID)
 	assert.Equal(t, "cookie-refresh", credentials.RefreshToken)
+	credentials.AccessToken = "expired"
 	require.NoError(t, adapter.authenticate(context.Background()))
 	assert.Equal(t, 1, refreshCalls)
 	assert.Equal(t, "renewed", credentials.AccessToken)
@@ -392,7 +401,7 @@ func TestUpstreamSiteNeverDisclosesCredentialOnRemoteErrorsOrRedirects(t *testin
 	assert.False(t, reached)
 }
 func TestUpstreamSitePolicyUnknownExpiredAndManualPause(t *testing.T) {
-	p := SiteAccountPolicy{BindingID: "b", Enabled: true, FreshUntil: time.Now().Add(time.Minute), Tiers: []SitePriceTier{{Key: "default", Unit: "USD/request", Prices: map[string]float64{"request": 0}}}, Limits: []SiteTierLimit{{Key: "default", Unit: "USD/request", Enabled: true, Limits: map[string]float64{"request": 0}}}}
+	p := SiteAccountPolicy{BindingID: "b", Enabled: true, FreshUntil: time.Now().Add(time.Minute), Tiers: []SitePriceTier{{Key: "default", Unit: "USD/request", Prices: map[string]float64{"request": 0}}}, Limits: []SiteTierLimit{{Key: "default", Unit: "USD/request", Enabled: true, AllowEqualPriceScheduling: true, Limits: map[string]float64{"request": 0}}}}
 	raw, _ := json.Marshal(p)
 	var extra any
 	require.NoError(t, json.Unmarshal(raw, &extra))

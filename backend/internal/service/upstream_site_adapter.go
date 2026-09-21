@@ -153,13 +153,7 @@ func (a *siteAdapter) authenticate(ctx context.Context) error {
 	if a.credentials.AccessToken != "" || len(a.credentials.Cookies) > 0 {
 		result, err := a.request(ctx, http.MethodGet, selfPath, nil)
 		if err == nil {
-			if id := result.Get("data.id").Int(); id > 0 {
-				if a.site.UserID > 0 && a.site.UserID != id && len(a.site.Bindings) > 0 {
-					return errors.New("登录账号与已有绑定不一致，请新建站点")
-				}
-				a.site.UserID = id
-			}
-			return nil
+			return a.acceptProfile(result.Get("data"))
 		}
 		var remote *siteRemoteError
 		if !errors.As(err, &remote) || (remote.Status != 401 && remote.Status != 403) {
@@ -175,7 +169,10 @@ func (a *siteAdapter) authenticate(ctx context.Context) error {
 		}
 		result, err := a.request(ctx, http.MethodPost, path, payload)
 		if err == nil {
-			return a.acceptAuth(result)
+			if err := a.acceptAuth(result); err != nil {
+				return err
+			}
+			return a.loadProfile(ctx, selfPath)
 		}
 		var remote *siteRemoteError
 		if !errors.As(err, &remote) || (remote.Status != 401 && remote.Status != 403 && remote.Status != 404) {
@@ -230,7 +227,10 @@ func (a *siteAdapter) authenticate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return a.acceptAuth(result)
+	if err := a.acceptAuth(result); err != nil {
+		return err
+	}
+	return a.loadProfile(ctx, selfPath)
 }
 func (a *siteAdapter) catalog(ctx context.Context) ([]SiteModel, error) {
 	if err := a.authenticate(ctx); err != nil {

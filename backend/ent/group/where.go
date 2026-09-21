@@ -330,6 +330,11 @@ func MaxReasoningEffortOverLimit(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldMaxReasoningEffortOverLimit, v))
 }
 
+// AllowEqualPriceScheduling applies equality check predicate on the "allow_equal_price_scheduling" field. It's identical to AllowEqualPriceSchedulingEQ.
+func AllowEqualPriceScheduling(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldAllowEqualPriceScheduling, v))
+}
+
 // ProfitControlEnabled applies equality check predicate on the "profit_control_enabled" field. It's identical to ProfitControlEnabledEQ.
 func ProfitControlEnabled(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldProfitControlEnabled, v))
@@ -2558,6 +2563,16 @@ func MaxReasoningEffortOverLimitEqualFold(v string) predicate.Group {
 // MaxReasoningEffortOverLimitContainsFold applies the ContainsFold predicate on the "max_reasoning_effort_over_limit" field.
 func MaxReasoningEffortOverLimitContainsFold(v string) predicate.Group {
 	return predicate.Group(sql.FieldContainsFold(FieldMaxReasoningEffortOverLimit, v))
+}
+
+// AllowEqualPriceSchedulingEQ applies the EQ predicate on the "allow_equal_price_scheduling" field.
+func AllowEqualPriceSchedulingEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldAllowEqualPriceScheduling, v))
+}
+
+// AllowEqualPriceSchedulingNEQ applies the NEQ predicate on the "allow_equal_price_scheduling" field.
+func AllowEqualPriceSchedulingNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldAllowEqualPriceScheduling, v))
 }
 
 // ProfitControlEnabledEQ applies the EQ predicate on the "profit_control_enabled" field.

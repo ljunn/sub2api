@@ -1066,6 +1066,10 @@ export default {
         peakMultiplier: '高峰倍率',
         multiplierHint: '作用于 token 计费倍率；token 计费的图片 token 同样适用，0 表示高峰 token 请求按 0 倍计费'
       },
+      equalPriceScheduling: {
+        enable: '允许等价模型调度',
+        hint: '用于本组的站点托管模型，默认关闭。关闭时采购价必须低于采购上限；开启后允许等于上限。上限由本组售价及利润保护计算，未知、过期或超价的模型仍不参与调度。'
+      },
       profitControl: {
         enable: '启用利润控制',
         enabledHint: '调度时仅允许"账号倍率 ≤ 请求实际下游倍率 ×（1 − 最低毛利率 − 安全缓冲）"的账号进入候选池；账号倍率可手工维护或由探测同步，既有排序、粘性与熔断在合格账号间照常工作。图片/视频调度暂不参与。',

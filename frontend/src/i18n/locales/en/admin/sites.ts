@@ -1,6 +1,7 @@
 export default {
   sites: {
     overview: {
+      openSite: 'Open site', openSiteLabel: 'Open {name} in a new tab',
       all: 'All sites', new: 'New models', low: 'Low balance', error: 'Connection issues',
       search: 'Search site name or address', updates: 'Model updates', connection: 'Connection',
       newCount: '{count} new models', noNew: 'No unread updates', balancePending: 'Balance awaiting update', noResults: 'No matching results',
@@ -95,6 +96,7 @@ export default {
       audio_output_price: 'Audio output',
     },
     status: {
+      equal: 'Equal price blocked',
       unavailable: 'Temporarily unavailable',
       preview: 'Awaiting release',
       pending: 'Pending connection',

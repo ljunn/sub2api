@@ -201,6 +201,7 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	authChanged := identityChanged || input.Password != "" || input.AccessToken != "" || input.RefreshToken != ""
 	if identityChanged {
 		site.Balance = nil
+		site.Concurrency = nil
 		site.ModelCatalogue = nil
 		credentials = &SiteCredentials{Keys: map[string]string{}}
 	}
@@ -455,7 +456,7 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 			raw, _ := json.Marshal(policy)
 			var policyMap map[string]any
 			_ = json.Unmarshal(raw, &policyMap)
-			account := &Account{Name: siteManagedAccountName(site.Name, binding.Model, model.GroupName), Platform: group.Platform, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 50, Credentials: map[string]any{"base_url": site.BaseURL, "api_key": key, "model_mapping": map[string]any{binding.LocalModel: binding.Model}, SiteBindingCredentialKey: binding.ID}, Extra: map[string]any{"upstream_site_binding_id": binding.ID, "upstream_site_id": site.ID, SitePolicyExtraKey: policyMap, UpstreamBillingProbeEnabledExtraKey: false}}
+			account := &Account{Name: siteManagedAccountName(site.Name, binding.Model, model.GroupName), Platform: group.Platform, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: siteAccountConcurrency(site), Priority: 50, Credentials: map[string]any{"base_url": site.BaseURL, "api_key": key, "model_mapping": map[string]any{binding.LocalModel: binding.Model}, SiteBindingCredentialKey: binding.ID}, Extra: map[string]any{"upstream_site_binding_id": binding.ID, "upstream_site_id": site.ID, SitePolicyExtraKey: policyMap, UpstreamBillingProbeEnabledExtraKey: false}}
 			if s.preview {
 				account.Status = StatusDisabled
 				account.Extra["upstream_site_preview_pending"] = true
@@ -537,11 +538,15 @@ func (s *UpstreamSiteService) updatePolicies(ctx context.Context, site *Upstream
 		if err != nil {
 			return err
 		}
-		nameChanged := false
+		accountChanged := false
 		if model := findSiteModel(site, b.GroupID, b.Model); model != nil {
 			name := siteManagedAccountName(site.Name, b.Model, model.GroupName)
-			nameChanged = account.Name != name
+			accountChanged = account.Name != name
 			account.Name = name
+		}
+		if site.Concurrency != nil && account.Concurrency != siteAccountConcurrency(site) {
+			account.Concurrency = siteAccountConcurrency(site)
+			accountChanged = true
 		}
 		if pending, _ := account.Extra["upstream_site_preview_pending"].(bool); pending {
 			if s.preview {
@@ -549,10 +554,10 @@ func (s *UpstreamSiteService) updatePolicies(ctx context.Context, site *Upstream
 			} else {
 				account.Status = StatusActive
 				account.Extra["upstream_site_preview_pending"] = false
-				nameChanged = true
+				accountChanged = true
 			}
 		}
-		if nameChanged {
+		if accountChanged {
 			if err = s.accounts.Update(ctx, account); err != nil {
 				return err
 			}

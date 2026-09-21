@@ -1220,6 +1220,16 @@
         </div>
 
         <!-- 分组利润控制（五个平台 token 请求） -->
+        <div class="border-t pt-4">
+          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="createForm.allow_equal_price_scheduling" type="checkbox"
+              data-testid="createForm-allow-equal-price"
+              class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+            <span>{{ t("admin.groups.equalPriceScheduling.enable") }}</span>
+          </label>
+          <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.equalPriceScheduling.hint") }}</p>
+        </div>
+
         <div v-if="isProfitControlPlatform(createForm.platform)" class="border-t pt-4">
           <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input
@@ -2860,6 +2870,16 @@
         </div>
 
         <!-- 分组利润控制（五个平台 token 请求） -->
+        <div class="border-t pt-4">
+          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="editForm.allow_equal_price_scheduling" type="checkbox"
+              data-testid="editForm-allow-equal-price"
+              class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+            <span>{{ t("admin.groups.equalPriceScheduling.enable") }}</span>
+          </label>
+          <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.equalPriceScheduling.hint") }}</p>
+        </div>
+
         <div v-if="isProfitControlPlatform(editForm.platform)" class="border-t pt-4">
           <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input
@@ -4971,6 +4991,7 @@ const createForm = reactive({
   peak_end: "",
   peak_rate_multiplier: 1.0,
   // 分组利润控制（五个 token 平台）；界面按百分比输入，提交时转小数
+  allow_equal_price_scheduling: false,
   profit_control_enabled: false,
   profit_min_margin_percent: 0,
   profit_safety_buffer_percent: 0,
@@ -5336,6 +5357,7 @@ const editForm = reactive({
   peak_end: "",
   peak_rate_multiplier: 1.0,
   // 分组利润控制（五个 token 平台）；界面按百分比输入，提交时转小数
+  allow_equal_price_scheduling: false,
   profit_control_enabled: false,
   profit_min_margin_percent: 0,
   profit_safety_buffer_percent: 0,
@@ -5793,6 +5815,7 @@ const closeCreateModal = () => {
   createForm.peak_start = "";
   createForm.peak_end = "";
   createForm.peak_rate_multiplier = 1.0;
+  createForm.allow_equal_price_scheduling = false;
   createForm.profit_control_enabled = false;
   createForm.profit_min_margin_percent = 0;
   createForm.profit_safety_buffer_percent = 0;
@@ -5940,6 +5963,7 @@ const handleCreateGroup = async () => {
         createForm.reasoning_effort_mappings,
       ),
       // 利润控制：界面百分比转小数提交；仅五个 token 平台可启用
+      allow_equal_price_scheduling: createForm.allow_equal_price_scheduling,
       profit_control_enabled:
         isProfitControlPlatform(createForm.platform) &&
         createForm.profit_control_enabled,
@@ -6068,6 +6092,7 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.peak_start = group.peak_start ?? "";
   editForm.peak_end = group.peak_end ?? "";
   editForm.peak_rate_multiplier = group.peak_rate_multiplier ?? 1.0;
+  editForm.allow_equal_price_scheduling = group.allow_equal_price_scheduling ?? false;
   editForm.profit_control_enabled = group.profit_control_enabled ?? false;
   editForm.profit_min_margin_percent = decimalToPercent(
     group.profit_min_margin ?? 0,
@@ -6161,6 +6186,7 @@ const closeEditModal = () => {
   editForm.peak_start = "";
   editForm.peak_end = "";
   editForm.peak_rate_multiplier = 1.0;
+  editForm.allow_equal_price_scheduling = false;
   editForm.profit_control_enabled = false;
   editForm.profit_min_margin_percent = 0;
   editForm.profit_safety_buffer_percent = 0;
@@ -6288,6 +6314,7 @@ const handleUpdateGroup = async () => {
         editForm.reasoning_effort_mappings,
       ),
       // 利润控制：界面百分比转小数提交；仅五个 token 平台可启用
+      allow_equal_price_scheduling: editForm.allow_equal_price_scheduling,
       profit_control_enabled:
         isProfitControlPlatform(editForm.platform) &&
         editForm.profit_control_enabled,

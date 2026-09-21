@@ -80,13 +80,14 @@ func TestAuthCacheInvalidationTrigger_ProfitControlColumns(t *testing.T) {
 	require.Zero(t, count(), "利润字段无实际变化的 UPDATE 不得入队")
 
 	for name, update := range map[string]string{
-		"platform":             "platform = 'anthropic'",
-		"subscription_type":    "subscription_type = 'subscription'",
-		"rate_multiplier":      "rate_multiplier = 0.9",
-		"peak_rate_enabled":    "peak_rate_enabled = true",
-		"peak_start":           "peak_start = '08:00'",
-		"peak_end":             "peak_end = '09:00'",
-		"peak_rate_multiplier": "peak_rate_multiplier = 1.2",
+		"allow_equal_price_scheduling": "allow_equal_price_scheduling = true",
+		"platform":                     "platform = 'anthropic'",
+		"subscription_type":            "subscription_type = 'subscription'",
+		"rate_multiplier":              "rate_multiplier = 0.9",
+		"peak_rate_enabled":            "peak_rate_enabled = true",
+		"peak_start":                   "peak_start = '08:00'",
+		"peak_end":                     "peak_end = '09:00'",
+		"peak_rate_multiplier":         "peak_rate_multiplier = 1.2",
 	} {
 		t.Run(name, func(t *testing.T) {
 			clear()

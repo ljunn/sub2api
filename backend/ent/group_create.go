@@ -864,6 +864,20 @@ func (_c *GroupCreate) SetReasoningEffortMappings(v []domain.ReasoningEffortMapp
 	return _c
 }
 
+// SetAllowEqualPriceScheduling sets the "allow_equal_price_scheduling" field.
+func (_c *GroupCreate) SetAllowEqualPriceScheduling(v bool) *GroupCreate {
+	_c.mutation.SetAllowEqualPriceScheduling(v)
+	return _c
+}
+
+// SetNillableAllowEqualPriceScheduling sets the "allow_equal_price_scheduling" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableAllowEqualPriceScheduling(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetAllowEqualPriceScheduling(*v)
+	}
+	return _c
+}
+
 // SetProfitControlEnabled sets the "profit_control_enabled" field.
 func (_c *GroupCreate) SetProfitControlEnabled(v bool) *GroupCreate {
 	_c.mutation.SetProfitControlEnabled(v)
@@ -1199,6 +1213,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultReasoningEffortMappings
 		_c.mutation.SetReasoningEffortMappings(v)
 	}
+	if _, ok := _c.mutation.AllowEqualPriceScheduling(); !ok {
+		v := group.DefaultAllowEqualPriceScheduling
+		_c.mutation.SetAllowEqualPriceScheduling(v)
+	}
 	if _, ok := _c.mutation.ProfitControlEnabled(); !ok {
 		v := group.DefaultProfitControlEnabled
 		_c.mutation.SetProfitControlEnabled(v)
@@ -1408,6 +1426,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.ReasoningEffortMappings(); !ok {
 		return &ValidationError{Name: "reasoning_effort_mappings", err: errors.New(`ent: missing required field "Group.reasoning_effort_mappings"`)}
+	}
+	if _, ok := _c.mutation.AllowEqualPriceScheduling(); !ok {
+		return &ValidationError{Name: "allow_equal_price_scheduling", err: errors.New(`ent: missing required field "Group.allow_equal_price_scheduling"`)}
 	}
 	if _, ok := _c.mutation.ProfitControlEnabled(); !ok {
 		return &ValidationError{Name: "profit_control_enabled", err: errors.New(`ent: missing required field "Group.profit_control_enabled"`)}
@@ -1696,6 +1717,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ReasoningEffortMappings(); ok {
 		_spec.SetField(group.FieldReasoningEffortMappings, field.TypeJSON, value)
 		_node.ReasoningEffortMappings = value
+	}
+	if value, ok := _c.mutation.AllowEqualPriceScheduling(); ok {
+		_spec.SetField(group.FieldAllowEqualPriceScheduling, field.TypeBool, value)
+		_node.AllowEqualPriceScheduling = value
 	}
 	if value, ok := _c.mutation.ProfitControlEnabled(); ok {
 		_spec.SetField(group.FieldProfitControlEnabled, field.TypeBool, value)
@@ -2870,6 +2895,18 @@ func (u *GroupUpsert) SetReasoningEffortMappings(v []domain.ReasoningEffortMappi
 // UpdateReasoningEffortMappings sets the "reasoning_effort_mappings" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateReasoningEffortMappings() *GroupUpsert {
 	u.SetExcluded(group.FieldReasoningEffortMappings)
+	return u
+}
+
+// SetAllowEqualPriceScheduling sets the "allow_equal_price_scheduling" field.
+func (u *GroupUpsert) SetAllowEqualPriceScheduling(v bool) *GroupUpsert {
+	u.Set(group.FieldAllowEqualPriceScheduling, v)
+	return u
+}
+
+// UpdateAllowEqualPriceScheduling sets the "allow_equal_price_scheduling" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateAllowEqualPriceScheduling() *GroupUpsert {
+	u.SetExcluded(group.FieldAllowEqualPriceScheduling)
 	return u
 }
 
@@ -4142,6 +4179,20 @@ func (u *GroupUpsertOne) SetReasoningEffortMappings(v []domain.ReasoningEffortMa
 func (u *GroupUpsertOne) UpdateReasoningEffortMappings() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateReasoningEffortMappings()
+	})
+}
+
+// SetAllowEqualPriceScheduling sets the "allow_equal_price_scheduling" field.
+func (u *GroupUpsertOne) SetAllowEqualPriceScheduling(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowEqualPriceScheduling(v)
+	})
+}
+
+// UpdateAllowEqualPriceScheduling sets the "allow_equal_price_scheduling" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateAllowEqualPriceScheduling() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowEqualPriceScheduling()
 	})
 }
 
@@ -5588,6 +5639,20 @@ func (u *GroupUpsertBulk) SetReasoningEffortMappings(v []domain.ReasoningEffortM
 func (u *GroupUpsertBulk) UpdateReasoningEffortMappings() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateReasoningEffortMappings()
+	})
+}
+
+// SetAllowEqualPriceScheduling sets the "allow_equal_price_scheduling" field.
+func (u *GroupUpsertBulk) SetAllowEqualPriceScheduling(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowEqualPriceScheduling(v)
+	})
+}
+
+// UpdateAllowEqualPriceScheduling sets the "allow_equal_price_scheduling" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateAllowEqualPriceScheduling() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowEqualPriceScheduling()
 	})
 }
 

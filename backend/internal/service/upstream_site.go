@@ -36,12 +36,13 @@ type SiteModel struct {
 }
 
 type SiteTierLimit struct {
-	Selling map[string]float64 `json:"selling,omitempty"`
-	Reason  string             `json:"reason,omitempty"`
-	Key     string             `json:"key"`
-	Unit    string             `json:"unit"`
-	Enabled bool               `json:"enabled"`
-	Limits  map[string]float64 `json:"limits"`
+	AllowEqualPriceScheduling bool               `json:"allow_equal_price_scheduling"`
+	Selling                   map[string]float64 `json:"selling,omitempty"`
+	Reason                    string             `json:"reason,omitempty"`
+	Key                       string             `json:"key"`
+	Unit                      string             `json:"unit"`
+	Enabled                   bool               `json:"enabled"`
+	Limits                    map[string]float64 `json:"limits"`
 }
 
 type SiteBinding struct {
@@ -62,6 +63,7 @@ type SiteBinding struct {
 type UpstreamSite struct {
 	ModelCatalogue     *SiteModelCatalogue `json:"model_catalogue,omitempty"`
 	Balance            *SiteBalance        `json:"balance,omitempty"`
+	Concurrency        *SiteConcurrency    `json:"concurrency,omitempty"`
 	ID                 string              `json:"id"`
 	Name               string              `json:"name"`
 	BaseURL            string              `json:"base_url"`

@@ -18,6 +18,23 @@ func ptrString[T ~string](v T) *string {
 	return &s
 }
 
+func TestAdminServiceGroupEqualPriceDefaultAndPatchSemantics(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+	created, err := svc.CreateGroup(context.Background(), &CreateGroupInput{Name: "equal", Platform: PlatformOpenAI, RateMultiplier: 1})
+	require.NoError(t, err)
+	require.False(t, created.AllowEqualPriceScheduling)
+	repo.getByID = created
+	for _, enabled := range []bool{true, false} {
+		updated, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{AllowEqualPriceScheduling: &enabled})
+		require.NoError(t, err)
+		require.Equal(t, enabled, updated.AllowEqualPriceScheduling)
+		updated, err = svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{Name: "renamed"})
+		require.NoError(t, err)
+		require.Equal(t, enabled, updated.AllowEqualPriceScheduling, "omitting the option preserves its value")
+	}
+}
+
 // groupRepoStubForAdmin 用于测试 AdminService 的 GroupRepository Stub
 type groupRepoStubForAdmin struct {
 	created  *Group // 记录 Create 调用的参数

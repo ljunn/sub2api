@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AdminGroup, CodexModelsManifestConfig } from "@/types";
 import GroupsView from "@/views/admin/GroupsView.vue";
+import { adminAPI } from "@/api/admin";
 
 const {
   listGroups,
@@ -26,6 +27,7 @@ vi.mock("@/api/admin", () => ({
       list: listGroups,
       getAll: vi.fn(),
       getModelsListCandidates,
+      getModelAllowlistCandidates: getModelsListCandidates,
       getUsageSummary,
       getCapacitySummary,
       getLiveCapability,
@@ -220,7 +222,12 @@ const mountView = () =>
         GroupCapacityBadge: true,
         GroupRateMultipliersModal: true,
         GroupRPMOverridesModal: true,
-        ReasoningEffortPolicyFields: true,
+        ReasoningEffortPolicyFields: defineComponent({
+          setup(_props, { expose }) {
+            expose({ validate: () => true, resetValidation: () => undefined })
+            return () => h('div')
+          },
+        }),
         CodexManifestAccountsField: CodexManifestAccountsFieldStub,
         PricingEntryCard: true,
         VueDraggable: true,
@@ -284,5 +291,25 @@ describe("GroupsView Codex manifest binding", () => {
     );
 
     wrapper.unmount();
+  });
+
+  it("defaults equal-price scheduling off and saves explicit group opt-in and opt-out", async () => {
+    const update = vi.mocked(adminAPI.groups.update)
+    update.mockReset()
+    update.mockResolvedValue(sourceGroup)
+    const wrapper = mountView()
+    await flushPromises()
+    for (const enabled of [true, false]) {
+      const edit = wrapper.findAll('button').find(button => button.text().includes('common.edit'))!
+      await edit.trigger('click')
+      await flushPromises()
+      const checkbox = wrapper.get<HTMLInputElement>('[data-testid=editForm-allow-equal-price]')
+      expect(checkbox.element.checked).toBe(false)
+      await checkbox.setValue(enabled)
+      await wrapper.get('#edit-group-form').trigger('submit')
+      await flushPromises()
+      expect(update).toHaveBeenLastCalledWith(42, expect.objectContaining({ allow_equal_price_scheduling: enabled }))
+    }
+    wrapper.unmount()
   });
 });
