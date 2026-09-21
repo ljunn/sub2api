@@ -307,6 +307,15 @@ func siteIntervalTokenPrices(base, interval gjson.Result, rate float64) (map[str
 	}
 	return prices, true
 }
+
+// Image capability and upstream billing mode are independent. A known image
+// model sold per request still needs local resolution pricing for comparison;
+// its upstream price unit and billing multipliers must remain per-request.
+func siteImagePriceModel(name, mode string) bool {
+	return mode == "image" || (mode == "per_request" &&
+		(isOpenAIImageGenerationModel(name) || isImageGenerationModel(name)))
+}
+
 func parseSub2APISiteCatalog(groups, rates gjson.Result) ([]SiteModel, error) {
 	if !groups.IsArray() || !rates.IsObject() {
 		return nil, errors.New("上游分组或个人费率数据不完整")
@@ -329,7 +338,7 @@ func parseSub2APISiteCatalog(groups, rates gjson.Result) ([]SiteModel, error) {
 			m := SiteModel{GroupID: groupID, GroupName: group.Get("name").String(), Model: model.Get("name").String(), Platform: model.Get("platform").String(), Tiers: []SitePriceTier{}}
 			p := model.Get("pricing")
 			mode := p.Get("billing_mode").String()
-			m.Image = mode == "image"
+			m.Image = siteImagePriceModel(m.Model, mode)
 			multiplier := rate
 			modelKnown := known
 			if mode == "image" && group.Get("image_rate_independent").Bool() {

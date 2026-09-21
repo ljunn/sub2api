@@ -75,7 +75,7 @@ func parsePublicPricingSiteCatalog(data, available, rates gjson.Result) ([]SiteM
 			m.Platform = group.Get("platform").String()
 		}
 		mode := p.Get("billing_mode").String()
-		m.Image = mode == "image"
+		m.Image = siteImagePriceModel(m.Model, mode)
 		switch {
 		case !p.Get("price_available").Bool():
 			m.Reason = "上游尚未公布此模型价格"

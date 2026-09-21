@@ -147,7 +147,7 @@ func siteAuthenticatedChannelModel(group, model, rates gjson.Result) (SiteModel,
 		return SiteModel{}, err
 	}
 	out := parsed[0]
-	if out.Reason == "" && siteAuthenticatedMultiplierRedacted(group, rates, out.Image) {
+	if out.Reason == "" && siteAuthenticatedMultiplierRedacted(group, rates, model.Get("pricing.billing_mode").String() == "image") {
 		out.Reason = "上游倍率为零，无法确认是免费还是隐藏价格"
 	}
 	for i := range out.Tiers {
