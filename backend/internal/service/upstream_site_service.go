@@ -416,7 +416,7 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 			raw, _ := json.Marshal(policy)
 			var policyMap map[string]any
 			_ = json.Unmarshal(raw, &policyMap)
-			account := &Account{Name: fmt.Sprintf("%s / %s / %s → %s", site.Name, model.GroupName, binding.Model, binding.LocalModel), Platform: group.Platform, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 50, Credentials: map[string]any{"base_url": site.BaseURL, "api_key": key, "model_mapping": map[string]any{binding.LocalModel: binding.Model}, SiteBindingCredentialKey: binding.ID}, Extra: map[string]any{"upstream_site_binding_id": binding.ID, "upstream_site_id": site.ID, SitePolicyExtraKey: policyMap, UpstreamBillingProbeEnabledExtraKey: false}}
+			account := &Account{Name: truncateUTF8(fmt.Sprintf("%s / %s / %s → %s", site.Name, model.GroupName, binding.Model, binding.LocalModel), 100), Platform: group.Platform, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 50, Credentials: map[string]any{"base_url": site.BaseURL, "api_key": key, "model_mapping": map[string]any{binding.LocalModel: binding.Model}, SiteBindingCredentialKey: binding.ID}, Extra: map[string]any{"upstream_site_binding_id": binding.ID, "upstream_site_id": site.ID, SitePolicyExtraKey: policyMap, UpstreamBillingProbeEnabledExtraKey: false}}
 			if s.preview {
 				account.Status = StatusDisabled
 				account.Extra["upstream_site_preview_pending"] = true
