@@ -27,7 +27,15 @@ func (a *siteAdapter) publicPricingCatalog(ctx context.Context) ([]SiteModel, er
 	if err != nil {
 		return nil, fmt.Errorf("读取个人费率失败：%w", err)
 	}
-	return parsePublicPricingSiteCatalog(result.Get("data"), available.Get("data"), rates.Get("data"))
+	models, err := parsePublicPricingSiteCatalog(result.Get("data"), available.Get("data"), rates.Get("data"))
+	if err != nil {
+		return nil, err
+	}
+	private, err := a.privatePricingCatalog(ctx, result.Get("data"), available.Get("data"), rates.Get("data"))
+	if err != nil {
+		return nil, err
+	}
+	return append(models, private...), nil
 }
 
 func parsePublicPricingSiteCatalog(data, available, rates gjson.Result) ([]SiteModel, error) {
@@ -76,15 +84,7 @@ func parsePublicPricingSiteCatalog(data, available, rates gjson.Result) ([]SiteM
 		default:
 			switch mode {
 			case "image":
-				for _, key := range []string{"1K", "2K", "4K"} {
-					tier := SitePriceTier{Key: key, Unit: "USD/image", Prices: map[string]float64{}}
-					if price, ok := siteNumber(p.Get("image_price_" + strings.ToLower(key))); ok {
-						tier.Prices["request"] = price
-					} else {
-						tier.Reason = "上游未提供此分辨率价格"
-					}
-					m.Tiers = append(m.Tiers, tier)
-				}
+				m.Tiers = sitePublicImageTiers(p)
 			case "per_request":
 				if price, ok := siteNumber(p.Get("per_request_price")); ok {
 					m.Tiers = append(m.Tiers, SitePriceTier{Key: "default", Unit: "USD/request", Prices: map[string]float64{"request": price}})
@@ -123,4 +123,18 @@ func parsePublicPricingSiteCatalog(data, available, rates gjson.Result) ([]SiteM
 		out = append(out, m)
 	}
 	return out, nil
+}
+
+func sitePublicImageTiers(pricing gjson.Result) []SitePriceTier {
+	tiers := make([]SitePriceTier, 0, 3)
+	for _, key := range []string{"1K", "2K", "4K"} {
+		tier := SitePriceTier{Key: key, Unit: "USD/image", Prices: map[string]float64{}}
+		if price, ok := siteNumber(pricing.Get("image_price_" + strings.ToLower(key))); ok {
+			tier.Prices["request"] = price
+		} else {
+			tier.Reason = "上游未提供此分辨率价格"
+		}
+		tiers = append(tiers, tier)
+	}
+	return tiers
 }

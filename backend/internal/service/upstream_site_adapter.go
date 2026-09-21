@@ -25,8 +25,9 @@ import (
 )
 
 type siteRemoteError struct {
-	Status int
-	Path   string
+	Status             int
+	Path               string
+	ModelPlazaDisabled bool
 }
 
 func (e *siteRemoteError) Error() string {
@@ -100,7 +101,11 @@ func (a *siteAdapter) requestWithHeaders(ctx context.Context, method, path strin
 		return gjson.Result{}, errors.New("上游响应过大或读取失败")
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return gjson.Result{}, &siteRemoteError{resp.StatusCode, path}
+		// Preserve this known capability error without exposing arbitrary remote
+		// response bodies (which may contain credentials or internal details).
+		disabled := resp.StatusCode == http.StatusNotFound && path == "/api/v1/model-plaza" &&
+			gjson.GetBytes(raw, "message").String() == "Model plaza is not enabled"
+		return gjson.Result{}, &siteRemoteError{Status: resp.StatusCode, Path: path, ModelPlazaDisabled: disabled}
 	}
 	if !gjson.ValidBytes(raw) {
 		return gjson.Result{}, errors.New("上游没有返回 JSON，请检查站点地址或人机验证")
@@ -248,6 +253,9 @@ func (a *siteAdapter) catalog(ctx context.Context) ([]SiteModel, error) {
 	if err != nil {
 		var remote *siteRemoteError
 		if errors.As(err, &remote) && remote.Status == http.StatusNotFound {
+			if remote.ModelPlazaDisabled {
+				return nil, errors.New("上游已关闭模型广场，暂时无法获取完整模型价格；请联系上游管理员启用模型广场后重新同步。登录凭据已验证通过，无需重新填写")
+			}
 			return a.publicPricingCatalog(ctx)
 		}
 		return nil, fmt.Errorf("读取模型价格失败：%w", err)
