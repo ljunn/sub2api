@@ -11,7 +11,7 @@
         @click.self="handleClose"
       >
         <!-- Modal panel -->
-        <div ref="dialogRef" :class="['modal-content', widthClasses]" @click.stop>
+        <div ref="dialogRef" :class="['modal-content max-h-[95dvh] sm:max-h-[90dvh]', widthClasses]" @click.stop>
           <!-- Header -->
           <div class="modal-header gap-3">
             <h3 :id="dialogId" class="modal-title min-w-0 [overflow-wrap:anywhere]">
