@@ -53,7 +53,7 @@ export default {
     add: 'Add site',
     edit: 'Edit site',
     empty: 'Connect your first upstream site',
-    emptyHint: 'Connect Sub2API, New API or Kongfang, bind an upstream group and model to a local group, and derive purchase ceilings automatically from local selling prices.',
+    emptyHint: 'Connect WUZU, VividAI, Sub2API, New API or Kongfang, bind an upstream group and model to a local group, and derive purchase ceilings automatically from local selling prices.',
     bindingCount: '{count} bindings',
     lastSync: 'Last successful sync:',
     sync: 'Sync now',

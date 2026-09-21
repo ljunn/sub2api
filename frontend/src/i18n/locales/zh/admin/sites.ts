@@ -54,7 +54,7 @@ export default {
     edit: '编辑站点',
     empty: '接入你的第一个上游站点',
     emptyHint:
-      '支持 WUZU、Sub2API、New API 和空凡。连接后选择上游分组与模型，绑定到本地分组，系统按本地售价自动计算各档位采购上限。',
+      '支持 WUZU、VividAI、Sub2API、New API 和空凡。连接后选择上游分组与模型，绑定到本地分组，系统按本地售价自动计算各档位采购上限。',
     bindingCount: '{count} 个绑定',
     lastSync: '最近成功同步：',
     sync: '立即同步',

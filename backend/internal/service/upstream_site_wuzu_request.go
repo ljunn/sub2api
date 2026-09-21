@@ -137,6 +137,23 @@ func wuzuRequestValid(config *WuzuModelConfig, fields map[string]string) bool {
 // more expensive tier, so never assume prices are monotonic.
 func wuzuRequestTiers(config *WuzuModelConfig, fields map[string]string) ([]string, []string) {
 	all := []string{"1K", "2K", "4K"}
+	// Partial or malformed explicit dimensions may be completed or clamped by
+	// the provider. Do not fall back to a cheaper size in that case.
+	for _, names := range [][2]string{{"width", "height"}, {"output_width", "output_height"}, {"__output_width", "__output_height"}} {
+		if names[0] != "width" && !config.SupportsUpscale {
+			continue
+		}
+		w, wok := fields[names[0]]
+		h, hok := fields[names[1]]
+		if !wok && !hok {
+			continue
+		}
+		x, ex := strconv.Atoi(w)
+		y, ey := strconv.Atoi(h)
+		if !wok || !hok || ex != nil || ey != nil || x <= 0 || y <= 0 || x > 65536 || y > 65536 {
+			return all, all
+		}
+	}
 	pair := func(w, h string) (int, int) {
 		x, _ := strconv.Atoi(fields[w])
 		y, _ := strconv.Atoi(fields[h])
