@@ -146,6 +146,10 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	requestCtx := service.WithSiteImageSize(service.WithOpenAIImagesEndpoint(service.WithOpenAIImageGenerationIntent(c.Request.Context())), parsed.Size)
 	requestCtx = service.WithWuzuImageRequest(requestCtx, body, parsed.ContentType)
 	requestCtx = service.WithSiteImageQuality(requestCtx, parsed.Size, parsed.Quality)
+	requestCtx = service.WithKongfangImageRequest(requestCtx, body, parsed)
+	// Slot acquisition rechecks site prices through c.Request.Context(). It must
+	// see the same parsed selectors as initial selection and upstream forwarding.
+	c.Request = c.Request.WithContext(requestCtx)
 
 	maxAccountSwitches := h.maxAccountSwitches
 	switchCount := 0
@@ -225,7 +229,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 
 		accountReleaseFunc, slotResult := h.acquireResponsesAccountSlot(c, apiKey.GroupID, sessionHash, selection, parsed.Stream, &streamStarted, reqLog)
 		if slotResult == openAISlotAcquireProfitVetoed {
-			// Images 调度不装利润门，此分支实际不可达；防御性排除重选并受同一否决上限约束。
+			// Images 不装通用利润门，但托管站点的价格终检仍可能否决；排除后继续选择。
 			if !recordOpenAIProfitVeto(failedAccountIDs, account.ID, &profitVetoCount) {
 				h.handleOpenAIProfitVetoExhausted(c, streamStarted, reqLog, profitVetoCount)
 				return

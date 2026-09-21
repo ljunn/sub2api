@@ -573,8 +573,9 @@ func (s *OpenAIGatewayService) ForwardImages(
 	}
 	ctx = WithSiteImageSize(ctx, parsed.Size)
 	ctx = WithWuzuImageRequest(ctx, body, parsed.ContentType)
-	ctx, siteObservation := beginSiteForward(ctx, account)
 	ctx = WithSiteImageQuality(ctx, parsed.Size, parsed.Quality)
+	ctx = WithKongfangImageRequest(ctx, body, parsed)
+	ctx, siteObservation := beginSiteForward(ctx, account)
 	defer func() { siteObservation.finishOpenAI(ctx, c, siteResult, siteErr) }()
 	if err := CheckSitePriceBeforeSend(ctx, account, s.accountRepo); err != nil {
 		return nil, err
@@ -621,10 +622,21 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		parsed.Endpoint,
 		account.Type,
 	)
-	forwardBody, forwardContentType, err := rewriteOpenAIImagesModel(body, parsed.ContentType, upstreamModel)
+	forwardEndpoint := parsed.Endpoint
+	var forwardBody []byte
+	var forwardContentType string
+	var err error
+	if policy, managed := account.SitePolicy(); managed && policy.SiteKind == "kongfang" && (parsed.IsEdits() || parsed.Multipart) {
+		forwardBody, err = kongfangImagesForwardBody(body, parsed, upstreamModel)
+		forwardContentType = "application/json"
+		forwardEndpoint = openAIImagesGenerationsEndpoint
+	} else {
+		forwardBody, forwardContentType, err = rewriteOpenAIImagesModel(body, parsed.ContentType, upstreamModel)
+	}
 	if err != nil {
 		return nil, err
 	}
+	SetActualOpenAIUpstreamEndpoint(c, forwardEndpoint)
 	// 生图是长耗时、上游侧已产生实际成本的操作：客户端中途断开不应连带取消上游请求。
 	// detachStreamUpstreamContext 在非流式时原样返回请求 context，于是客户端一断开
 	// 就把已经在出图的上游调用打断成 context canceled，网关记 502、不扣费，而上游那边
@@ -637,7 +649,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	if err != nil {
 		return nil, err
 	}
-	upstreamReq, err := s.buildOpenAIImagesRequest(upstreamCtx, c, account, forwardBody, forwardContentType, token, parsed.Endpoint)
+	upstreamReq, err := s.buildOpenAIImagesRequest(upstreamCtx, c, account, forwardBody, forwardContentType, token, forwardEndpoint)
 	if err != nil {
 		return nil, err
 	}

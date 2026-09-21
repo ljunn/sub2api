@@ -24,10 +24,13 @@
 ## 图片请求
 
 - OpenAI：`POST /v1/images/generations`，可使用 GPT Image 和目录发现的 Nano Banana 图片别名。明确的 `quality` / `resolution` 采用 1k、2k、4k；缺省时按空凡尺寸规则判断，完全缺省为 2K。发送前写入明确的 `quality`，避免上游再次推测档位。
+- OpenAI 图生图：接收 `/v1/images/edits` 的 multipart 上传和 JSON `images[].image_url`，只在选中空凡账号时转成 `/v1/images/generations` 的 `image_urls`，上传文件使用带 MIME 的 base64 data URL。保留参考图顺序、完整提示词、模型映射和原始计费尺寸；后续换到其他渠道时仍使用原始请求。带 mask 的编辑不进入空凡，避免把局部编辑悄悄降级为普通参考图生成。
 - Gemini：原生 `generateContent` / `streamGenerateContent`，支持 flat `generationConfig.resolution` 和标准 `generationConfig.imageConfig.imageSize`；发送时补充空凡的 flat `resolution`、`aspectRatio`，本地图片计费也采用该分辨率。
 - 互相矛盾的分辨率参数，以及站点文档解释矛盾的 `quality=high`，不参与调度；请使用明确的 1k、2k、4k。
-- 尚未核验 Images Edits、文本 Chat、Responses 和视频的完整计费契约，本适配在实际发送前拒绝这些端点。图生图使用 Gemini 原生参考图片，或 Images Generations 的上游 `image_urls` 扩展。已有其他站点不受此限制。
+- multipart 的尺寸、quality、resolution 从表单字段读取，调度和发送前检查采用相同的采购档位及本地计费档位。价格表、售价上限和利润规则不变；参数冲突、重复字段、采购价超限仍不放行。文本 Chat、Responses 和视频仍不经此图片适配发送。
 
 测试使用本地 HTTP 上游桩与内存仓库，覆盖登录过期恢复、VIP 折扣、协议目录、密钥超时恢复、未知价格、成本变更失效、档位差异、请求重试、Gemini 分辨率计费，以及前端保存与平台过滤。测试不访问生产数据库，不发起真实生成。
+
+2026-09-21 回归覆盖线上 `5464x3072` multipart 编辑、JSON 参考图、多个上传文件、保留提示词、mask 排除和价格超限；完整 HTTP 入口验证前两个优先级账号失败后继续尝试第三个，成功后停止，客户价格仍为 0.05 USD。另以现有空凡账号单独执行一次真实 `gpt-image-2.5-sunburst` 参考图生成验证，HTTP 200 且输出保留参考图的形状和颜色；这项人工发布核验与使用内存数据的自动化测试分开。
 
 构建、6556 预览和确认后发布遵守 `ops/README.md`。用户已授权通过分组隔离测试，6556 托管账号正常按价格条件参与调度。并发优先读取个人资料中的 `effective_max_concurrency`，缺失时读取 `max_concurrency`；未公开时默认 1000，后续同步更新已有托管账号。

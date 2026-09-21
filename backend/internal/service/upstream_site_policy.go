@@ -16,17 +16,18 @@ import (
 
 type siteRequestKey struct{}
 type SitePriceRequest struct {
-	LongXiaVideo        bool
-	LongXiaResolution   string
-	LongXiaDuration     int64
-	WuzuFields          map[string]string
-	VividAITier         string
-	VividAIDuration     int64
-	KongfangTier        string
-	KongfangBillingTier string
-	Tier                string
-	Model               string
-	UnpricedServiceTier bool
+	LongXiaVideo                    bool
+	LongXiaResolution               string
+	LongXiaDuration                 int64
+	WuzuFields                      map[string]string
+	VividAITier                     string
+	VividAIDuration                 int64
+	KongfangTier                    string
+	KongfangBillingTier             string
+	KongfangUnsupportedImageRequest bool
+	Tier                            string
+	Model                           string
+	UnpricedServiceTier             bool
 }
 
 func WithSitePriceRequest(ctx context.Context, body []byte) context.Context {

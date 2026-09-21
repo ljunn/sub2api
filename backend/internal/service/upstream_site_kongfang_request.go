@@ -103,6 +103,9 @@ func kongfangLocalBillingTier(body []byte) string {
 }
 
 func kongfangPriceVeto(p SiteAccountPolicy, request SitePriceRequest) (bool, string) {
+	if request.KongfangUnsupportedImageRequest {
+		return true, "site_endpoint_unsupported"
+	}
 	tier := request.KongfangTier
 	if tier != "1K" && tier != "2K" && tier != "4K" {
 		return true, "site_price_unknown"
