@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -29,6 +30,10 @@ func (h *UpstreamSiteHandler) List(c *gin.Context) {
 	}
 	for i := range sites {
 		service.ApplySiteManualPrices(&sites[i])
+		if err := h.service.AnnotateTrafficSupport(c.Request.Context(), &sites[i]); err != nil {
+			response.InternalError(c, "读取扶持设置失败")
+			return
+		}
 	}
 	response.Success(c, sites)
 }
@@ -41,6 +46,10 @@ func (h *UpstreamSiteHandler) respondSite(c *gin.Context, site *service.Upstream
 		return
 	}
 	service.ApplySiteManualPrices(&sites[0])
+	if err := h.service.AnnotateTrafficSupport(c.Request.Context(), &sites[0]); err != nil {
+		response.InternalError(c, "读取扶持设置失败")
+		return
+	}
 	response.Success(c, sites[0])
 }
 
@@ -117,7 +126,25 @@ func (h *UpstreamSiteHandler) Delete(c *gin.Context) {
 
 func (h *UpstreamSiteHandler) PricingContext(c *gin.Context) {
 	c.Request = c.Request.WithContext(h.service.WithPricingContext(c.Request.Context()))
+	if c.Request.Method == http.MethodPost && !strings.HasPrefix(c.Request.URL.Path, "/api/") {
+		ctx, finish := service.WithSiteTrafficRequest(c.Request.Context(), c.Request.URL.Path)
+		defer finish()
+		c.Request = c.Request.WithContext(ctx)
+	}
 	c.Next()
+}
+
+func (h *UpstreamSiteHandler) SaveTrafficSupport(c *gin.Context) {
+	var input service.SiteTrafficSupport
+	if c.ShouldBindJSON(&input) != nil {
+		response.BadRequest(c, "流量扶持参数无效")
+		return
+	}
+	if err := h.service.SaveTrafficSupport(c.Request.Context(), c.Param("id"), c.Param("binding_id"), input); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, input)
 }
 func (h *UpstreamSiteHandler) PricePreview(c *gin.Context) {
 	var input service.SiteBinding

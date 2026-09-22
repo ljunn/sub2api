@@ -87,7 +87,7 @@ func TestSitePriorityWindowColdStartAndPriceGate(t *testing.T) {
 	pricing.performance.record(sitePerformanceKey{1, "model-a", "2K"}, sitePerformanceSample{now.Add(-2 * time.Hour), false, 0})
 	score := pricing.priorityScore(1, p, "2K", now)
 	require.Zero(t, score.Samples)
-	require.Equal(t, .5, score.SuccessRate)
+	require.InDelta(t, 1.0/3, score.SuccessRate, 1e-9, "older failure remains a low-weight prior, not a current-hour sample")
 	require.True(t, score.SpeedEstimated)
 	require.Equal(t, 30.0, score.SpeedReference)
 	for i := 0; i < 250; i++ {

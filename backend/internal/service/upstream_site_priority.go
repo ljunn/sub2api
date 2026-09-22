@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"sort"
@@ -11,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -48,6 +51,7 @@ type sitePerformanceSample struct {
 }
 
 type sitePerformanceStore struct {
+	redis   *redis.Client
 	mu      sync.Mutex
 	samples map[sitePerformanceKey][]sitePerformanceSample
 }
@@ -109,7 +113,25 @@ func (s *UpstreamSitePricing) adminPriority(ctx context.Context, account *Accoun
 	return priority, found
 }
 
+func sitePerformanceRedisKey(key sitePerformanceKey) string {
+	return fmt.Sprintf("site:performance:v1:%d:%s:%s", key.AccountID, key.Model, key.Tier)
+}
 func (s *sitePerformanceStore) record(key sitePerformanceKey, sample sitePerformanceSample) {
+	if s.redis != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+		defer cancel()
+		raw, _ := json.Marshal(sample)
+		name := sitePerformanceRedisKey(key)
+		_, _ = s.redis.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+			pipe.ZAdd(ctx, name, redis.Z{Score: float64(sample.At.UnixMilli()), Member: string(raw)})
+			pipe.ZRemRangeByScore(ctx, name, "-inf", fmt.Sprint(sample.At.Add(-24*time.Hour).UnixMilli()))
+			pipe.ZRemRangeByRank(ctx, name, 0, -sitePerformanceLimit-1)
+			pipe.Expire(ctx, name, 24*time.Hour)
+			return nil
+		})
+		return
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.samples == nil {
@@ -118,7 +140,7 @@ func (s *sitePerformanceStore) record(key sitePerformanceKey, sample sitePerform
 	// Bound retained identities as well as samples; inactive bindings expire.
 	if len(s.samples) >= 4096 {
 		for k, values := range s.samples {
-			if len(values) == 0 || sample.At.Sub(values[len(values)-1].At) >= sitePerformanceWindow {
+			if len(values) == 0 || sample.At.Sub(values[len(values)-1].At) >= 24*time.Hour {
 				delete(s.samples, k)
 			}
 		}
@@ -134,12 +156,39 @@ func (s *sitePerformanceStore) record(key sitePerformanceKey, sample sitePerform
 	s.samples[key] = values
 }
 
-func (s *sitePerformanceStore) snapshot(key sitePerformanceKey, now time.Time) []sitePerformanceSample {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *sitePerformanceStore) history(key sitePerformanceKey, now time.Time) []sitePerformanceSample {
+	var source []sitePerformanceSample
+	if s.redis != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+		defer cancel()
+		raw, err := s.redis.ZRange(ctx, sitePerformanceRedisKey(key), 0, -1).Result()
+		if err != nil {
+			return nil
+		}
+		for _, value := range raw {
+			var sample sitePerformanceSample
+			if json.Unmarshal([]byte(value), &sample) == nil {
+				source = append(source, sample)
+			}
+		}
+	} else {
+		s.mu.Lock()
+		source = append(source, s.samples[key]...)
+		s.mu.Unlock()
+	}
 	var values []sitePerformanceSample
-	for _, sample := range s.samples[key] {
-		if !sample.At.After(now) && now.Sub(sample.At) < sitePerformanceWindow {
+	for _, sample := range source {
+		if !sample.At.After(now) && now.Sub(sample.At) < 24*time.Hour {
+			values = append(values, sample)
+		}
+	}
+	sort.SliceStable(values, func(i, j int) bool { return values[i].At.Before(values[j].At) })
+	return values
+}
+func (s *sitePerformanceStore) snapshot(key sitePerformanceKey, now time.Time) []sitePerformanceSample {
+	var values []sitePerformanceSample
+	for _, sample := range s.history(key, now) {
+		if now.Sub(sample.At) < sitePerformanceWindow {
 			values = append(values, sample)
 		}
 	}
@@ -218,7 +267,21 @@ func (s *UpstreamSitePricing) priorityScore(accountID int64, p SiteAccountPolicy
 	if s == nil {
 		return result
 	}
-	values := s.performance.snapshot(sitePerformanceKey{accountID, p.LocalModel, tier}, now)
+	history := s.performance.history(sitePerformanceKey{accountID, p.LocalModel, tier}, now)
+	values := make([]sitePerformanceSample, 0, len(history))
+	var priorSuccesses, priorTotal float64
+	var priorLatencies []float64
+	for _, sample := range history {
+		if now.Sub(sample.At) < sitePerformanceWindow {
+			values = append(values, sample)
+		} else {
+			priorTotal++
+			if sample.Success {
+				priorSuccesses++
+				priorLatencies = append(priorLatencies, sample.Seconds)
+			}
+		}
+	}
 	latencies := make([]float64, 0, len(values))
 	for _, sample := range values {
 		result.Samples++
@@ -229,7 +292,16 @@ func (s *UpstreamSitePricing) priorityScore(accountID int64, p SiteAccountPolicy
 			}
 		}
 	}
-	result.SuccessRate = float64(result.Successes+1) / float64(result.Samples+2)
+	priorWeight := math.Min(5, priorTotal)
+	priorRate := 0.0
+	if priorTotal > 0 {
+		priorRate = priorSuccesses / priorTotal
+	}
+	result.SuccessRate = (float64(result.Successes+1) + priorWeight*priorRate) / (float64(result.Samples+2) + priorWeight)
+	if len(latencies) == 0 && len(priorLatencies) > 0 {
+		sort.Float64s(priorLatencies)
+		result.SpeedSeconds = priorLatencies[len(priorLatencies)/2]
+	}
 	if len(latencies) > 0 {
 		sort.Float64s(latencies)
 		quantile := func(q float64) float64 {
@@ -305,7 +377,7 @@ func siteEffectivePriorities(ctx context.Context, accounts []Account) []Account 
 	for _, best := range leaders {
 		result[best.index].Priority = 200
 	}
-	return result
+	return applySiteTraffic(ctx, result)
 }
 
 type siteForwardObservationKey struct{}
@@ -313,6 +385,7 @@ type siteForwardObservation struct {
 	pricing *UpstreamSitePricing
 	key     sitePerformanceKey
 	image   bool
+	traffic *siteTrafficRequest
 	started atomic.Int64
 }
 
@@ -323,13 +396,16 @@ func beginSiteForward(ctx context.Context, account *Account) (context.Context, *
 		return ctx, nil
 	}
 	request, _ := ctx.Value(siteRequestKey{}).(SitePriceRequest)
-	observation := &siteForwardObservation{pricing: pricing, key: sitePerformanceKey{account.ID, p.LocalModel, sitePerformanceTier(p, request)}, image: p.Image}
+	traffic, _ := ctx.Value(siteTrafficRequestKey{}).(*siteTrafficRequest)
+	observation := &siteForwardObservation{pricing: pricing, key: sitePerformanceKey{account.ID, p.LocalModel, sitePerformanceTier(p, request)}, image: p.Image, traffic: traffic}
 	return context.WithValue(ctx, siteForwardObservationKey{}, observation), observation
 }
 
 func markSiteForwardStarted(ctx context.Context) {
 	if observation, ok := ctx.Value(siteForwardObservationKey{}).(*siteForwardObservation); ok {
-		observation.started.CompareAndSwap(0, time.Now().UnixNano())
+		if observation.started.CompareAndSwap(0, time.Now().UnixNano()) && observation.traffic != nil {
+			observation.traffic.start(ctx, observation.key.AccountID)
+		}
 	}
 }
 

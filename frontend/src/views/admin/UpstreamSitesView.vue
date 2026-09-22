@@ -157,6 +157,7 @@
                   <td class="min-w-0 lg:px-3 lg:py-3">
                     <span class="mb-1 block text-xs text-gray-500 lg:hidden">{{ t('admin.sites.scheduling') }}</span>
                     <span :class="bindingStatus(binding) === 'ready' ? 'text-green-600' : 'text-amber-700'">{{ t(`admin.sites.status.${bindingStatus(binding)}`) }}</span>
+                    <div v-if="binding.traffic_support?.enabled" class="mt-1 text-xs text-primary-600">{{ t('admin.sites.support.target', { percent: binding.traffic_support.percent }) }}</div>
                     <div v-if="bindingReason(binding)" class="mt-1 text-xs text-gray-500" :title="binding.error || (binding.status === 'preview' ? t('admin.sites.previewPaused') : '')">{{ binding.error || t(`admin.sites.status.${bindingReason(binding)}`) }}</div>
                   </td>
                   <td class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-100 pt-2 dark:border-dark-700 lg:table-cell lg:border-0 lg:px-5 lg:py-3 lg:text-right lg:whitespace-nowrap">
@@ -348,7 +349,7 @@
       v-else-if="bindingDialog"
       key="site-binding"
       :show="true"
-      :title="t('admin.sites.bind')"
+      :title="t(bindingForm.id ? 'admin.sites.details' : 'admin.sites.bind')"
       width="wide"
       @close="!busy && (bindingDialog = false)"
     >
@@ -478,6 +479,10 @@
           }}</label
         >
       </form>
+        <SiteTrafficSupportForm v-if="bindingForm.id && bindingForm.account_id && selected" :key="bindingForm.id"
+          :site-id="selected.id" :binding-id="bindingForm.id" :config="bindingForm.traffic_support"
+          @saved="supportSaved" />
+
       <template #footer
         ><button
           class="btn btn-secondary"
@@ -544,6 +549,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import SiteBalanceCard from '@/components/admin/sites/SiteBalanceCard.vue'
 import SitePriceSummary from '@/components/admin/sites/SitePriceSummary.vue'
 import SiteOverview from '@/components/admin/sites/SiteOverview.vue'
+import SiteTrafficSupportForm from '@/components/admin/sites/SiteTrafficSupportForm.vue'
 import SiteManualPriceDialog from '@/components/admin/sites/SiteManualPriceDialog.vue'
 import SiteModelCatalogue from '@/components/admin/sites/SiteModelCatalogue.vue'
 import { upstreamSiteBalanceApi, type SiteBalanceSettings } from '@/api/admin/upstreamSiteBalance'
@@ -580,6 +586,12 @@ function manualPriceSaved(site: UpstreamSite) {
   priceModel.value = null
 }
 const acknowledgedDiscoveries = new Map<string, Set<string>>()
+let bindingDeepLinkOpened = false
+watch(() => sites.value, () => {
+  if (bindingDeepLinkOpened || !route.query.binding) return
+  const binding = sites.value.find(s => s.id === selectedId.value)?.bindings.find(b => b.id === route.query.binding)
+  if (binding) { bindingDeepLinkOpened = true; openBinding(binding) }
+})
 const selected = computed(() =>
   sites.value.find((s) => s.id === selectedId.value),
 )
@@ -805,6 +817,12 @@ const emptyBinding = (): SiteBinding => ({
 })
 const bindingDialog = ref(false)
 const bindingForm = ref<SiteBinding>(emptyBinding())
+function supportSaved(config: import('@/api/admin/upstreamSites').SiteTrafficSupport) {
+  bindingForm.value.traffic_support = config
+  const binding = selected.value?.bindings.find(b => b.id === bindingForm.value.id)
+  if (binding) binding.traffic_support = config
+  app.showSuccess(t('admin.sites.support.saved'))
+}
 const localModels = ref<string[]>([])
 const upstreamGroups = computed(() => [
   ...new Map(
@@ -927,6 +945,7 @@ async function saveBinding() {
       {
         ...bindingForm.value,
         price_tiers: undefined,
+        traffic_support: undefined,
         limits: bindingForm.value.limits.map((l) => ({
           key: l.key,
           unit: l.unit,

@@ -54,18 +54,19 @@ type SiteTierLimit struct {
 }
 
 type SiteBinding struct {
-	PriceTiers   []SitePriceTier `json:"price_tiers,omitempty"`
-	ID           string          `json:"id"`
-	GroupID      string          `json:"group_id"`
-	Model        string          `json:"model"`
-	LocalGroupID int64           `json:"local_group_id"`
-	LocalModel   string          `json:"local_model"`
-	Platform     string          `json:"platform"`
-	AccountID    int64           `json:"account_id"`
-	Enabled      bool            `json:"enabled"`
-	Limits       []SiteTierLimit `json:"limits"`
-	Status       string          `json:"status"`
-	Error        string          `json:"error,omitempty"`
+	TrafficSupport *SiteTrafficSupport `json:"traffic_support,omitempty"`
+	PriceTiers     []SitePriceTier     `json:"price_tiers,omitempty"`
+	ID             string              `json:"id"`
+	GroupID        string              `json:"group_id"`
+	Model          string              `json:"model"`
+	LocalGroupID   int64               `json:"local_group_id"`
+	LocalModel     string              `json:"local_model"`
+	Platform       string              `json:"platform"`
+	AccountID      int64               `json:"account_id"`
+	Enabled        bool                `json:"enabled"`
+	Limits         []SiteTierLimit     `json:"limits"`
+	Status         string              `json:"status"`
+	Error          string              `json:"error,omitempty"`
 }
 
 type UpstreamSite struct {

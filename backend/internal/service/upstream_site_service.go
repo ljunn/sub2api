@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type UpstreamSiteService struct {
@@ -34,11 +35,14 @@ type UpstreamSiteService struct {
 func NewUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor) *UpstreamSiteService {
 	return &UpstreamSiteService{repo: repo, accounts: accounts, admin: admin, encryptor: encryptor, preview: os.Getenv("UPSTREAM_SITES_PREVIEW") == "true"}
 }
-func ProvideUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor, pricing *UpstreamSitePricing, settings SettingRepository, email *NotificationEmailService, users UserRepository) *UpstreamSiteService {
+func ProvideUpstreamSiteService(repo UpstreamSiteRepository, accounts AccountRepository, admin AdminService, encryptor UpstreamSiteSecretEncryptor, pricing *UpstreamSitePricing, settings SettingRepository, email *NotificationEmailService, users UserRepository, redisClient *redis.Client) *UpstreamSiteService {
 	s := NewUpstreamSiteService(repo, accounts, admin, encryptor)
 	s.pricing = pricing
 	if pricing != nil {
 		pricing.accounts = accounts
+		pricing.support.repo = settings
+		pricing.traffic.redis = redisClient
+		pricing.performance.redis = redisClient
 	}
 	s.balanceSettings, s.balanceMailer = settings, email
 	s.balanceUsers = users

@@ -152,3 +152,7 @@ journalctl -u sub2api -n 80 --no-pager
 cd /opt/sub2api/source
 ./ops/rollback-local.sh
 ```
+
+## 2026-09-22：流量扶持审阅
+
+完整版本新增站点绑定「调度设置 → 流量扶持」：可配置比例和截止时间、按健康状态逐步恢复、共享 5% 恢复试调、Redis 原子首发计数与 24 小时性能历史、账号列表状态及设置跳转。规则与验证见 [UPSTREAM_SITES.md](UPSTREAM_SITES.md)。本次用户指定空凡 `gpt-image-2` 的目标为 20%，其他绑定默认关闭；预览保存使用独立设置项，旧版生产同步不覆盖，生产发布仍需审阅确认。

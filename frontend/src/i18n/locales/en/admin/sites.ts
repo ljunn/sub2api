@@ -1,5 +1,14 @@
 export default {
   sites: {
+    support: {
+      title: 'Traffic support', enabled: 'Enable support', percent: 'Target first-attempt share (%)', expires: 'Expires at (optional, local time)',
+      hint: 'Save these support controls separately. First attempts are counted per group, model and resolution. Organic traffic counts toward the target and may exceed it. Price and availability checks still apply.',
+      recovery: 'Starts at 10% and ramps up when healthy. Repeated failures suspend extra allocation; a shared 5% recovery budget remains. Retryable failures use normal failover.',
+      save: 'Save traffic support', saved: 'Traffic support saved', failed: 'Could not save traffic support. Please retry.', invalid: 'Enter 1–95%; when enabled, expiration must be in the future.',
+      target: 'Target {percent}%', actual: 'Last-hour actual {percent}%', effective: 'Current target {percent}%',
+      states: { active: 'Active', ramping: 'Ramping up', degraded: 'Degraded / recovery probes', expired: 'Expired', ineligible: 'Currently ineligible', unavailable: 'Statistics unavailable' },
+    },
+
     wuzuAuthHint: 'Use a WUZU login and password or console access token. Each model binding creates a separate API key scoped to its unique model configuration. Supports image generation and multipart image editing.',
     wuzuConversionHint: 'Enter the actual credits purchased per USD. This rate converts both balances and purchase prices. Without it, models sync with automatic price scheduling paused; manual USD purchase prices are also available.',
     wuzuUnits: 'credits',
@@ -11,7 +20,7 @@ export default {
       success: 'Smoothed success rate {rate}% ({successes} successes / {samples} attempts)',
       speed: 'Weighted latency {seconds}s', estimated: 'Estimated; insufficient samples',
       cost: 'Purchase / selling price {ratio}%',
-      window: 'Last hour, up to 200 account attempts. Images use full generation time. Samples accumulate since this process started.',
+      window: 'Up to 200 attempts in the last hour, with a low-weight 24-hour history prior. Images use full generation time. Statistics survive restarts within this environment.',
     },
     manualPrice: {
       "title": "Set purchase price",
@@ -71,7 +80,7 @@ export default {
     limit: 'Automatic purchase ceiling',
     priceAndEligibility: 'Purchase / eligible (✓ / ×)',
     tokenPricing: 'Token rates',
-    details: 'Pricing / controls',
+    details: 'Scheduling settings',
     scheduling: 'Routing status',
     defaultTier: 'Default',
     modelMissing: 'Upstream model or group is unavailable',

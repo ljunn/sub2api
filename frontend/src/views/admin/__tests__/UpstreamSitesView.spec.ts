@@ -6,6 +6,7 @@ import SiteOverview from '@/components/admin/sites/SiteOverview.vue'
 import SiteManualPriceDialog from '@/components/admin/sites/SiteManualPriceDialog.vue'
 import SiteModelCatalogue from '@/components/admin/sites/SiteModelCatalogue.vue'
 import SiteBalanceCard from '@/components/admin/sites/SiteBalanceCard.vue'
+import SiteTrafficSupportForm from '@/components/admin/sites/SiteTrafficSupportForm.vue'
 import type { UpstreamSite } from '@/api/admin/upstreamSites'
 
 const mocks = vi.hoisted(() => ({
@@ -252,6 +253,23 @@ describe('upstream sites', () => {
     await click('common.refresh')
     expect(wrapper.findComponent(SiteOverview).props('sites')[0].models[0].unread).toBe(false)
     expect(mocks.bind).not.toHaveBeenCalled()
+  })
+  it('opens the support controls from an account deep link and preserves saved settings', async () => {
+    mocks.routeQuery = { site: 'site', binding: 'binding' }
+    site.bindings = [{ id: 'binding', group_id: '2', model: 'upstream-image', local_group_id: 9,
+      local_model: 'local-image', platform: 'openai', account_id: 27, enabled: true, limits: [], status: 'ready',
+      traffic_support: { enabled: true, percent: 20 } }]
+    wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('[role=dialog] h3').text()).toBe('admin.sites.details')
+    const controls = wrapper.findComponent(SiteTrafficSupportForm)
+    expect(controls.props('config')).toEqual({ enabled: true, percent: 20 })
+    controls.vm.$emit('saved', { enabled: true, percent: 25 })
+    await flushPromises()
+    expect(controls.props('config')).toEqual({ enabled: true, percent: 25 })
+    await wrapper.get('[aria-label="Close modal"]').trigger('click')
+    await click('admin.sites.details')
+    expect(wrapper.findComponent(SiteTrafficSupportForm).props('config')).toEqual({ enabled: true, percent: 25 })
   })
   it('shows per-tier price vetoes even when the managed account awaits release', async () => {
     site.models[0]!.tiers = ['1K', '2K', '4K'].map((key, i) => ({

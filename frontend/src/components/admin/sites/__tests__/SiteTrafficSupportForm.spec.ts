@@ -1,0 +1,40 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import SiteTrafficSupportForm from '../SiteTrafficSupportForm.vue'
+const { save } = vi.hoisted(() => ({ save: vi.fn() }))
+vi.mock('@/api/admin/upstreamSites', () => ({ upstreamSitesApi: { saveTrafficSupport: save } }))
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+beforeEach(() => { save.mockReset(); save.mockImplementation(async (_site, _binding, config) => config) })
+describe('traffic support settings', () => {
+  it('saves a 20% target independently of model pricing', async () => {
+    const wrapper = mount(SiteTrafficSupportForm, { props: { siteId: 's', bindingId: 'b' } })
+    await wrapper.get('[data-testid=support-enabled]').setValue(true)
+    await wrapper.get('[data-testid=support-save]').trigger('click')
+    await flushPromises()
+    expect(save).toHaveBeenCalledWith('s', 'b', { enabled: true, percent: 20, expires_at: undefined })
+    expect(wrapper.emitted('saved')).toHaveLength(1)
+  })
+  it('rejects excessive percentages and expired deadlines before saving', async () => {
+    const wrapper = mount(SiteTrafficSupportForm, { props: { siteId: 's', bindingId: 'b', config: { enabled: true, percent: 20 } } })
+    await wrapper.get('[data-testid=support-percent]').setValue(100)
+    await wrapper.get('[data-testid=support-save]').trigger('click')
+    expect(save).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid=support-percent]').setValue(20)
+    await wrapper.get('[data-testid=support-expires]').setValue('2020-01-01T00:00')
+    await wrapper.get('[data-testid=support-save]').trigger('click')
+    expect(save).not.toHaveBeenCalled()
+    expect(wrapper.get('[role=alert]').text()).toContain('invalid')
+  })
+  it('retains saved controls across binding switches and displays backend quota errors', async () => {
+    const wrapper = mount(SiteTrafficSupportForm, { props: { siteId: 's', bindingId: 'b', config: { enabled: true, percent: 20 } } })
+    await wrapper.setProps({ bindingId: 'c', config: { enabled: false, percent: 35 } })
+    expect(wrapper.get<HTMLInputElement>('[data-testid=support-enabled]').element.checked).toBe(false)
+    expect(wrapper.get<HTMLInputElement>('[data-testid=support-percent]').element.value).toBe('35')
+    await wrapper.get('[data-testid=support-enabled]').setValue(true)
+    save.mockRejectedValueOnce({ response: { data: { message: 'Combined target exceeds 95%' } } })
+    await wrapper.get('[data-testid=support-save]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role=alert]').text()).toContain('95%')
+    expect(wrapper.emitted('saved')).toBeUndefined()
+  })
+})

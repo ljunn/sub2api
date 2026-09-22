@@ -1,5 +1,14 @@
 export default {
   sites: {
+    support: {
+      title: '流量扶持', enabled: '启用扶持', percent: '目标首发流量（%）', expires: '截止时间（可选，本地时间）',
+      hint: '此处单独保存扶持设置。同一分组、模型按分辨率分别统计首发份额。自然流量计入目标，超过目标也允许；价格和可用性检查继续生效。',
+      recovery: '从 10% 起步，健康后逐步达到目标。连续故障撤销额外扶持，保留 5% 的共享恢复试调；可重试故障正常换渠道。',
+      save: '保存扶持设置', saved: '扶持设置已保存', failed: '扶持设置保存失败，请重试', invalid: '比例须为 1～95，启用时截止时间须晚于当前时间。',
+      target: '扶持 {percent}%', actual: '近一小时实际 {percent}%', effective: '当前目标 {percent}%',
+      states: { active: '正常扶持', ramping: '逐步恢复', degraded: '故障降档 / 恢复试调', expired: '扶持已到期', ineligible: '暂不符合调度条件', unavailable: '统计暂不可用' },
+    },
+
     wuzuAuthHint: '使用 WUZU 账号密码或后台登录令牌。绑定模型时创建独立 API Key，并按唯一模型配置关联。支持图片生成和文件上传编辑。',
     wuzuConversionHint: '填写 1 USD 对应的实际充值额度，采购价和余额共用此倍率。留空可同步模型，自动价格调度暂停；也可为模型手动填写美元采购价。',
     wuzuUnits: '额度',
@@ -11,7 +20,7 @@ export default {
       success: '平滑成功率 {rate}%（成功 {successes} / 尝试 {samples}）',
       speed: '加权耗时 {seconds} 秒', estimated: '样本不足，暂用估计',
       cost: '采购价 / 售价 {ratio}%',
-      window: '统计最近 1 小时，最多 200 次账号转发；图片统计完整出图时间。数据从当前进程启动后积累。',
+      window: '近一小时最多 200 个样本；24 小时历史作为低权重参考。图片使用完整生成耗时。统计在当前环境内保存，重启后保留。',
     },
     manualPrice: {
       "title": "填写采购价",
@@ -72,7 +81,7 @@ export default {
     limit: '自动采购上限',
     priceAndEligibility: '采购价 / 可调度（✓ / ×）',
     tokenPricing: '按 token',
-    details: '定价 / 启停',
+    details: '调度设置',
     scheduling: '调度状态',
     defaultTier: '默认',
     modelMissing: '上游模型或分组已不可用',

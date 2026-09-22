@@ -20,6 +20,8 @@ type UpstreamSitePricing struct {
 	performance   sitePerformanceStore
 	accounts      AccountRepository
 	priorityViews sitePriorityViewCache
+	traffic       siteTrafficStore
+	support       siteSupportSettings
 }
 
 func NewUpstreamSitePricing(groups GroupRepository, billing *BillingService, resolver *ModelPricingResolver, rates UserGroupRateRepository) *UpstreamSitePricing {

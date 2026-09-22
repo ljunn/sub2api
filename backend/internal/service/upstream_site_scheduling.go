@@ -9,6 +9,8 @@ import (
 // Scheduling is a live admin projection. Never overwrite the manual switch:
 // doing so would prevent automatic recovery after a local price edit.
 type SiteAccountScheduling struct {
+	SiteID    string               `json:"site_id"`
+	BindingID string               `json:"binding_id"`
 	Status    string               `json:"status"`
 	Reason    string               `json:"reason,omitempty"`
 	CheckedAt time.Time            `json:"checked_at"`
@@ -16,6 +18,7 @@ type SiteAccountScheduling struct {
 }
 
 type SiteSchedulingTier struct {
+	TrafficSupport *SiteTrafficStatus `json:"traffic_support,omitempty"`
 	SitePriceTier
 	Selling       map[string]float64 `json:"selling"`
 	Ceiling       map[string]float64 `json:"ceiling"`
@@ -30,7 +33,7 @@ func (s *UpstreamSitePricing) AccountScheduling(ctx context.Context, account *Ac
 	}
 	p = s.apply(ctx, p, false)
 	now := time.Now()
-	out := &SiteAccountScheduling{Status: "blocked", CheckedAt: now, Tiers: []SiteSchedulingTier{}}
+	out := &SiteAccountScheduling{SiteID: p.SiteID, BindingID: p.BindingID, Status: "blocked", CheckedAt: now, Tiers: []SiteSchedulingTier{}}
 	pending, _ := account.Extra["upstream_site_preview_pending"].(bool)
 	accountReason := ""
 	if pending {
@@ -61,6 +64,13 @@ func (s *UpstreamSitePricing) AccountScheduling(ctx context.Context, account *Ac
 			status = accountReason
 		}
 		row := SiteSchedulingTier{SitePriceTier: tier, Status: status}
+		if s != nil {
+			row.TrafficSupport = s.trafficStatus(ctx, account, p, tier.Key)
+		}
+		if row.TrafficSupport != nil && status != "ready" {
+			row.TrafficSupport.State = "ineligible"
+			row.TrafficSupport.Effective = 0
+		}
 		if status == "ready" {
 			score := s.priorityScore(account.ID, p, tier.Key, now)
 			if priority, ok := s.adminPriority(ctx, account, p, tier.Key, now); ok {

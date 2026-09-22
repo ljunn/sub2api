@@ -8,7 +8,21 @@ export interface SitePriceTier {
   reason?: string
   note?: string
 }
+export interface SiteTrafficSupport {
+  enabled: boolean
+  percent: number
+  expires_at?: string
+}
+export interface SiteTrafficStatus {
+  target: number
+  effective: number
+  actual: number
+  first_attempts: number
+  total: number
+  state: string
+}
 export interface SiteSchedulingTier extends SitePriceTier {
+  traffic_support?: SiteTrafficStatus
   selling?: Record<string, number>
   ceiling?: Record<string, number>
   status: string
@@ -29,6 +43,8 @@ export interface SitePriorityScore {
   ready: boolean
 }
 export interface SiteAccountScheduling {
+  site_id?: string
+  binding_id?: string
   status: 'ready' | 'partial' | 'blocked'
   reason?: string
   checked_at: string
@@ -65,6 +81,7 @@ export interface SiteTierLimit {
   limits: Record<string, number>
 }
 export interface SiteBinding {
+  traffic_support?: SiteTrafficSupport
   price_tiers?: SitePriceTier[]
   id: string
   group_id: string
@@ -135,6 +152,8 @@ export interface SiteAccountPolicy {
 }
 const base = '/admin/upstream-sites'
 export const upstreamSitesApi = {
+  saveTrafficSupport: async (id: string, bindingId: string, config: SiteTrafficSupport) =>
+    (await apiClient.put<SiteTrafficSupport>(`${base}/${id}/bindings/${bindingId}/traffic-support`, config)).data,
   saveModelPrice: async (id: string, input: SiteManualPrice & { automatic?: boolean }) =>
     (await apiClient.put<UpstreamSite>(`${base}/${id}/model-price`, input)).data,
   markModelsRead: async (id: string, discovery_ids: string[]) =>

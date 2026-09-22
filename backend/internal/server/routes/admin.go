@@ -58,6 +58,7 @@ func RegisterAdminRoutes(
 		sites.POST("/:id/price-preview", h.Admin.UpstreamSite.PricePreview)
 		sites.POST("/:id/bindings", h.Admin.UpstreamSite.Bind)
 		sites.PUT("/:id/bindings/:binding_id", h.Admin.UpstreamSite.Bind)
+		sites.PUT("/:id/bindings/:binding_id/traffic-support", h.Admin.UpstreamSite.SaveTrafficSupport)
 		sites.DELETE("/:id/bindings/:binding_id", h.Admin.UpstreamSite.Unbind)
 
 		// 账号管理
