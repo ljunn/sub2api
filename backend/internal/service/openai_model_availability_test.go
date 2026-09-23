@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,6 +10,42 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+const unsupported10kModelBody = `{"error":{"code":"ERR-88984A453A","message":"unsupported 10k image model: gpt-image-medium","param":"","type":"invalid_request_error"}}`
+
+func TestOpenAIModelUnavailableOpaqueGatewayCode(t *testing.T) {
+	wrapped, err := json.Marshal(map[string]string{"detail": unsupported10kModelBody})
+	require.NoError(t, err)
+	svc := &OpenAIGatewayService{accountRepo: &modelNotFoundManagedAccountRepo{}}
+	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	for _, body := range []string{
+		unsupported10kModelBody,
+		string(wrapped),
+		`{"error":{"message":"unsupported 10k image model: gpt-image-medium"}}`,
+		`{"error":{"code":"ERR-0983D5FFBA","type":"invalid_request_error","param":"model","message":"unsupported 10k image model: gpt-image-medium"}}`,
+	} {
+		for _, status := range []int{400, 404} {
+			require.True(t, svc.shouldFailoverOpenAIUpstreamResponse(account, status, "", []byte(body)), body)
+			failover := newOpenAIUpstreamFailoverError(status, nil, []byte(body), "", true)
+			require.False(t, failover.RetryableOnSameAccount, body)
+			require.True(t, failover.ShouldRetryNextAccount(), body)
+		}
+	}
+	for _, body := range []string{
+		`{"error":{"code":"ERR-88984A453A","type":"invalid_request_error","message":"Invalid size"}}`,
+		`{"error":{"code":"ERR-88984A453A","param":"size","message":"unsupported 10k image model: gpt-image-medium"}}`,
+		`{"error":{"code":"invalid_parameter","message":"unsupported 10k image model: gpt-image-medium"}}`,
+		`{"error":{"code":"ERR-invalid_parameter","message":"unsupported 10k image model: gpt-image-medium"}}`,
+		`{"error":{"code":"ERR-88984A453A","type":"invalid_parameter","message":"unsupported 10k image model: gpt-image-medium"}}`,
+		`{"error":{"code":"ERR-88984A453A","type":"content_policy_error","message":"unsupported 10k image model: gpt-image-medium"}}`,
+		`{"error":{"code":"content_policy_violation","message":"unsupported 10k image model: gpt-image-medium"}}`,
+		`{"error":{"code":"ERR-88984A453A","message":"Invalid request"},"prompt":"unsupported 10k image model: gpt-image-medium"}`,
+		`{"error":{"message":"unsupported 10k image model: "}}`,
+		`{"error":{"message":"unsupported image size for model: gpt-image-medium"}}`,
+	} {
+		require.False(t, svc.shouldFailoverOpenAIUpstreamResponse(account, 400, "", []byte(body)), body)
+	}
+}
 
 func TestOpenAIModelUnavailableErrorEnvelopes(t *testing.T) {
 	svc := &OpenAIGatewayService{accountRepo: &modelNotFoundManagedAccountRepo{}}
