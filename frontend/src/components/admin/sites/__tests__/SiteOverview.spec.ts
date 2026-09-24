@@ -5,7 +5,11 @@ import SiteModelCatalogue from '../SiteModelCatalogue.vue'
 import type { UpstreamSite } from '@/api/admin/upstreamSites'
 
 const mocks = vi.hoisted(() => ({ markModelsRead: vi.fn() }))
-vi.mock('@/api/admin/upstreamSites', () => ({ upstreamSitesApi: mocks }))
+vi.mock('@/api/admin/upstreamSites', async importOriginal => ({
+  ...await importOriginal<typeof import('@/api/admin/upstreamSites')>(),
+  upstreamSitesApi: mocks,
+}))
+vi.mock('@/api/client', () => ({ default: {} }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 const makeSite = (id = 'site'): UpstreamSite => ({
   id, name: id, base_url: `https://${id}.example.com`, kind: 'sub2api', auth_mode: 'token', username: '', user_id: 1,

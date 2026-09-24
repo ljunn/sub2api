@@ -131,6 +131,7 @@ export default {
     bound: '绑定已保存',
     managed: '站点托管',
     unknown: '价格未知',
+    cachedPrice: '沿用上次有效采购价',
     components: {
       second: '每秒',
       request: '按次',

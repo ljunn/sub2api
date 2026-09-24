@@ -153,6 +153,7 @@
                   <td class="min-w-0 lg:px-3 lg:py-3">
                     <span class="mb-2 block text-xs text-gray-500 lg:hidden">{{ t('admin.sites.priceAndEligibility') }}</span>
                     <SitePriceSummary :tiers="bindingTiers(binding)" />
+                    <p v-if="siteModelUsesCachedPrice(selected, bindingModel(binding))" class="mt-1 text-xs text-amber-700" :title="bindingModel(binding)?.price_sync_error || selected.error">{{ t('admin.sites.cachedPrice') }} · {{ date(bindingModel(binding)?.price_updated_at || selected.last_success) }}</p>
                   </td>
                   <td class="min-w-0 lg:px-3 lg:py-3">
                     <span class="mb-1 block text-xs text-gray-500 lg:hidden">{{ t('admin.sites.scheduling') }}</span>
@@ -560,6 +561,7 @@ import { getAll, getModelAllowlistCandidates } from '@/api/admin/groups'
 import {
   upstreamSitesApi,
   siteTierStatus,
+  siteModelUsesCachedPrice,
   type UpstreamSite,
   type SiteInput,
   type SiteBinding,

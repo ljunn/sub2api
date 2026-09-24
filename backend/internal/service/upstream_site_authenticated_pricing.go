@@ -74,6 +74,7 @@ func (a *siteAdapter) authenticatedPricingCatalog(ctx context.Context) ([]SiteMo
 			return nil, ctx.Err()
 		}
 		if keyErr != nil {
+			a.markGroupCatalogFailed(id, keyErr)
 			if len(models) == 0 {
 				a.warnings = append(a.warnings, fmt.Sprintf("分组「%s」暂未取得模型列表：%s", group.Get("name").String(), keyErr))
 			}

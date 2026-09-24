@@ -43,6 +43,7 @@ func (a *siteAdapter) privatePricingCatalog(ctx context.Context, public, availab
 				return nil, ctx.Err()
 			}
 			a.warnings = append(a.warnings, fmt.Sprintf("分组「%s」同步失败：%s", group.Get("name").String(), err))
+			a.markGroupCatalogFailed(id, err)
 			continue
 		}
 		seen := map[string]bool{}

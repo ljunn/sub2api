@@ -33,5 +33,17 @@ it('keeps manual prices subject to caps while allowing stale automatic catalogue
   policy.limits[0]!.limits.request = .01
   expect(siteTierStatus(policy, tier)).toBe('equal')
   policy.manual_price = false
-  expect(siteTierStatus(policy, tier)).toBe('expired')
+  expect(siteTierStatus(policy, tier)).toBe('unknown')
+})
+
+it('continues using old automatic prices while enforcing current caps and switches', () => {
+  const tier = { key: '2K', unit: 'USD/request', prices: { request: .05 } }
+  const policy: SiteAccountPolicy = { site_id: 's', site_name: 's', binding_id: 'b', enabled: true, fresh_until: '2020-01-01T00:00:00Z', tiers: [tier], limits: [{ key: '2K', unit: tier.unit, enabled: true, limits: { request: .08 } }] }
+  expect(siteTierStatus(policy, tier)).toBe('ready')
+  policy.limits[0]!.limits.request = .04
+  expect(siteTierStatus(policy, tier)).toBe('exceeded')
+  policy.limits[0]!.enabled = false
+  expect(siteTierStatus(policy, tier)).toBe('disabled')
+  policy.reason = 'missing model'
+  expect(siteTierStatus(policy, tier)).toBe('unknown')
 })

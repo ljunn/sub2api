@@ -57,6 +57,8 @@ export interface SiteManualPrice {
   prices: Record<string, number>
 }
 export interface SiteModel {
+  price_updated_at?: string
+  price_sync_error?: string
   longxia?: { resolution: string; duration_min: number; duration_max: number }
   vividai?: { kind: string; qualities: string[] }
   image?: boolean
@@ -201,11 +203,10 @@ export const upstreamSitesApi = {
 export function siteTierStatus(
   policy: SiteAccountPolicy,
   tier: SitePriceTier,
-  now = Date.now(),
 ): string {
   if (!policy.enabled) return 'disabled'
   const expiry = Date.parse(policy.fresh_until)
-  if (!policy.manual_price && (!Number.isFinite(expiry) || expiry <= now)) return 'expired'
+  if (!policy.manual_price && !Number.isFinite(expiry)) return 'unknown'
   if (policy.reason || tier.reason || !Object.keys(tier.prices).length)
     return 'unknown'
   const limit = policy.limits.find((item) => item.key === tier.key)
@@ -231,4 +232,10 @@ export function siteTierStatus(
   }
   if (!limit.allow_equal_price_scheduling && (equalPrice || !hasPositivePrice)) return 'equal'
   return 'ready'
+}
+
+export function siteModelUsesCachedPrice(site: UpstreamSite, model?: SiteModel, now = Date.now()): boolean {
+  if (!model || model.manual_price || model.reason || !model.tiers.some(tier => !tier.reason && Object.keys(tier.prices).length > 0)) return false
+  const updated = Date.parse(model.price_updated_at || site.last_success || '')
+  return Number.isFinite(updated) && (!!model.price_sync_error || !!site.error || now - updated >= 600000)
 }

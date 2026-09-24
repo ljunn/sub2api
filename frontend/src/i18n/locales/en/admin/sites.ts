@@ -129,6 +129,7 @@ export default {
     bound: 'Binding saved',
     managed: 'Site managed',
     unknown: 'Unknown price',
+    cachedPrice: 'Using last known purchase price',
     components: {
       second: 'Per second',
       request: 'Per request',

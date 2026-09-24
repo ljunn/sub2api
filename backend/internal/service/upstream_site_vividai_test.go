@@ -100,7 +100,7 @@ func TestVividAISiteLifecycleReusesKeyAndSyncsPriceBalanceConcurrency(t *testing
 	require.InDelta(t, 36.79, *site.Balance.AmountUSD, 1e-9)
 	raw, _ := json.Marshal(site)
 	require.NotContains(t, string(raw), key)
-	// Sync failures retain the last verified catalog and limits until freshness expires.
+	// Sync failures retain the last verified catalog and limits.
 	fail = true
 	site, err = svc.Sync(ctx, site.ID)
 	require.NoError(t, err)

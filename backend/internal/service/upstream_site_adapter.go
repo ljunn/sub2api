@@ -43,6 +43,7 @@ type siteAdapter struct {
 	client            *http.Client
 	balanceNativeRate float64
 	warnings          []string
+	failedGroups      map[string]string
 	wuzuProfile       gjson.Result
 }
 

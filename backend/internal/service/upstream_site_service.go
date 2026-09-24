@@ -325,6 +325,8 @@ func (s *UpstreamSiteService) sync(ctx context.Context, id string, dueOnly bool)
 		site.Status = "error"
 		site.Error = syncErr.Error()
 	} else {
+		var cacheWarnings []string
+		models, cacheWarnings = mergeSitePriceCache(site, models, adapter.failedGroups, now)
 		old := map[string]SiteModel{}
 		for _, m := range site.Models {
 			old[m.GroupID+"\x00"+m.Model] = m
@@ -339,7 +341,7 @@ func (s *UpstreamSiteService) sync(ctx context.Context, id string, dueOnly bool)
 		}
 		trackSiteModelDiscoveries(site, models, now)
 		site.Models = models
-		site.Warnings = adapter.warnings
+		site.Warnings = append(adapter.warnings, cacheWarnings...)
 		site.LastSuccess = &now
 		site.Status = "connected"
 		site.Error = ""
@@ -414,8 +416,8 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 	if model == nil {
 		return nil, errors.New("模型不在同步目录中，请先同步站点")
 	}
-	if siteModelWithPrice(site, *model).ManualPrice == nil && (site.LastSuccess == nil || time.Since(*site.LastSuccess) > 10*time.Minute) {
-		return nil, errors.New("价格目录已过期，请先同步")
+	if siteModelWithPrice(site, *model).ManualPrice == nil && site.LastSuccess == nil {
+		return nil, errors.New("尚未取得有效价格目录，请先同步")
 	}
 	compatibleGrok := site.Kind == "sub2api" && model.Platform == PlatformOpenAI && group.Platform == PlatformGrok && strings.HasPrefix(strings.ToLower(model.Model), "grok-")
 	if model.Platform != "" && (site.Kind == "sub2api" || site.Kind == "kongfang" || site.Kind == "vividai" || site.Kind == "wuzu" || model.LongXia != nil) && model.Platform != group.Platform && !compatibleGrok {
@@ -531,6 +533,9 @@ func BuildSiteAccountPolicy(site *UpstreamSite, b *SiteBinding) SiteAccountPolic
 	}
 	if m := findSiteModel(site, b.GroupID, b.Model); m != nil {
 		effective := siteModelWithPrice(site, *m)
+		if effective.PriceUpdatedAt != nil {
+			p.FreshUntil = effective.PriceUpdatedAt.Add(10 * time.Minute)
+		}
 		p.VideoAPIFormat = effective.VideoAPIFormat
 		p.Wuzu = effective.Wuzu
 		p.ManualPrice = effective.ManualPrice != nil

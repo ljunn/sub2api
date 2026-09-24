@@ -117,6 +117,7 @@ func siteModelWithPrice(site *UpstreamSite, model SiteModel) SiteModel {
 		model.ManualPrice = price
 		model.Tiers = tiers
 		model.Reason = ""
+		model.PriceSyncError = ""
 		model.Image = price.BillingMode == "image" || (price.BillingMode != "video" && model.Image)
 		break
 	}

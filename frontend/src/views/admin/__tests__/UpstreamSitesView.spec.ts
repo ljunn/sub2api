@@ -332,7 +332,12 @@ describe('upstream sites', () => {
 
     mocks.list.mockResolvedValue([{ ...site, last_success: new Date(Date.now() - 660000).toISOString() }])
     await click('common.refresh')
-    expect(wrapper.findAll('[data-testid="site-price-summary"] > span').every(row => row.text().includes('admin.sites.status.expired'))).toBe(true)
+    const cachedRows = wrapper.findAll('[data-testid="site-price-summary"] > span')
+    expect(cachedRows[0]!.text()).toContain('admin.sites.status.preview')
+    expect(cachedRows[1]!.text()).toContain('admin.sites.status.exceeded')
+    expect(cachedRows[2]!.text()).toContain('admin.sites.status.exceeded')
+    expect(wrapper.text()).toContain('admin.sites.cachedPrice')
+    expect(wrapper.text()).not.toContain('admin.sites.status.expired')
   })
 
   it('saves Kongfang conversion and hides unsupported refresh tokens', async () => {

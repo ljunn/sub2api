@@ -27,6 +27,8 @@ type SitePriceTier struct {
 }
 
 type SiteModel struct {
+	PriceUpdatedAt *time.Time        `json:"price_updated_at,omitempty"`
+	PriceSyncError string            `json:"price_sync_error,omitempty"`
 	VideoAPIFormat string            `json:"video_api_format,omitempty"`
 	LongXia        *SiteLongXiaModel `json:"longxia,omitempty"`
 	Wuzu           *WuzuModelConfig  `json:"wuzu,omitempty"`

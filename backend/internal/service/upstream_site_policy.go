@@ -118,12 +118,14 @@ func (a *Account) SitePolicy() (SiteAccountPolicy, bool) {
 	}
 	return p, true
 }
-func siteTierReason(p SiteAccountPolicy, key string, now time.Time) string {
+func siteTierReason(p SiteAccountPolicy, key string, _ time.Time) string {
 	if !p.Enabled {
 		return "site_disabled"
 	}
-	if !p.ManualPrice && (p.FreshUntil.IsZero() || !now.Before(p.FreshUntil)) {
-		return "site_price_expired"
+	// FreshUntil records refresh age, not an automatic outage deadline. Keep
+	// using verified prices until a successful refresh or explicit edit replaces them.
+	if !p.ManualPrice && p.FreshUntil.IsZero() {
+		return "site_price_unknown"
 	}
 	if p.Reason != "" {
 		return "site_price_unknown"
@@ -177,7 +179,7 @@ func (a *Account) siteHasEligibleTier() bool {
 	}
 	// Auto ceilings can recover after a local price edit without an upstream scan.
 	if p.LocalGroupID > 0 {
-		return p.Enabled && (p.ManualPrice || time.Now().Before(p.FreshUntil)) && p.Reason == "" && len(p.Tiers) > 0
+		return p.Enabled && (p.ManualPrice || !p.FreshUntil.IsZero()) && p.Reason == "" && len(p.Tiers) > 0
 	}
 	for _, tier := range p.Tiers {
 		if siteTierReason(p, tier.Key, time.Now()) == "" {

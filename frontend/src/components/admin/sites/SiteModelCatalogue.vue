@@ -21,6 +21,7 @@
           <p v-for="note in notes(model)" :key="note"
             class="mt-1 text-xs text-gray-500 [overflow-wrap:anywhere]">{{ note }}</p>
           <p v-if="model.reason" class="mt-1 text-xs text-amber-700">{{ model.reason }}</p>
+          <p v-if="siteModelUsesCachedPrice(site, model)" class="mt-1 text-xs text-amber-700" :title="model.price_sync_error || site.error">{{ t('admin.sites.cachedPrice') }} · {{ new Date(model.price_updated_at || site.last_success!).toLocaleString() }}</p>
         </div>
         <div class="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-100 pt-2 text-xs dark:border-dark-700 lg:justify-end lg:border-0 lg:pt-0">
           <button v-if="!model.longxia && model.vividai?.kind !== 'video'" class="min-h-11 text-primary-600 lg:min-h-0" :disabled="busy" data-testid="edit-model-price" @click="$emit('price', model)">{{ t(model.manual_price ? 'admin.sites.manualPrice.edit' : 'admin.sites.manualPrice.fill') }}</button>
@@ -35,7 +36,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { upstreamSitesApi, type UpstreamSite, type SiteModel, type SitePriceTier } from '@/api/admin/upstreamSites'
+import { upstreamSitesApi, siteModelUsesCachedPrice, type UpstreamSite, type SiteModel, type SitePriceTier } from '@/api/admin/upstreamSites'
 import { sitePriceComponent } from './sitePriceFormat'
 const props = defineProps<{ site: UpstreamSite; busy: boolean; initialOnlyNew: boolean }>()
 const emit = defineEmits<{ price: [model: SiteModel]; bind: [model: SiteModel]; read: [siteId: string, ids: string[]] }>()
