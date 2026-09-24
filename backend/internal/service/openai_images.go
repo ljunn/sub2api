@@ -607,6 +607,10 @@ func (s *OpenAIGatewayService) ForwardImages(
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}
+	ctx = WithImageBackground(ctx, parsed.Background)
+	if err := checkImageBackgroundBeforeSend(ctx, account); err != nil {
+		return nil, err
+	}
 	ctx = WithSiteImageSize(ctx, parsed.Size)
 	ctx = WithWuzuImageRequest(ctx, body, parsed.ContentType)
 	ctx = WithSiteImageQuality(ctx, parsed.Size, parsed.Quality)

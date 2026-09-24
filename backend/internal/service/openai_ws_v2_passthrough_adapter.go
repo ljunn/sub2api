@@ -695,6 +695,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		}
 		firstClientMessage = liteFirstMessage
 	}
+	if !ImageBackgroundRequestAllowed(WithResponsesImageBackground(ctx, firstClientMessage), account) {
+		return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "This account does not support transparent image backgrounds; start a new request", nil)
+	}
 	originalFirstClientMessage := firstClientMessage
 	if next, policyErr := applyOpenAIWSReasoningEffortPolicy(firstClientMessage, hooks); policyErr != nil {
 		return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, policyErr.Error(), policyErr)
@@ -977,6 +980,13 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		// capturedSessionModel 的读写都发生在该 goroutine 内，因此无需
 		// 加锁/原子化。
 		filter: func(msgType coderws.MessageType, payload []byte) (out []byte, blocked *OpenAIFastBlockedError, filterErr error) {
+			backgroundBody := payload
+			if gjson.GetBytes(payload, "type").String() == "session.update" {
+				backgroundBody = []byte(gjson.GetBytes(payload, "session").Raw)
+			}
+			if !ImageBackgroundRequestAllowed(WithResponsesImageBackground(ctx, backgroundBody), account) {
+				return payload, nil, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "This account does not support transparent image backgrounds; start a new request", nil)
+			}
 			if msgType != coderws.MessageText && msgType != coderws.MessageBinary {
 				return payload, nil, nil
 			}

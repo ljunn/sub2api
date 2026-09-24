@@ -54,3 +54,23 @@ func TestSchedulerSnapshotPreservesMediaProtocolEligibility(t *testing.T) {
 		})
 	}
 }
+
+func TestSchedulerSnapshotPreservesTransparentBackground(t *testing.T) {
+	ctx := context.Background()
+	cache := newSchedulerCacheUnit(t)
+	account := service.Account{ID: 24, Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey,
+		Status: "active", Schedulable: true, GroupIDs: []int64{9},
+		Extra: map[string]any{service.ImagesTransparentBackgroundSupportedExtraKey: false}}
+	bucket := service.SchedulerBucket{GroupID: 9, Platform: service.PlatformOpenAI, Mode: service.SchedulerModeSingle}
+	token, err := cache.CaptureBucketWriteToken(ctx, bucket)
+	require.NoError(t, err)
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, token, []service.Account{account}))
+	candidates, hit, err := cache.GetSnapshot(ctx, bucket)
+	require.NoError(t, err)
+	require.True(t, hit)
+	require.Len(t, candidates, 1)
+	require.False(t, candidates[0].SupportsTransparentBackground())
+	loaded, err := cache.GetAccount(ctx, account.ID)
+	require.NoError(t, err)
+	require.False(t, loaded.SupportsTransparentBackground())
+}

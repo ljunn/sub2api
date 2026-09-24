@@ -19,6 +19,9 @@ import (
 
 // Forward forwards request to OpenAI API
 func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (siteResult *OpenAIForwardResult, siteErr error) {
+	if err := checkImageBackgroundBeforeSend(WithResponsesImageBackground(ctx, body), account); err != nil {
+		return nil, err
+	}
 	ctx, siteObservation := beginSiteForward(ctx, account)
 	defer func() { siteObservation.finishOpenAI(ctx, c, siteResult, siteErr) }()
 	beginUpstreamResponseModelObservation(c)

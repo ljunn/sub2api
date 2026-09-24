@@ -144,6 +144,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 
 	sessionHash := h.gatewayService.GenerateExplicitSessionHash(c, body)
 	requestCtx := service.WithSiteImageSize(service.WithOpenAIImagesEndpoint(service.WithOpenAIImageGenerationIntent(c.Request.Context())), parsed.Size)
+	requestCtx = service.WithImageBackground(requestCtx, parsed.Background)
 	requestCtx = service.WithWuzuImageRequest(requestCtx, body, parsed.ContentType)
 	requestCtx = service.WithSiteImageQuality(requestCtx, parsed.Size, parsed.Quality)
 	requestCtx = service.WithKongfangImageRequest(requestCtx, body, parsed)

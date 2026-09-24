@@ -324,6 +324,25 @@ function mountModal(account = buildAccount(), renderGroupSelector = false) {
 }
 
 describe('EditAccountModal', () => {
+  it.each(['openai', 'grok'])('preserves and edits transparent background routing for %s', async (platform) => {
+    const account = buildAccount()
+    account.platform = platform
+    account.extra = { images_transparent_background_supported: false, unrelated: 'keep' }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+    const wrapper = mountModal(account)
+    const field = wrapper.get('[data-testid="images-transparent-background-supported"]')
+    expect((field.element as HTMLInputElement).checked).toBe(false)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.images_transparent_background_supported).toBe(false)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.unrelated).toBe('keep')
+    updateAccountMock.mockClear()
+    await field.setValue(true)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.images_transparent_background_supported).toBe(true)
+    wrapper.unmount()
+  })
+
   it('restores LongXia and removes it when switching to VividAI', async () => {
     const account = buildAccount()
     account.extra = { longxia_enabled: true, unrelated: 'keep' }

@@ -1,5 +1,7 @@
 export default {
     accounts: {
+      transparentBackgroundSupport: '支持透明背景',
+      transparentBackgroundSupportHint: '取消勾选后，明确要求 background=transparent 的生图和图片编辑请求将跳过此账号，重试和换渠道同样生效。普通背景、auto 和未指定背景的请求不受影响。',
       title: '账号管理',
       description: '管理 AI 平台账号和 Cookie',
       createAccount: '添加账号',

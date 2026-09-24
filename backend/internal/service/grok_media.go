@@ -57,6 +57,7 @@ func (e GrokMediaEndpoint) IsGenerationRequest() bool {
 }
 
 type GrokMediaRequestInfo struct {
+	Background      string
 	Model           string
 	Prompt          string
 	N               int
@@ -146,6 +147,7 @@ func parseGrokMediaJSONRequest(body []byte, info *GrokMediaRequestInfo) {
 	if info == nil {
 		return
 	}
+	info.Background = strings.TrimSpace(gjson.GetBytes(body, "background").String())
 	info.Model = strings.TrimSpace(gjson.GetBytes(body, "model").String())
 	info.Prompt = strings.TrimSpace(gjson.GetBytes(body, "prompt").String())
 	info.Size = strings.TrimSpace(gjson.GetBytes(body, "size").String())
@@ -260,6 +262,8 @@ func parseGrokMediaMultipartRequest(contentType string, body []byte, info *GrokM
 
 		value := strings.TrimSpace(string(data))
 		switch name {
+		case "background":
+			info.Background = value
 		case "model":
 			info.Model = value
 		case "prompt":
@@ -687,6 +691,12 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 	}
 	if account.Platform != PlatformGrok {
 		return nil, fmt.Errorf("account platform %s is not supported for grok media", account.Platform)
+	}
+	if endpoint == GrokMediaEndpointImagesGenerations || endpoint == GrokMediaEndpointImagesEdits {
+		ctx = WithImageBackground(ctx, ParseGrokMediaRequest(contentType, body).Background)
+		if err := checkImageBackgroundBeforeSend(ctx, account); err != nil {
+			return nil, err
+		}
 	}
 
 	token, _, err := s.getRequestCredential(ctx, c, account)

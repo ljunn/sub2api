@@ -1,5 +1,7 @@
 export default {
     accounts: {
+      transparentBackgroundSupport: 'Support transparent backgrounds',
+      transparentBackgroundSupportHint: 'When disabled, image generation and editing requests explicitly requiring background=transparent skip this account, including retries and failover. Opaque, auto and unspecified backgrounds are unaffected.',
       title: 'Account Management',
       description: 'Manage AI platform accounts and credentials',
       createAccount: 'Create Account',

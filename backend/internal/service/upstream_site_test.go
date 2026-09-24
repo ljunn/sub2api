@@ -218,12 +218,14 @@ func TestUpstreamSiteLifecyclePriceChangeRecoveryAndStaleQueue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, keyCreates)
 	assert.Equal(t, 1, accounts.creates)
+	require.NoError(t, accounts.UpdateExtra(ctx, account.ID, map[string]any{ImagesTransparentBackgroundSupportedExtraKey: false}))
 	// Price recovers on the next successful scan.
 	price2K = 0.18
 	concurrency = 150
 	site, err = svc.Sync(ctx, site.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 150, accounts.accounts[account.ID].Concurrency, "existing bindings follow upstream limit changes")
+	require.False(t, accounts.accounts[account.ID].SupportsTransparentBackground(), "site sync preserves the local background veto")
 	assert.Equal(t, "ready", site.Bindings[0].Status)
 	require.Len(t, site.History, 1)
 	require.NoError(t, CheckSitePriceBeforeSend(WithSiteImageSize(ctx, "2K"), account, accounts), "queued request sees latest authoritative price")

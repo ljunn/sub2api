@@ -195,6 +195,21 @@ async function openCodexImportStep(toggleClicks = 0) {
 }
 
 describe('CreateAccountModal OpenAI long-context billing', () => {
+  it('creates an account with transparent background routing disabled', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await selectButtonByText(wrapper, 'API Key')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('Opaque images only')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
+    const field = wrapper.get('[data-testid="images-transparent-background-supported"]')
+    expect((field.element as HTMLInputElement).checked).toBe(true)
+    await field.setValue(false)
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.images_transparent_background_supported).toBe(false)
+    wrapper.unmount()
+  })
+
   it('creates a LongXia account and keeps media protocols mutually exclusive', async () => {
     const wrapper = mountModal()
     await selectButtonByText(wrapper, 'OpenAI')
