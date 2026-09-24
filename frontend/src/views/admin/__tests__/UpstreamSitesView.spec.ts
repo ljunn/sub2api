@@ -152,6 +152,45 @@ describe('upstream sites', () => {
     expect(options.some(text => text.includes(denied!))).toBe(false)
   })
 
+  it.each([false, true])('clears H3 group when switching to Wan3 and preserves an explicit alias: %s', async customAlias => {
+    site.models = [
+      { group_id: '36', group_name: 'H3', platform: 'powerby-h3', model: 'minimax-h3', tiers: [] },
+      { group_id: '40', group_name: 'Wan3', platform: 'wan3', model: 'wan3.0-video', tiers: [] },
+      { group_id: '40', group_name: 'Wan3', platform: 'wan3', model: 'wan3.0-video-prime', tiers: [] },
+    ]
+    wrapper = mountView()
+    await flushPromises()
+    await click('admin.sites.models')
+    wrapper.findComponent(SiteModelCatalogue).vm.$emit('bind', site.models[0])
+    await flushPromises()
+    const selects = wrapper.findAll('#binding-form select')
+    await selects[2]!.setValue('19')
+    await flushPromises()
+    const alias = wrapper.get<HTMLInputElement>('#binding-form input[list=site-local-models]')
+    if (customAlias) await alias.setValue('my-video')
+
+    await selects[0]!.setValue('40')
+    await flushPromises()
+    expect((selects[2]!.element as HTMLSelectElement).value).toBe('0')
+    expect(wrapper.get('button[form="binding-form"]').attributes('disabled')).toBeDefined()
+    expect(alias.element.value).toBe(customAlias ? 'my-video' : '')
+    expect(wrapper.findAll('#site-local-models option')).toHaveLength(0)
+
+    await selects[1]!.setValue('wan3.0-video')
+    await selects[2]!.setValue('9')
+    await flushPromises()
+    expect(alias.element.value).toBe(customAlias ? 'my-video' : 'wan3.0-video')
+    await selects[1]!.setValue('wan3.0-video-prime')
+    await flushPromises()
+    expect(alias.element.value).toBe(customAlias ? 'my-video' : 'wan3.0-video-prime')
+    expect((selects[2]!.element as HTMLSelectElement).value).toBe('9')
+    expect(selects[2]!.findAll('option').some(o => o.text().includes('MiniMax'))).toBe(false)
+    expect(mocks.pricePreview).toHaveBeenLastCalledWith('site', expect.objectContaining({
+      model: 'wan3.0-video-prime', local_group_id: 9,
+      local_model: customAlias ? 'my-video' : 'wan3.0-video-prime',
+    }))
+  })
+
   it('creates WUZU with console credentials and its credit conversion', async () => {
     mocks.routeQuery = {}
     wrapper = mountView()

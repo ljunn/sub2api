@@ -499,6 +499,7 @@
             busy ||
             pricingLoading ||
             !!pricingError ||
+            (!bindingForm.id && (!chosenModel || !compatibleGroups.some(g => g.id === bindingForm.local_group_id))) ||
             !bindingForm.local_group_id ||
             !bindingForm.local_model
           "
@@ -820,6 +821,7 @@ const emptyBinding = (): SiteBinding => ({
 })
 const bindingDialog = ref(false)
 const bindingForm = ref<SiteBinding>(emptyBinding())
+let suggestedLocalModel = ''
 function supportSaved(config: import('@/api/admin/upstreamSites').SiteTrafficSupport) {
   bindingForm.value.traffic_support = config
   const binding = selected.value?.bindings.find(b => b.id === bindingForm.value.id)
@@ -859,15 +861,29 @@ const compatibleGroups = computed(() =>
   ),
 )
 function clearUpstreamModel() {
+  if (bindingForm.value.local_model === suggestedLocalModel)
+    bindingForm.value.local_model = ''
+  suggestedLocalModel = ''
   bindingForm.value.model = ''
+  bindingForm.value.local_group_id = 0
+  localModels.value = []
   bindingForm.value.limits = []
+  bindingForm.value.price_tiers = []
 }
 function initLimits() {
   bindingForm.value.limits = []
-  if (!bindingForm.value.local_model)
+  bindingForm.value.price_tiers = []
+  if (!bindingForm.value.local_model || bindingForm.value.local_model === suggestedLocalModel)
     bindingForm.value.local_model = bindingForm.value.model
+  suggestedLocalModel = bindingForm.value.model
+  if (!compatibleGroups.value.some(g => g.id === bindingForm.value.local_group_id)) {
+    bindingForm.value.local_group_id = 0
+    localModels.value = []
+  }
 }
 function openBinding(binding?: SiteBinding, model?: SiteModel) {
+  suggestedLocalModel = binding?.model || ''
+  localModels.value = []
   bindingForm.value = binding
     ? JSON.parse(JSON.stringify(binding))
     : emptyBinding()
