@@ -21,14 +21,14 @@ func accountGrokMediaAPIFormat(account *Account) string {
 	if account == nil || account.Type != AccountTypeAPIKey {
 		return "xai"
 	}
-	if format := account.GetCredential(GrokMediaAPIFormatCredentialKey); format == "xai" || format == GrokMediaAPIFormatOpenAI {
+	if format := account.GetCredential(GrokMediaAPIFormatCredentialKey); validSiteVideoFormat(format) {
 		return format
 	}
 	if policy, managed := account.SitePolicy(); managed && policy.BindingID != "" {
-		if format := policy.VideoAPIFormat; format == "xai" || format == GrokMediaAPIFormatOpenAI {
+		if format := policy.VideoAPIFormat; validSiteVideoFormat(format) {
 			return format
 		}
-		if format := account.GetCredential(siteVideoAPIFormatCredentialKey); format == "xai" || format == GrokMediaAPIFormatOpenAI {
+		if format := account.GetCredential(siteVideoAPIFormatCredentialKey); validSiteVideoFormat(format) {
 			return format
 		}
 	}
@@ -39,11 +39,11 @@ func accountGrokMediaAPIFormat(account *Account) string {
 // without unknown fields. Keep the last advertised format in the untyped
 // credential map too, independently of the user's explicit format override.
 func cacheSiteGrokMediaAPIFormat(account *Account, policy SiteAccountPolicy) bool {
-	if account.Platform != PlatformGrok || account.Type != AccountTypeAPIKey || policy.BindingID == "" || policy.BindingID != account.GetCredential(SiteBindingCredentialKey) {
+	if (account.Platform != PlatformGrok && account.Platform != PlatformGemini && account.Platform != PlatformMiniMax && account.Platform != PlatformOpenAI) || account.Type != AccountTypeAPIKey || policy.BindingID == "" || policy.BindingID != account.GetCredential(SiteBindingCredentialKey) {
 		return false
 	}
 	format := policy.VideoAPIFormat
-	if (format != "xai" && format != GrokMediaAPIFormatOpenAI) || account.GetCredential(siteVideoAPIFormatCredentialKey) == format {
+	if !validSiteVideoFormat(format) || account.GetCredential(siteVideoAPIFormatCredentialKey) == format {
 		return false
 	}
 	account.Credentials[siteVideoAPIFormatCredentialKey] = format
@@ -51,6 +51,9 @@ func cacheSiteGrokMediaAPIFormat(account *Account, policy SiteAccountPolicy) boo
 }
 
 func prepareAccountGrokMediaBody(account *Account, endpoint GrokMediaEndpoint, body []byte, contentType string) ([]byte, string, error) {
+	if account.SupportsSiteVideoRelay() {
+		return prepareSiteVideoRelayBody(account, endpoint, body, contentType)
+	}
 	if endpoint != GrokMediaEndpointVideosGenerations || accountGrokMediaAPIFormat(account) != GrokMediaAPIFormatOpenAI {
 		return body, contentType, nil
 	}
@@ -109,7 +112,7 @@ func prepareAccountGrokMediaBody(account *Account, endpoint GrokMediaEndpoint, b
 // Keep the relay's outer task ID (needed for polling) and expose xAI's response
 // fields to downstream Grok clients. Some New API relays nest results twice.
 func normalizeAccountGrokVideoResponse(account *Account, endpoint GrokMediaEndpoint, body []byte) []byte {
-	if accountGrokMediaAPIFormat(account) != GrokMediaAPIFormatOpenAI || (endpoint != GrokMediaEndpointVideosGenerations && endpoint != GrokMediaEndpointVideoStatus) || !gjson.ValidBytes(body) {
+	if (accountGrokMediaAPIFormat(account) != GrokMediaAPIFormatOpenAI && !account.SupportsSiteVideoRelay()) || (endpoint != GrokMediaEndpointVideosGenerations && endpoint != GrokMediaEndpointVideoStatus) || !gjson.ValidBytes(body) {
 		return body
 	}
 	out := body
@@ -133,7 +136,7 @@ func normalizeAccountGrokVideoResponse(account *Account, endpoint GrokMediaEndpo
 	switch status {
 	case "completed", "success", "succeeded":
 		status = "done"
-	case "queued", "processing", "in_progress", "submitted":
+	case "queued", "processing", "in_progress", "submitted", "running":
 		status = "pending"
 	case "failure", "error":
 		status = "failed"
@@ -141,10 +144,10 @@ func normalizeAccountGrokVideoResponse(account *Account, endpoint GrokMediaEndpo
 	if status != "" {
 		set("status", status)
 	}
-	if value := first("video.url", "video_url", "url", "result_url", "data.data.video.url", "data.data.video_url", "data.data.url", "data.data.result_url", "data.video_url", "data.url"); value != "" {
+	if value := first("video.url", "video_url", "url", "download_url", "output.0.url", "result.video_url", "result.url", "result_url", "data.data.video.url", "data.data.video_url", "data.data.url", "data.data.result_url", "data.video_url", "data.url"); value != "" {
 		set("video.url", value)
 	}
-	if seconds, err := strconv.Atoi(first("video.duration", "duration", "seconds", "data.data.video.duration", "data.data.duration", "data.data.seconds")); err == nil && seconds > 0 {
+	if seconds, err := strconv.Atoi(strings.TrimSuffix(first("video.duration", "seconds", "duration", "data.data.video.duration", "data.data.duration", "data.data.seconds"), "s")); err == nil && seconds > 0 {
 		set("video.duration", seconds)
 	}
 	return out

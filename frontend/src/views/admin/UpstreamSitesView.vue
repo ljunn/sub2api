@@ -847,11 +847,15 @@ const chosenModel = computed(() =>
 const compatibleGroups = computed(() =>
   groups.value.filter(
     (g) =>
-      ['openai', 'anthropic', 'gemini', 'grok'].includes(g.platform) &&
+      ['openai', 'anthropic', 'gemini', 'grok', 'minimax'].includes(g.platform) &&
       (!['sub2api', 'kongfang', 'vividai', 'wuzu'].includes(selected.value?.kind || '') ||
         !chosenModel.value?.platform ||
         chosenModel.value.platform === g.platform ||
-        (selected.value?.kind === 'sub2api' && chosenModel.value.platform === 'openai' && g.platform === 'grok' && chosenModel.value.model.toLowerCase().startsWith('grok-'))),
+        (selected.value?.kind === 'sub2api' && (
+          (chosenModel.value.platform === 'openai' && g.platform === 'grok' && chosenModel.value.model.toLowerCase().startsWith('grok-')) ||
+          (chosenModel.value.platform === 'powerby-h3' && chosenModel.value.model === 'minimax-h3' && g.platform === 'minimax') ||
+          (chosenModel.value.platform === 'wan3' && ['wan3.0-video', 'wan3.0-video-prime'].includes(chosenModel.value.model) && g.platform === 'openai')
+        ))),
   ),
 )
 function clearUpstreamModel() {

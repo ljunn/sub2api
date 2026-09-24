@@ -42,6 +42,9 @@ func (a *siteAdapter) privatePricingCatalog(ctx context.Context, public, availab
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
 			}
+			if siteInsufficientBalance(err) {
+				return nil, err
+			}
 			a.warnings = append(a.warnings, fmt.Sprintf("分组「%s」同步失败：%s", group.Get("name").String(), err))
 			a.markGroupCatalogFailed(id, err)
 			continue
@@ -103,6 +106,9 @@ func (a *siteAdapter) existingKeyModelCatalog(ctx context.Context, groupID strin
 			}
 			catalog, err := a.requestWithHeaders(ctx, http.MethodGet, "/v1/models", nil, map[string]string{"Authorization": "Bearer " + key})
 			if err != nil {
+				if siteInsufficientBalance(err) {
+					return gjson.Result{}, err
+				}
 				lastErr = err
 				continue
 			}
@@ -144,6 +150,9 @@ func (a *siteAdapter) groupKeyModelCatalog(ctx context.Context, groupID string) 
 		if err == nil {
 			return result, nil
 		}
+		if siteInsufficientBalance(err) {
+			return gjson.Result{}, err
+		}
 		var remote *siteRemoteError
 		if !errors.As(err, &remote) || (remote.Status != 401 && remote.Status != 403) {
 			return gjson.Result{}, err
@@ -153,6 +162,9 @@ func (a *siteAdapter) groupKeyModelCatalog(ctx context.Context, groupID string) 
 	result, err := a.existingKeyModelCatalog(ctx, groupID)
 	if err == nil {
 		return result, nil
+	}
+	if siteInsufficientBalance(err) {
+		return gjson.Result{}, err
 	}
 	var remote *siteRemoteError
 	if !errors.Is(err, errNoSiteGroupKey) && (!errors.As(err, &remote) || (remote.Status != 401 && remote.Status != 403)) {

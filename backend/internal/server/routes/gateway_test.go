@@ -302,8 +302,8 @@ func TestGatewayRoutesCompositeChatCompletionsWithGrokModelUsesOpenAIGateway(t *
 	}
 }
 
-func TestGatewayRoutesNonGrokVideosAreRejectedAtPlatformGate(t *testing.T) {
-	router := newGatewayRoutesTestRouter(service.PlatformOpenAI)
+func TestGatewayRoutesUnsupportedVideoPlatformIsRejected(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformAnthropic)
 
 	for _, tc := range []struct {
 		method string
@@ -342,6 +342,23 @@ func TestGatewayRoutesNonGrokVideosAreRejectedAtPlatformGate(t *testing.T) {
 		router.ServeHTTP(w, req)
 		require.Equal(t, http.StatusNotFound, w.Code, "method=%s path=%s", tc.method, tc.path)
 		require.Contains(t, w.Body.String(), "Videos API is not supported for this platform")
+	}
+}
+
+func TestGatewayRoutesGeminiVideoRelayPathsReachHandler(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformGemini)
+	for _, tc := range []struct{ method, path string }{
+		{http.MethodPost, "/v1/videos"},
+		{http.MethodPost, "/v1/videos/generations"},
+		{http.MethodGet, "/v1/videos/task"},
+		{http.MethodGet, "/v1/videos/task/content"},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{"model":"veo-3.1","prompt":"waves"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusServiceUnavailable, w.Code, tc.path)
+		require.Contains(t, w.Body.String(), "Gemini video gateway is unavailable")
 	}
 }
 

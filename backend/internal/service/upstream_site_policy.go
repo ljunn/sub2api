@@ -195,7 +195,7 @@ func SitePriceVeto(ctx context.Context, a *Account) (bool, string) {
 	if a == nil {
 		return false, ""
 	}
-	if id, ok := ctx.Value(siteAcceptedVideoAccountKey{}).(int64); ok && id == a.ID && (a.IsVividAI() || a.IsLongXia()) {
+	if id, ok := ctx.Value(siteAcceptedVideoAccountKey{}).(int64); ok && id == a.ID && (a.IsVividAI() || a.IsLongXia() || a.SupportsSiteVideoRelay() || a.SupportsGeminiVideoRelay()) {
 		return false, ""
 	}
 	p, managed := a.SitePolicy()
@@ -228,10 +228,16 @@ func SitePriceVeto(ctx context.Context, a *Account) (bool, string) {
 	if p.LongXia != nil {
 		return longXiaSitePriceVeto(p, request)
 	}
-	if isGrokVideoGenerationModel(p.UpstreamModel) || isGrokVideoGenerationModel(p.LocalModel) {
+	if isGrokVideoGenerationModel(p.UpstreamModel) || isGrokVideoGenerationModel(p.LocalModel) || a.SupportsSiteVideoRelay() {
 		resolution := request.VideoResolution
 		if resolution == "" {
 			resolution = VideoBillingResolution480P
+			if a.SupportsSiteVideoRelay() {
+				resolution = "720p"
+			}
+		}
+		if accountGrokMediaAPIFormat(a) == SiteVideoFormatH3 && resolution == "768p" {
+			resolution = "720p"
 		}
 		for _, tier := range p.Tiers {
 			if tier.Key == "default" && (tier.Unit == "USD/request" || tier.Unit == "USD/second") {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 
@@ -37,7 +38,20 @@ func (a *siteAdapter) authenticatedPricingCatalog(ctx context.Context) ([]SiteMo
 	} else if !channels.Get("data").IsArray() {
 		return nil, errors.New("上游可用渠道数据不完整")
 	}
-	a.warnings = append(a.warnings, "已自动同步可用模型，缺少的采购价可手动填写。")
+	// Some forks expose media prices only on their public pricing page. Keep
+	// authenticated groups/rates authoritative and match public entries by ID.
+	if len(channels.Get("data").Array()) == 0 {
+		for _, group := range groups.Array() {
+			if group.Get("platform").String() != "powerby-h3" && group.Get("platform").String() != "wan3" {
+				continue
+			}
+			public, publicErr := a.request(ctx, http.MethodGet, "/api/v1/pricing/channels", nil)
+			if publicErr == nil && public.Get("data").IsArray() {
+				channels = public
+			}
+			break
+		}
+	}
 	out := []SiteModel{}
 	for _, group := range groups.Array() {
 		id := group.Get("id").String()
@@ -73,6 +87,9 @@ func (a *siteAdapter) authenticatedPricingCatalog(ctx context.Context) ([]SiteMo
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		if siteInsufficientBalance(keyErr) {
+			return nil, keyErr
+		}
 		if keyErr != nil {
 			a.markGroupCatalogFailed(id, keyErr)
 			if len(models) == 0 {
@@ -92,6 +109,12 @@ func (a *siteAdapter) authenticatedPricingCatalog(ctx context.Context) ([]SiteMo
 		for _, model := range models {
 			out = append(out, model)
 		}
+	}
+	if len(out) == 0 && len(a.failedGroups) > 0 {
+		return nil, errors.New("所有分组的模型目录均读取失败，请检查上游权限或站点验证要求")
+	}
+	if len(out) > 0 {
+		a.warnings = append([]string{"已自动同步可用模型，缺少的采购价可手动填写。"}, a.warnings...)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].GroupID != out[j].GroupID {
@@ -115,10 +138,22 @@ func siteAuthenticatedChannelModel(group, model, rates gjson.Result) (SiteModel,
 		return SiteModel{}, errors.New("上游渠道模型格式无效")
 	}
 	m["name"] = name
+	contract := siteVideoFormat("sub2api", SiteModel{Platform: group.Get("platform").String(), Model: name})
+	if contract != "" {
+		// The public H3 page labels the same group "minimax-h3" while the
+		// authenticated group uses "powerby-h3". Preserve the group's identity.
+		m["platform"] = group.Get("platform").String()
+		if p, ok := m["pricing"].(map[string]any); ok && p["billing_mode"] == "per_second" {
+			p["billing_mode"] = "video"
+		}
+	}
 	if model.Get("platform").String() == "" {
 		m["platform"] = group.Get("platform").String()
 	}
 	mode := model.Get("pricing.billing_mode").String()
+	if contract != "" && mode == "per_second" {
+		mode = "video"
+	}
 	if mode == "image" || mode == "video" {
 		// Channel prices are base prices. Group media overrides take precedence;
 		// the shared parser then applies personal/independent/peak multipliers.
@@ -159,6 +194,12 @@ func siteAuthenticatedChannelModel(group, model, rates gjson.Result) (SiteModel,
 		return SiteModel{}, err
 	}
 	out := parsed[0]
+	if contract != "" {
+		out.VideoAPIFormat = contract
+		if contract == SiteVideoFormatH3 {
+			out.Tiers = slices.DeleteFunc(out.Tiers, func(t SitePriceTier) bool { return t.Key != "720p" })
+		}
+	}
 	if out.Reason == "" && siteAuthenticatedMultiplierRedacted(group, rates, mode) {
 		out.Reason = "上游倍率为零，无法确认是免费还是隐藏价格"
 	}

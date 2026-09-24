@@ -83,9 +83,7 @@ func (h *UpstreamSiteHandler) Save(c *gin.Context) {
 	h.respondSite(c, site)
 }
 func (h *UpstreamSiteHandler) Sync(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
-	defer cancel()
-	site, err := h.service.Sync(ctx, c.Param("id"))
+	site, err := h.service.Sync(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return

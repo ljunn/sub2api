@@ -114,11 +114,17 @@ func buildGrokBillingURL(account *Account, cfg *config.Config, weekly bool) (str
 func buildGrokMediaURL(account *Account, cfg *config.Config, endpoint GrokMediaEndpoint, requestID string) (string, error) {
 	var validator xai.BaseURLValidator
 	var baseURL string
-	if account != nil && account.IsOpenAI() && account.Type == AccountTypeAPIKey {
+	if account != nil && (account.IsOpenAI() || account.SupportsGeminiVideoRelay() || account.SupportsSiteVideoRelay()) && account.Type == AccountTypeAPIKey {
 		// OpenAI-compatible relays may expose Grok media. Keep their configured
 		// host and the operator's URL policy; never default their keys to xAI.
 		validator = redactedGrokBaseURLValidator(grokOperatorPolicyValidator(cfg))
 		baseURL = account.GetOpenAIBaseURL()
+		if account.SupportsGeminiVideoRelay() {
+			baseURL = strings.TrimSuffix(strings.TrimRight(strings.TrimSpace(account.GetCredential("base_url")), "/"), "/v1beta")
+			if !strings.HasSuffix(baseURL, "/v1") {
+				baseURL += "/v1"
+			}
+		}
 	} else {
 		var err error
 		validator, err = grokBaseURLValidator(account, cfg)
@@ -133,7 +139,7 @@ func buildGrokMediaURL(account *Account, cfg *config.Config, endpoint GrokMediaE
 	case GrokMediaEndpointImagesEdits:
 		return xai.BuildImagesEditsURLWithValidator(baseURL, validator)
 	case GrokMediaEndpointVideosGenerations:
-		if accountGrokMediaAPIFormat(account) == GrokMediaAPIFormatOpenAI {
+		if format := accountGrokMediaAPIFormat(account); format == GrokMediaAPIFormatOpenAI || format == SiteVideoFormatH3 {
 			canonical, err := xai.BuildVideosGenerationsURLWithValidator(baseURL, validator)
 			return strings.TrimSuffix(canonical, "/generations"), err
 		}
@@ -143,6 +149,14 @@ func buildGrokMediaURL(account *Account, cfg *config.Config, endpoint GrokMediaE
 	case GrokMediaEndpointVideosExtensions:
 		return xai.BuildVideosExtensionsURLWithValidator(baseURL, validator)
 	case GrokMediaEndpointVideoStatus:
+		if accountGrokMediaAPIFormat(account) == SiteVideoFormatWan3 {
+			videoURL, err := xai.BuildVideoURLWithValidator(baseURL, requestID, validator)
+			if err != nil {
+				return "", err
+			}
+			separator := strings.LastIndex(videoURL, "/videos/")
+			return videoURL[:separator] + "/videos/tasks/" + videoURL[separator+len("/videos/"):], nil
+		}
 		return xai.BuildVideoURLWithValidator(baseURL, requestID, validator)
 	case GrokMediaEndpointVideoContent:
 		videoURL, err := xai.BuildVideoURLWithValidator(baseURL, requestID, validator)

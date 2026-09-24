@@ -28,7 +28,7 @@ vi.mock('@/api/admin/upstreamSites', async () => ({
   upstreamSitesApi: mocks,
 }))
 vi.mock('@/api/admin/groups', () => ({
-  getAll: async () => [{ id: 9, name: 'Local', platform: 'openai' }, { id: 12, name: 'Grok Video', platform: 'grok' }],
+  getAll: async () => [{ id: 9, name: 'Local', platform: 'openai' }, { id: 12, name: 'Grok Video', platform: 'grok' }, { id: 19, name: 'MiniMax H3', platform: 'minimax' }],
   getModelAllowlistCandidates: async () => ['local-image'],
 }))
 vi.mock('@/stores/app', () => ({
@@ -133,6 +133,23 @@ describe('upstream sites', () => {
     wrapper.findComponent(SiteModelCatalogue).vm.$emit('bind', site.models[0])
     await flushPromises()
     expect(wrapper.findAll('option').some(option => option.text().includes('Grok Video'))).toBe(false)
+    expect(wrapper.findAll('option').some(option => option.text().includes('MiniMax H3'))).toBe(false)
+  })
+
+  it.each([
+    ['powerby-h3', 'minimax-h3', 'MiniMax H3', 'Local'],
+    ['wan3', 'wan3.0-video-prime', 'Local', 'MiniMax H3'],
+  ])('offers the compatible local group for %s video', async (platform, model, allowed, denied) => {
+    site.models[0]!.platform = platform!
+    site.models[0]!.model = model!
+    wrapper = mountView()
+    await flushPromises()
+    await click('admin.sites.models')
+    wrapper.findComponent(SiteModelCatalogue).vm.$emit('bind', site.models[0])
+    await flushPromises()
+    const options = wrapper.findAll('#binding-form select')[2]!.findAll('option').map(o => o.text())
+    expect(options.some(text => text.includes(allowed!))).toBe(true)
+    expect(options.some(text => text.includes(denied!))).toBe(false)
   })
 
   it('creates WUZU with console credentials and its credit conversion', async () => {

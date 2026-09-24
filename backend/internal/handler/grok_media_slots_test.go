@@ -210,6 +210,14 @@ func newGrokMediaSlotHandler(t *testing.T, oauth, mismatch bool, platforms ...st
 			accounts[i].Platform = platforms[0]
 			accounts[i].Credentials["base_url"] = "https://ark.cn-beijing.volces.com/api/v3"
 			accounts[i].Credentials["openai_capabilities"] = []string{"seedance"}
+			if platforms[0] == service.PlatformGemini {
+				accounts[i].Credentials["base_url"] = "https://relay.example"
+				accounts[i].Credentials[service.GrokMediaAPIFormatCredentialKey] = "openai"
+			}
+		}
+		if len(platforms) > 1 {
+			accounts[i].Credentials["base_url"] = "https://relay.example"
+			accounts[i].Credentials[service.GrokMediaAPIFormatCredentialKey] = platforms[1]
 		}
 		if oauth {
 			accounts[i].Type = service.AccountTypeOAuth

@@ -50,9 +50,17 @@ func (h *OpenAIGatewayHandler) GrokVideoContent(c *gin.Context) {
 	h.handleGrokMedia(c, service.GrokMediaEndpointVideoContent, c.Param("request_id"))
 }
 
-func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.GrokMediaEndpoint, requestID string) {
+func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.GrokMediaEndpoint, requestID string, geminiSchedulers ...geminiVideoScheduler) {
 	platform := service.PlatformGrok
 	noAccountCode, noAccountMessage := "grok_media_no_eligible_account", "No eligible Grok media accounts"
+	var geminiScheduler geminiVideoScheduler
+	if len(geminiSchedulers) > 0 {
+		geminiScheduler = geminiSchedulers[0]
+	}
+	if geminiScheduler != nil {
+		platform = service.PlatformGemini
+		noAccountCode, noAccountMessage = "gemini_video_no_eligible_account", "No eligible Gemini video relay accounts"
+	}
 	if endpoint.IsSeedance() {
 		platform = service.PlatformOpenAI
 		noAccountCode, noAccountMessage = "seedance_no_eligible_account", "No eligible Seedance accounts"
@@ -65,6 +73,12 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	if !ok {
 		h.errorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
 		return
+	}
+	siteVideoRelay := !endpoint.IsSeedance() && service.IsGeminiVideoRelayEndpoint(endpoint) && apiKey.Group != nil &&
+		(apiKey.Group.Platform == service.PlatformMiniMax || apiKey.Group.Platform == service.PlatformOpenAI)
+	if siteVideoRelay {
+		platform = apiKey.Group.Platform
+		noAccountCode, noAccountMessage = "video_relay_no_eligible_account", "No eligible video relay accounts"
 	}
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
@@ -104,6 +118,13 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 
 	contentType := c.GetHeader("Content-Type")
 	requestInfo := service.ParseGrokMediaRequest(contentType, body)
+	if siteVideoRelay && endpoint.RequiresRequestBody() {
+		requestInfo, err = service.ParseSiteVideoRelayRequest(platform, contentType, body)
+		if err != nil {
+			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
+			return
+		}
+	}
 	if endpoint == service.SeedanceEndpointCreate {
 		requestInfo, err = service.ParseSeedanceRequest(body)
 		if err != nil {
@@ -214,6 +235,9 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	}
 	routingStart := time.Now()
 	requiredCapability := grokMediaRequiredCapability(endpoint)
+	if siteVideoRelay {
+		requiredCapability = service.OpenAIEndpointCapabilitySiteVideo
+	}
 	var accountReleaseFunc func()
 	releaseAccount := func() {
 		if accountReleaseFunc != nil {
@@ -230,7 +254,11 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		}
 		var selection *service.AccountSelectionResult
 		var scheduleDecision service.OpenAIAccountScheduleDecision
-		if boundLookupAccountID > 0 {
+		if geminiScheduler != nil && boundLookupAccountID > 0 {
+			selection, scheduleDecision, err = h.gatewayService.SelectGeminiVideoRequestAccount(requestCtx, apiKey.GroupID, boundLookupAccountID)
+		} else if geminiScheduler != nil {
+			selection, err = geminiScheduler.SelectAccountWithLoadAwareness(requestCtx, apiKey.GroupID, "", routingModel, failedAccountIDs, "", 0)
+		} else if boundLookupAccountID > 0 {
 			selection, scheduleDecision, err = h.gatewayService.SelectMediaVideoRequestAccount(
 				requestCtx, apiKey.GroupID, sessionHash, boundLookupAccountID, routingModel, platform,
 			)
@@ -325,7 +353,18 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		)
 
 		account := selection.Account
-		if endpoint.IsGenerationRequest() && !endpoint.IsSeedance() {
+		if (geminiScheduler != nil && !account.SupportsGeminiVideoRelay()) || (siteVideoRelay && !account.SupportsSiteVideoRelay()) {
+			releaseAccount()
+			mediaEligibilityRejected = true
+			failedAccountIDs[account.ID] = struct{}{}
+			if switchCount >= maxAccountSwitches {
+				h.errorResponse(c, http.StatusServiceUnavailable, noAccountCode, noAccountMessage)
+				return
+			}
+			switchCount++
+			continue
+		}
+		if endpoint.IsGenerationRequest() && !endpoint.IsSeedance() && geminiScheduler == nil && !siteVideoRelay {
 			eligible, eligibilityReason, eligibilityErr := h.ensureGrokMediaAccountEligibility(requestCtx, account)
 			if !eligible {
 				releaseAccount()
@@ -350,6 +389,10 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		}
 		sessionHash = ensureOpenAIPoolModeSessionHash(sessionHash, account)
 		setOpsSelectedAccount(c, account.ID, account.Platform)
+		if geminiScheduler != nil {
+			requestCtx = service.ContextWithSelectionProfitGate(requestCtx, selection)
+			c.Request = c.Request.WithContext(requestCtx)
+		}
 
 		admissionSessionHash := sessionHash
 		if boundLookupAccountID > 0 {
@@ -685,7 +728,7 @@ func prepareGrokVideoCompletionBilling(
 	// Official default resolution is 480p when the create request omitted it.
 	merged.VideoResolution = service.NormalizeVideoBillingResolutionOrDefault(merged.VideoResolution)
 	// Official default duration is 8s when neither status nor create provided it.
-	merged.VideoDurationSeconds = service.NormalizeVideoBillingDurationSecondsOrDefault(merged.VideoDurationSeconds)
+	merged.VideoDurationSeconds = service.NormalizeMediaVideoDuration(merged.Model, merged.UpstreamModel, merged.VideoDurationSeconds)
 	// E2E latency for async video: create accept → this discovery of done+url.
 	// Bill on discovery (status/content), not after further client polls; duration
 	// must not be only the single discovery hop (~hundreds of ms).

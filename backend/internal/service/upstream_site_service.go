@@ -296,6 +296,14 @@ func (s *UpstreamSiteService) Save(ctx context.Context, id string, input SiteInp
 	return site, nil
 }
 func (s *UpstreamSiteService) Sync(ctx context.Context, id string) (*UpstreamSite, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	// Finish submitted syncs and persist rotated credentials even if the
+	// administrator reloads the page. Background syncs still use their worker
+	// context so service shutdown cancels them normally.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+	defer cancel()
 	return s.sync(ctx, id, false)
 }
 func (s *UpstreamSiteService) sync(ctx context.Context, id string, dueOnly bool) (*UpstreamSite, error) {
@@ -324,6 +332,10 @@ func (s *UpstreamSiteService) sync(ctx context.Context, id string, dueOnly bool)
 	if syncErr != nil {
 		site.Status = "error"
 		site.Error = syncErr.Error()
+		site.Warnings = adapter.warnings
+		if len(site.Models) > 0 {
+			site.Warnings = append(site.Warnings, "本次同步失败，继续使用此前已确认的模型和采购价。")
+		}
 	} else {
 		var cacheWarnings []string
 		models, cacheWarnings = mergeSitePriceCache(site, models, adapter.failedGroups, now)
@@ -406,8 +418,8 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 	if err != nil {
 		return nil, err
 	}
-	if group.Platform != PlatformOpenAI && group.Platform != PlatformAnthropic && group.Platform != PlatformGemini && group.Platform != PlatformGrok {
-		return nil, errors.New("支持绑定到 OpenAI、Anthropic、Gemini、Grok 分组")
+	if group.Platform != PlatformOpenAI && group.Platform != PlatformAnthropic && group.Platform != PlatformGemini && group.Platform != PlatformGrok && group.Platform != PlatformMiniMax {
+		return nil, errors.New("支持绑定到 OpenAI、Anthropic、Gemini、Grok、MiniMax 分组")
 	}
 	if err = s.admin.ValidateAccountGroupBindings(ctx, []int64{group.ID}); err != nil {
 		return nil, err
@@ -420,7 +432,7 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 		return nil, errors.New("尚未取得有效价格目录，请先同步")
 	}
 	compatibleGrok := site.Kind == "sub2api" && model.Platform == PlatformOpenAI && group.Platform == PlatformGrok && strings.HasPrefix(strings.ToLower(model.Model), "grok-")
-	if model.Platform != "" && (site.Kind == "sub2api" || site.Kind == "kongfang" || site.Kind == "vividai" || site.Kind == "wuzu" || model.LongXia != nil) && model.Platform != group.Platform && !compatibleGrok {
+	if model.Platform != "" && (site.Kind == "sub2api" || site.Kind == "kongfang" || site.Kind == "vividai" || site.Kind == "wuzu" || model.LongXia != nil) && model.Platform != group.Platform && !compatibleGrok && !siteVideoPlatformCompatible(site.Kind, *model, group.Platform) {
 		return nil, errors.New("本地分组与上游模型的平台不匹配")
 	}
 	s.refreshBindingPrice(ctx, site, &input)
@@ -537,6 +549,9 @@ func BuildSiteAccountPolicy(site *UpstreamSite, b *SiteBinding) SiteAccountPolic
 			p.FreshUntil = effective.PriceUpdatedAt.Add(10 * time.Minute)
 		}
 		p.VideoAPIFormat = effective.VideoAPIFormat
+		if format := siteVideoFormat(site.Kind, effective); format != "" {
+			p.VideoAPIFormat = format
+		}
 		p.Wuzu = effective.Wuzu
 		p.ManualPrice = effective.ManualPrice != nil
 		p.Image = effective.Image

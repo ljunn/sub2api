@@ -31,10 +31,18 @@ type siteRemoteError struct {
 }
 
 func (e *siteRemoteError) Error() string {
+	if e.Status == http.StatusForbidden && e.Code == "INSUFFICIENT_BALANCE" {
+		return "上游账户余额不足，请在上游充值后重新同步（INSUFFICIENT_BALANCE）"
+	}
 	if detail := siteAuthErrorDetail(e.Code); detail != "" {
 		return fmt.Sprintf("上游接口 %s 返回 HTTP %d（%s）：%s", e.Path, e.Status, e.Code, detail)
 	}
 	return fmt.Sprintf("上游接口 %s 返回 HTTP %d，请检查登录凭据、权限或站点验证要求", e.Path, e.Status)
+}
+
+func siteInsufficientBalance(err error) bool {
+	var remote *siteRemoteError
+	return errors.As(err, &remote) && remote.Status == http.StatusForbidden && remote.Code == "INSUFFICIENT_BALANCE"
 }
 
 type siteAdapter struct {
@@ -108,7 +116,11 @@ func (a *siteAdapter) requestWithHeaders(ctx context.Context, method, path strin
 		return gjson.Result{}, errors.New("上游响应过大或读取失败")
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return gjson.Result{}, &siteRemoteError{Status: resp.StatusCode, Path: path, Code: gjson.GetBytes(raw, "code").String()}
+		code := gjson.GetBytes(raw, "code").String()
+		if code == "" {
+			code = gjson.GetBytes(raw, "error.code").String()
+		}
+		return gjson.Result{}, &siteRemoteError{Status: resp.StatusCode, Path: path, Code: code}
 	}
 	if !gjson.ValidBytes(raw) {
 		return gjson.Result{}, errors.New("上游没有返回 JSON，请检查站点地址或人机验证")
@@ -523,7 +535,7 @@ func parseNewAPISiteCatalog(result gjson.Result) ([]SiteModel, error) {
 				if endpoint.String() == "image-generation" {
 					m.Image = true
 				}
-				if endpoint.String() == "openai-videos" && isGrokVideoGenerationModel(m.Model) {
+				if endpoint.String() == "openai-video" || endpoint.String() == "openai-videos" {
 					m.VideoAPIFormat = GrokMediaAPIFormatOpenAI
 				}
 			}

@@ -2181,8 +2181,12 @@ func (s *BillingService) CalculateVideoCost(model string, resolution string, vid
 		return &CostBreakdown{}
 	}
 	resolution = NormalizeVideoBillingResolutionOrDefault(resolution)
-	durationSeconds = NormalizeVideoBillingDurationSecondsOrDefault(durationSeconds)
+	durationSeconds = NormalizeMediaVideoDuration(model, "", durationSeconds)
+	return s.calculateVideoCostForDuration(model, resolution, videoCount, durationSeconds, groupConfig, rateMultiplier)
+}
 
+// The caller has already validated the duration against the selected protocol.
+func (s *BillingService) calculateVideoCostForDuration(model, resolution string, videoCount, durationSeconds int, groupConfig *VideoPriceConfig, rateMultiplier float64) *CostBreakdown {
 	perSecondPrice := s.getVideoUnitPrice(model, resolution, groupConfig)
 	totalCost := perSecondPrice * float64(durationSeconds) * float64(videoCount)
 

@@ -47,7 +47,7 @@ import { upstreamSitesApi, type SiteModel, type SiteManualPrice, type UpstreamSi
 const props = defineProps<{ siteId: string; model: SiteModel }>()
 const emit = defineEmits<{ close: []; saved: [site: UpstreamSite] }>()
 const { t } = useI18n()
-const isVideoModel = computed(() => /^(?:(?:xai|x-ai|grok)\/)?grok-(?:imagine-)?video/i.test(props.model.model) || props.model.vividai?.kind === 'video' || props.model.tiers.some(t => t.unit === 'USD/second'))
+const isVideoModel = computed(() => /^(?:(?:xai|x-ai|grok)\/)?grok-(?:imagine-)?video/i.test(props.model.model) || props.model.vividai?.kind === 'video' || ['minimax-h3', 'wan3.0-video', 'wan3.0-video-prime'].includes(props.model.model) || props.model.tiers.some(t => t.unit === 'USD/second'))
 const invalidImagePrice = computed(() => isVideoModel.value && props.model.manual_price?.billing_mode === 'image')
 const savedPrice = invalidImagePrice.value ? undefined : props.model.manual_price
 function initialMode(): SiteManualPrice['billing_mode'] {
