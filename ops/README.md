@@ -2,7 +2,7 @@
 
 固定源码目录：**`/opt/sub2api/source`**。这是独立 Git 仓库，`.git` 和对象库都在此目录，不能改为指向 `/tmp` 的 worktree。
 
-- 本机维护仓库：<https://github.com/ljunn/sub2api>，分支 `host-production`。
+- 本机维护仓库：<https://github.com/ljunn/sub2api>，分支 `main`。
 - 上游：`upstream` → <https://github.com/Wei-Shaw/sub2api>。
 - 初始源码基线：`5de5e2bed035d43591a2e10e51f420ef6a84eb98`，对应迁移前二进制记录的提交。
 - `backend/cmd/server/VERSION` 与选定的上游 release 对齐；当前源码基线已合入 `v0.2.8` 及版本号同步提交 `a3eb7ef30`，本机源码版本为 `0.2.8`。上游 release 工作流会在打包时更新此文件，tag 内可能仍是旧值，合并时须按 release 修正。
@@ -16,7 +16,7 @@
 用户于 **2026-09-21** 明确要求：**所有待发布改动一起提交、推送、打包，不能只发布其中一部分。** 本约定同时适用于 6556 审阅预览和生产发布。
 
 1. 在 `/opt/sub2api/source` 检查 `git status --short`、已暂存和未暂存差异，以及未跟踪源码；把全部待发布功能及关联前端、后端、配置、测试、文档纳入同一个完整版本。保留已有工作，不能只提交最近新增的功能；凭据、私有运行配置和临时产物不提交。
-2. 对完整工作区完成测试，提交并推送 `host-production`，确认工作区干净。可以保留已有提交历史，但最后的 `HEAD` 必须包含所有待发布功能。
+2. 对完整工作区完成测试，提交并推送 `main`，确认工作区干净。可以保留已有提交历史，但最后的 `HEAD` 必须包含所有待发布功能。
 3. 运行 `./ops/build-local.sh`。脚本已移除 `--committed-head` 部分构建入口；任何未提交/未跟踪源码、未推送 HEAD，或构建过程中出现新改动，都阻止形成可发布产物。不要使用独立索引、部分暂存、临时 checkout 或手动 `git archive` 绕过这一要求。
 4. 用完整产物更新 6556，按功能清单逐项审阅，并向用户说明预览包含的内容。本次统一版本包含：站点模型与价格调度、空凡登录/图片协议/VIP 积分价格、Sub2API/New API/空凡余额自动扫描、复用系统邮件管理的低余额提醒、每个绑定一行的紧凑页面、账号实时调度状态，以及采用对方站点分组的 `【站点】模型（分组）` 账号名称。只更新站点绑定所管理的账号，不修改历史独立账号。
 5. 用户确认此完整预览并明确同意上线后，才执行生产发布。若审阅后新增改动，重新整合、测试、提交、推送、构建并更新预览，不能上线未经审阅的不同版本。
@@ -37,7 +37,7 @@ go test -p 2 -tags=unit ./internal/service ./internal/handler \
 cd ..
 git add <全部已审阅的待发布文件>
 git commit -m '说明本次修改'
-git push origin host-production
+git push origin main
 ./ops/build-local.sh
 ```
 
@@ -136,7 +136,7 @@ cd /opt/sub2api/source
 ./ops/release-local.sh
 ```
 
-脚本要求 `host-production` 分支、干净工作区，并验证当前提交已存在于 GitHub。它先完成本机源码构建，再切换 `current` 链接、重启 **仅** `sub2api.service`。既有 systemd `ExecStart=/opt/sub2api/sub2api` 不变，该路径在首次切换时成为指向 `current/sub2api` 的链接。
+脚本要求 HEAD、本地 `main` 和现场获取的 `origin/main` 完全一致，且工作区干净；允许固定在同一 main 提交的 detached checkout。构建前后及实际切换前都会重新检查。它先完成本机源码构建，再切换 `current` 链接、重启 **仅** `sub2api.service`。既有 systemd `ExecStart=/opt/sub2api/sub2api` 不变，该路径在首次切换时成为指向 `current/sub2api` 的链接。
 
 首次切换会保留原二进制到 `releases/legacy-<SHA前12位>/`。健康检查同时核对实际运行的二进制路径和 `http://127.0.0.1:7654/health`；失败自动恢复旧版本。
 
@@ -180,3 +180,9 @@ cd /opt/sub2api/source
 同日补充修复：站点托管 Grok 账号手动选择上游格式曾被通用凭据保护拦截并返回 500，现允许单独修改格式和原样回传未变更分组/凭据，保留受管密钥与价格策略；真正修改受管字段返回 400 及明确说明。旧版生产同步导致自动识别格式丢失时，使用绑定/同步保存的账号格式缓存，避免测试重新调用 `/v1/videos/generations`。细节见 [UPSTREAM_SITES.md](UPSTREAM_SITES.md)。此次只修复格式持久化和保存流程，不修改采购价或售价；沿用完整 v0.2.8 预览。协议回归使用模拟上游，真实上游结果以预览账号验证记录为准。
 
 同日新增渠道透明背景开关：OpenAI/Grok 账号可声明不支持透明背景，调度时跳过明确要求透明背景的图片请求，覆盖重试、换渠道、粘性账号和调度缓存；已有账号保持原行为，站点同步保留设置。配置与边界见 [IMAGE_BACKGROUND.md](IMAGE_BACKGROUND.md)。统一 6556 预览同时保留上述全部功能，生产尚需审阅确认。
+
+## 2026-09-24：统一 main 维护入口
+
+按用户要求，原 `host-production` 的完整版本快进合入 `main`，包含已有上游 v0.2.8、站点管理、价格调度、Grok 图片/视频适配、透明背景能力及全部本机修复。后续统一提交并推送 `origin/main`；GitHub 默认分支和本地跟踪分支同步改为 main。原 `host-production` 保留历史，不再继续开发或发布。分支核查结果与保留项见 [MAIN_BRANCH_AUDIT_20260924.md](MAIN_BRANCH_AUDIT_20260924.md)。
+
+构建与发布共用 `ops/require-main.sh` 校验完整主分支版本，`ops/test-require-main.py` 使用临时 Git 仓库验证通过与拒绝场景，不访问业务数据库。分支合并不等于授权生产发布，仍须先审阅 6556。
