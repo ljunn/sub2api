@@ -108,6 +108,29 @@ func TestAccountTestGrokOpenAIImageUsesSelectedModel(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `"success":true`)
 }
 
+func TestGrokOpenAIVideoContentUsesRelayAndPreservesRange(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	account := openAIFormatGrokAccount()
+	upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
+		{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"id":"task_outer","status":"completed","seconds":"6","video_url":"https://cdn.example/result.mp4"}`))},
+		{StatusCode: http.StatusPartialContent, Header: http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 0-3/4"}}, Body: io.NopCloser(strings.NewReader("mp4!"))},
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/videos/task_outer/content", nil)
+	c.Request.Header.Set("Range", "bytes=0-3")
+	result, err := svc.ForwardGrokMedia(context.Background(), c, account, GrokMediaEndpointVideoContent, "task_outer", nil, "")
+	require.NoError(t, err)
+	require.Equal(t, 2, upstream.callCount)
+	require.Equal(t, "https://relay.example/v1/videos/task_outer/content", upstream.reqs[1].URL.String())
+	require.Equal(t, "Bearer test-key", upstream.reqs[1].Header.Get("Authorization"))
+	require.Equal(t, "bytes=0-3", upstream.reqs[1].Header.Get("Range"))
+	require.Equal(t, http.StatusPartialContent, recorder.Code)
+	require.Equal(t, "mp4!", recorder.Body.String())
+	require.Equal(t, 6, result.VideoDurationSeconds)
+}
+
 func TestUpstreamSiteNewAPIVideoMetadataAndUnits(t *testing.T) {
 	models, err := parseNewAPISiteCatalog(gjson.Parse(`{"data":[
 	{"model_name":"grok-imagine-video","model_price_type":"second","quota_type":1,"model_price":0.05,"enable_groups":["grok"],"supported_endpoint_types":["openai-videos"]},

@@ -456,10 +456,20 @@ func parseSub2APISiteCatalog(groups, rates gjson.Result) ([]SiteModel, error) {
 				if _, ok := prices["output_price"]; !ok {
 					m.Reason = "缺少输出单价"
 				}
-				if max, ok := siteNumber(p.Get("max_reasoning_effort_multiplier")); ok && max > 1 {
-					for k := range prices {
-						prices[k] *= max
+				reasoningMultiplier := 1.0
+				if generic := p.Get("reasoning_effort_multipliers"); generic.Exists() {
+					for _, value := range generic.Map() {
+						if multiplier, ok := siteNumber(value); ok && multiplier > 0 {
+							reasoningMultiplier = math.Max(reasoningMultiplier, multiplier)
+						} else {
+							m.Reason = "推理倍率无效，无法确认价格"
+						}
 					}
+				} else if multiplier, ok := siteNumber(p.Get("max_reasoning_effort_multiplier")); ok {
+					reasoningMultiplier = math.Max(reasoningMultiplier, multiplier)
+				}
+				for k := range prices {
+					prices[k] *= reasoningMultiplier
 				}
 				tier := SitePriceTier{Key: "default", Unit: "USD/1M tokens", Prices: prices}
 				if len(p.Get("intervals").Array()) > 0 {

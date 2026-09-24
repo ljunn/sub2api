@@ -887,11 +887,16 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	}
 	statusBody = normalizeAccountGrokVideoResponse(account, GrokMediaEndpointVideoStatus, statusBody)
 
-	contentURL, err := grokMediaSignedVideoContentURL(statusBody, requestID)
-	if err != nil {
-		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-		return nil, err
+	contentURL := ""
+	if accountGrokMediaAPIFormat(account) != GrokMediaAPIFormatOpenAI {
+		contentURL, err = grokMediaSignedVideoContentURL(statusBody, requestID)
+		if err != nil {
+			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
+			return nil, err
+		}
 	}
+	// OpenAI relays serve content on their authenticated /videos/{id}/content.
+	// Never attach relay credentials to a CDN URL supplied in the status body.
 	signedContent := contentURL != ""
 	if !signedContent {
 		contentURL, err = buildGrokMediaURL(account, s.cfg, GrokMediaEndpointVideoContent, requestID)

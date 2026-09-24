@@ -5,7 +5,7 @@
 - 本机维护仓库：<https://github.com/ljunn/sub2api>，分支 `host-production`。
 - 上游：`upstream` → <https://github.com/Wei-Shaw/sub2api>。
 - 初始源码基线：`5de5e2bed035d43591a2e10e51f420ef6a84eb98`，对应迁移前二进制记录的提交。
-- `backend/cmd/server/VERSION` 与选定的上游 release 对齐；当前源码基线已合入 `v0.2.7`，本机源码版本为 `0.2.7`。上游 release 工作流会在打包时更新此文件，tag 内可能仍是旧值，合并时须按 release 修正。
+- `backend/cmd/server/VERSION` 与选定的上游 release 对齐；当前源码基线已合入 `v0.2.8` 及版本号同步提交 `a3eb7ef30`，本机源码版本为 `0.2.8`。上游 release 工作流会在打包时更新此文件，tag 内可能仍是旧值，合并时须按 release 修正。
 - 生产仍由 `sub2api.service` 管理，工作目录 `/opt/sub2api`，端口 **7654**。
 - 配置 `/opt/sub2api/config.yaml`、安装标记、现有 PostgreSQL/Redis 和业务数据沿用现有部署，不进入 Git。
 - `/opt/image2api` 是独立项目，不要为了修 Sub2API 修改它或切换其 6555 预览。
@@ -164,3 +164,15 @@ cd /opt/sub2api/source
 ## 2026-09-22：流量扶持审阅
 
 完整版本新增站点绑定「调度设置 → 流量扶持」：可配置比例和截止时间、按健康状态逐步恢复、共享 5% 恢复试调、Redis 原子首发计数与 24 小时性能历史、账号列表状态及设置跳转。规则与验证见 [UPSTREAM_SITES.md](UPSTREAM_SITES.md)。本次用户指定空凡 `gpt-image-2` 的目标为 20%，其他绑定默认关闭；预览保存使用独立设置项，旧版生产同步不覆盖，生产发布仍需审阅确认。
+
+
+## 2026-09-24：合入 v0.2.8 与 Grok 上游格式
+
+统一预览包含上游 `v0.2.8`（及 `a3eb7ef30` 版本号同步）、此前站点/余额/调度修改、Grok 分组绑定、视频秒价、Grok 类型使用 OpenAI 媒体端点及对应模型测试。合并冲突保留本机站点核价/请求观察、托管模型别名、400 换渠道和弹窗滚动锁，同时采用上游 Gemini 传输错误统一换号、复合分组图片路由及新增服务，Wire 重新生成。
+
+启动前只读核对共享库：4 个分组仍含旧 `max_reasoning_effort_multiplier`。本机首次执行的 `239_channel_reasoning_effort_multipliers.sql` 保留此旧 JSON 字段，再添加通用倍率映射；不移除线上旧二进制需要的字段。分组定价 JSON 兼容读取旧字段，新保存时向旧字段镜像 `max`，显式清空映射不复活旧值。此迁移是本机维护版本，后续合并不得用上游删除旧字段的版本覆盖已登记 checksum。原已执行迁移和平台扩展兼容不变。上游站点通用推理倍率按最高值保守核价。
+
+验证使用单元测试和浏览器模拟数据，不向共享库写测试夹具，不提交真实媒体生成任务。只更新 `sub2api-preview` 的 6556，生产 `sub2api.service` 和 image2api 的 6555 不变。
+
+
+本次验证：前端 339 个测试文件、2,544 项测试全部通过，Vue 类型检查通过；后端 service 全量回归及 handler、admin、dto、quotaview、routes、repository、migrations 与 Wire 单元测试通过，新增 Grok 内容下载路径补充回归通过。新迁移及定价读写在 Testcontainers 创建的 `sub2api_test` 独立库验证通过。补充修复用量查询页卸载后遗留的动画计时器，避免异步回调访问已卸载页面。

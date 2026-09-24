@@ -428,3 +428,21 @@ func TestUpstreamSiteSub2APIIntervalMultipliersAndIndependentImageRate(t *testin
 	require.InDelta(t, 0.6, models[0].Tiers[0].Prices["request"], 1e-12)
 	require.Equal(t, map[string]float64{"input_price": 2, "output_price": 9, "cache_write_price": 5, "cache_write_1h_price": 5}, models[1].Tiers[0].Prices)
 }
+
+func TestUpstreamSiteSub2APIGenericReasoningCostCeiling(t *testing.T) {
+	for _, tc := range []struct {
+		pricing string
+		input   float64
+	}{
+		{`"max_reasoning_effort_multiplier":2`, 2},
+		{`"max_reasoning_effort_multiplier":2,"reasoning_effort_multipliers":{"max":3,"high":4}`, 4},
+		{`"max_reasoning_effort_multiplier":2,"reasoning_effort_multipliers":{}`, 1},
+	} {
+		groups := gjson.Parse(`[{"id":1,"rate_multiplier":1,"models":[{"name":"text","pricing":{"billing_mode":"token","input_price":0.000001,"output_price":0.000002,` + tc.pricing + `}}]}]`)
+		models, err := parseSub2APISiteCatalog(groups, gjson.Parse(`{}`))
+		require.NoError(t, err)
+		require.Len(t, models, 1)
+		require.Equal(t, tc.input, models[0].Tiers[0].Prices["input_price"])
+		require.Equal(t, tc.input*2, models[0].Tiers[0].Prices["output_price"])
+	}
+}

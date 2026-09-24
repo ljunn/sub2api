@@ -44,13 +44,7 @@
 
 <script lang="ts">
 let dialogIdCounter = 0
-const openDialogIds = new Set<string>()
-
-function unlockDialog(id: string) {
-  if (openDialogIds.delete(id) && openDialogIds.size === 0) {
-    document.body.classList.remove('modal-open')
-  }
-}
+const openDialogs = new Set<string>()
 </script>
 
 <script setup lang="ts">
@@ -123,6 +117,12 @@ const handleEscape = (event: KeyboardEvent) => {
   }
 }
 
+const updateScrollLock = (isOpen: boolean) => {
+  if (isOpen) openDialogs.add(dialogId)
+  else openDialogs.delete(dialogId)
+  document.body.classList.toggle('modal-open', openDialogs.size > 0)
+}
+
 // Prevent body scroll when modal is open and manage focus
 watch(
   () => props.show,
@@ -130,9 +130,8 @@ watch(
     if (isOpen) {
       // 保存当前焦点元素
       previousActiveElement = document.activeElement as HTMLElement
-      // Track owners: replacing one dialog must not unlock its successor.
-      openDialogIds.add(dialogId)
-      document.body.classList.add('modal-open')
+      // 使用CSS类而不是直接操作style,更易于管理多个对话框
+      updateScrollLock(true)
 
       // 等待DOM更新后设置焦点到对话框
       await nextTick()
@@ -146,7 +145,7 @@ watch(
         firstFocusable?.focus()
       }
     } else {
-      unlockDialog(dialogId)
+      updateScrollLock(false)
       // 恢复之前的焦点
       if (previousActiveElement && typeof previousActiveElement.focus === 'function') {
         previousActiveElement.focus()
@@ -163,7 +162,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleEscape)
-  unlockDialog(dialogId)
-  if (openDialogIds.size === 0) previousActiveElement?.focus()
+  // 确保组件卸载时移除滚动锁定
+  updateScrollLock(false)
+  if (openDialogs.size === 0) previousActiveElement?.focus()
 })
 </script>

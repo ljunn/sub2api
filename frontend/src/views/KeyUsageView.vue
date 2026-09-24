@@ -462,6 +462,8 @@ const showDatePicker = ref(false)
 const resultData = ref<any>(null)
 const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
+let ringAnimationVersion = 0
+let ringAnimationTimer: ReturnType<typeof setTimeout> | null = null
 
 // ==================== Date Range State ====================
 
@@ -556,12 +558,18 @@ function getRingOffset(ring: RingItem): number {
 }
 
 function triggerRingAnimation(items: RingItem[]) {
+  const version = ++ringAnimationVersion
+  if (ringAnimationTimer) clearTimeout(ringAnimationTimer)
   ringAnimated.value = false
   displayPcts.value = items.map(() => 0)
 
   nextTick(() => {
+    if (version !== ringAnimationVersion) return
     requestAnimationFrame(() => {
-      setTimeout(() => {
+      if (version !== ringAnimationVersion) return
+      ringAnimationTimer = setTimeout(() => {
+        if (version !== ringAnimationVersion) return
+        ringAnimationTimer = null
         ringAnimated.value = true
 
         // Animate percentage numbers
@@ -570,6 +578,7 @@ function triggerRingAnimation(items: RingItem[]) {
         const targets = items.map(item => item.isBalance ? 0 : item.pct)
 
         function tick() {
+          if (version !== ringAnimationVersion) return
           const elapsed = performance.now() - startTime
           const p = Math.min(elapsed / duration, 1)
           const ease = 1 - Math.pow(1 - p, 3)
@@ -940,6 +949,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (resetTimer) clearInterval(resetTimer)
+  ringAnimationVersion++
+  if (ringAnimationTimer) clearTimeout(ringAnimationTimer)
 })
 </script>
 

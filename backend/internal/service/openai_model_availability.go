@@ -90,6 +90,7 @@ func isOpenAIModelUnavailableMessage(message string) bool {
 		return strings.TrimSpace(model) != ""
 	}
 	return strings.Contains(msg, "unknown provider for model") ||
+		strings.Contains(msg, "unknown model") ||
 		strings.Contains(msg, "model not found") ||
 		strings.Contains(msg, "model is not supported") ||
 		(strings.HasPrefix(msg, "model ") && strings.Contains(msg, " is not supported by any configured account"))
