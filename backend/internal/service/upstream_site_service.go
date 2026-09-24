@@ -491,6 +491,7 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 			var policyMap map[string]any
 			_ = json.Unmarshal(raw, &policyMap)
 			account := &Account{Name: siteManagedAccountName(site.Name, binding.Model, model.GroupName), Platform: group.Platform, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: siteAccountConcurrency(site), Priority: 50, Credentials: map[string]any{"base_url": site.BaseURL, "api_key": key, "model_mapping": map[string]any{binding.LocalModel: binding.Model}, "pool_mode": true, "pool_mode_retry_count": 0, SiteBindingCredentialKey: binding.ID}, Extra: map[string]any{"upstream_site_binding_id": binding.ID, "upstream_site_id": site.ID, SitePolicyExtraKey: policyMap, UpstreamBillingProbeEnabledExtraKey: false}}
+			cacheSiteGrokMediaAPIFormat(account, policy)
 			if site.Kind == "vividai" {
 				account.Extra[AccountExtraVividAI] = true
 			}
@@ -606,6 +607,9 @@ func (s *UpstreamSiteService) updatePolicies(ctx context.Context, site *Upstream
 			accountChanged = !account.IsVividAI() || account.GetCredential("api_key") != credentials.AccessToken
 			account.Extra[AccountExtraVividAI] = true
 			account.Credentials["api_key"] = credentials.AccessToken
+		}
+		if cacheSiteGrokMediaAPIFormat(account, policy) {
+			accountChanged = true
 		}
 		// Older bindings predate the explicit retry setting. Initialize them once
 		// without overwriting a subsequently configured account retry policy.

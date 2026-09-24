@@ -176,3 +176,5 @@ cd /opt/sub2api/source
 
 
 本次验证：前端 339 个测试文件、2,544 项测试全部通过，Vue 类型检查通过；后端 service 全量回归及 handler、admin、dto、quotaview、routes、repository、migrations 与 Wire 单元测试通过，新增 Grok 内容下载路径补充回归通过。新迁移及定价读写在 Testcontainers 创建的 `sub2api_test` 独立库验证通过。补充修复用量查询页卸载后遗留的动画计时器，避免异步回调访问已卸载页面。
+
+同日补充修复：站点托管 Grok 账号手动选择上游格式曾被通用凭据保护拦截并返回 500，现允许单独修改格式和原样回传未变更分组/凭据，保留受管密钥与价格策略；真正修改受管字段返回 400 及明确说明。旧版生产同步导致自动识别格式丢失时，使用绑定/同步保存的账号格式缓存，避免测试重新调用 `/v1/videos/generations`。细节见 [UPSTREAM_SITES.md](UPSTREAM_SITES.md)。此次只修复格式持久化和保存流程，不修改采购价或售价；沿用完整 v0.2.8 预览。协议回归使用模拟上游，真实上游结果以预览账号验证记录为准。

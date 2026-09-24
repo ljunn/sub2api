@@ -23,7 +23,7 @@ func TestUpstreamSiteGrokBindingCreatesGrokAccount(t *testing.T) {
 			svc.admin = siteGrokAdmin{}
 			now := time.Now()
 			binding := SiteBinding{ID: "pending", GroupID: "up", Model: "grok-imagine-video", LocalModel: "local-video", LocalGroupID: 9, Enabled: true}
-			site := &UpstreamSite{ID: "grok", Kind: "sub2api", Enabled: true, LastSuccess: &now, Bindings: []SiteBinding{binding}, Models: []SiteModel{{GroupID: "up", Model: binding.Model, Platform: platform, Tiers: []SitePriceTier{{Key: "default", Unit: "USD/request", Prices: map[string]float64{"request": .01}}}}}}
+			site := &UpstreamSite{ID: "grok", Kind: "sub2api", Enabled: true, LastSuccess: &now, Bindings: []SiteBinding{binding}, Models: []SiteModel{{GroupID: "up", Model: binding.Model, Platform: platform, VideoAPIFormat: "openai", Tiers: []SitePriceTier{{Key: "default", Unit: "USD/request", Prices: map[string]float64{"request": .01}}}}}}
 			require.NoError(t, svc.saveSecret(context.Background(), site, &SiteCredentials{Keys: map[string]string{binding.ID: "test-key"}}))
 			updated, err := svc.Bind(context.Background(), site.ID, binding)
 			if platform == PlatformGemini {
@@ -37,9 +37,28 @@ func TestUpstreamSiteGrokBindingCreatesGrokAccount(t *testing.T) {
 			require.Equal(t, PlatformGrok, account.Platform)
 			require.Equal(t, "grok-imagine-video", account.GetMappedModel("local-video"))
 			require.Equal(t, []int64{9}, account.GroupIDs)
+			require.Equal(t, "openai", account.GetCredential(siteVideoAPIFormatCredentialKey))
 			stored, err := repo.Get(context.Background(), site.ID)
 			require.NoError(t, err)
 			require.NotZero(t, stored.Bindings[0].AccountID)
+			// Existing bindings also acquire the durable format on synchronization.
+			delete(account.Credentials, siteVideoAPIFormatCredentialKey)
+			require.NoError(t, svc.updatePolicies(context.Background(), stored))
+			account = accounts.accounts[account.ID]
+			require.Equal(t, "openai", account.GetCredential(siteVideoAPIFormatCredentialKey))
+			// An old production worker drops new typed fields when saving balances.
+			stored.Models[0].VideoAPIFormat = ""
+			delete(account.Extra[SitePolicyExtraKey].(map[string]any), "video_api_format")
+			require.NoError(t, repo.Save(context.Background(), stored))
+			require.NoError(t, svc.updatePolicies(context.Background(), stored))
+			account = accounts.accounts[account.ID]
+			require.Equal(t, "openai", accountGrokMediaAPIFormat(account))
+			account.Credentials[GrokMediaAPIFormatCredentialKey] = "xai"
+			require.Equal(t, "xai", accountGrokMediaAPIFormat(account))
+			account.Credentials[GrokMediaAPIFormatCredentialKey] = "auto"
+			require.Equal(t, "openai", accountGrokMediaAPIFormat(account))
+			delete(account.Credentials, SiteBindingCredentialKey)
+			require.Equal(t, "xai", accountGrokMediaAPIFormat(account), "detached bindings must not reuse the cached site format")
 		})
 	}
 }

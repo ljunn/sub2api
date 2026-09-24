@@ -13,6 +13,7 @@ import (
 
 const GrokMediaAPIFormatOpenAI = "openai"
 const GrokMediaAPIFormatCredentialKey = "grok_media_api_format"
+const siteVideoAPIFormatCredentialKey = "upstream_site_video_api_format"
 
 // Account platform controls downstream routing; this setting only selects the
 // upstream media contract. Managed sites advertise the contract per model.
@@ -23,10 +24,30 @@ func accountGrokMediaAPIFormat(account *Account) string {
 	if format := account.GetCredential(GrokMediaAPIFormatCredentialKey); format == "xai" || format == GrokMediaAPIFormatOpenAI {
 		return format
 	}
-	if policy, managed := account.SitePolicy(); managed && policy.VideoAPIFormat == GrokMediaAPIFormatOpenAI {
-		return GrokMediaAPIFormatOpenAI
+	if policy, managed := account.SitePolicy(); managed && policy.BindingID != "" {
+		if format := policy.VideoAPIFormat; format == "xai" || format == GrokMediaAPIFormatOpenAI {
+			return format
+		}
+		if format := account.GetCredential(siteVideoAPIFormatCredentialKey); format == "xai" || format == GrokMediaAPIFormatOpenAI {
+			return format
+		}
 	}
 	return "xai"
+}
+
+// Older instances sharing the database rewrite site documents and policies
+// without unknown fields. Keep the last advertised format in the untyped
+// credential map too, independently of the user's explicit format override.
+func cacheSiteGrokMediaAPIFormat(account *Account, policy SiteAccountPolicy) bool {
+	if account.Platform != PlatformGrok || account.Type != AccountTypeAPIKey || policy.BindingID == "" || policy.BindingID != account.GetCredential(SiteBindingCredentialKey) {
+		return false
+	}
+	format := policy.VideoAPIFormat
+	if (format != "xai" && format != GrokMediaAPIFormatOpenAI) || account.GetCredential(siteVideoAPIFormatCredentialKey) == format {
+		return false
+	}
+	account.Credentials[siteVideoAPIFormatCredentialKey] = format
+	return true
 }
 
 func prepareAccountGrokMediaBody(account *Account, endpoint GrokMediaEndpoint, body []byte, contentType string) ([]byte, string, error) {

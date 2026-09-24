@@ -76,22 +76,33 @@ func TestGrokOpenAIMediaMultipartFirstFrameAndSeconds(t *testing.T) {
 
 func TestAccountTestGrokOpenAIVideoUsesMappedModelAndCompletedResult(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	account := openAIFormatGrokAccount()
-	upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
-		{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"id":"task_outer","status":"queued"}`))},
-		{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"id":"task_outer","status":"completed","data":{"data":{"video":{"url":"https://cdn.example/video.mp4","duration":6}}}}`))},
-	}}
-	svc := &AccountTestService{accountRepo: &mockAccountRepoForGemini{accountsByID: map[int64]*Account{account.ID: account}}, httpUpstream: upstream}
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/test", nil)
-	require.NoError(t, svc.TestAccountConnection(c, account.ID, "local-video", "waves", "video"))
-	require.Equal(t, 2, upstream.callCount)
-	require.Equal(t, "https://relay.example/v1/videos", upstream.reqs[0].URL.String())
-	require.Equal(t, "https://relay.example/v1/videos/task_outer", upstream.reqs[1].URL.String())
-	require.Contains(t, recorder.Body.String(), `"video_url":"https://cdn.example/video.mp4"`)
-	require.Contains(t, recorder.Body.String(), `"model":"grok-imagine-video-1.5"`)
-	require.Contains(t, recorder.Body.String(), `"success":true`)
+	for _, mode := range []string{"explicit", "legacy-site-save"} {
+		t.Run(mode, func(t *testing.T) {
+			account := openAIFormatGrokAccount()
+			if mode == "legacy-site-save" {
+				delete(account.Credentials, GrokMediaAPIFormatCredentialKey)
+				account.Credentials[SiteBindingCredentialKey] = "binding"
+				account.Credentials[siteVideoAPIFormatCredentialKey] = "openai"
+				account.Extra = map[string]any{SitePolicyExtraKey: map[string]any{"binding_id": "binding"}}
+			}
+			upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
+				{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"id":"task_outer","status":"queued"}`))},
+				{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"id":"task_outer","status":"completed","data":{"data":{"video":{"url":"https://cdn.example/video.mp4","duration":6}}}}`))},
+			}}
+			svc := &AccountTestService{accountRepo: &mockAccountRepoForGemini{accountsByID: map[int64]*Account{account.ID: account}}, httpUpstream: upstream}
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/test", nil)
+			require.NoError(t, svc.TestAccountConnection(c, account.ID, "local-video", "waves", "video"))
+			require.Equal(t, 2, upstream.callCount)
+			require.Equal(t, "https://relay.example/v1/videos", upstream.reqs[0].URL.String())
+			require.Equal(t, "https://relay.example/v1/videos/task_outer", upstream.reqs[1].URL.String())
+			require.Contains(t, recorder.Body.String(), `"video_url":"https://cdn.example/video.mp4"`)
+			require.Contains(t, recorder.Body.String(), `"model":"grok-imagine-video-1.5"`)
+			require.Contains(t, recorder.Body.String(), `"success":true`)
+			require.Contains(t, recorder.Body.String(), "Calling /v1/videos...")
+		})
+	}
 }
 
 func TestAccountTestGrokOpenAIImageUsesSelectedModel(t *testing.T) {

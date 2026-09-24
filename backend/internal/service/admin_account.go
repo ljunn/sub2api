@@ -580,8 +580,8 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		return nil, err
 	}
 	if account.IsSiteManaged() {
-		if input.Credentials != nil || input.GroupIDs != nil || (input.Type != "" && input.Type != account.Type) {
-			return nil, errors.New("站点托管账号的凭据与模型映射请在站点管理中维护")
+		if err := normalizeSiteManagedAccountUpdate(account, input); err != nil {
+			return nil, err
 		}
 		if input.Extra != nil {
 			for _, key := range []string{SitePolicyExtraKey, "upstream_site_binding_id", "upstream_site_id", "upstream_site_preview_pending"} {
