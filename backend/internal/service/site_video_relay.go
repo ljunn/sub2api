@@ -78,6 +78,8 @@ func ParseSiteVideoRelayRequest(platform, contentType string, body []byte) (Grok
 		info.DurationSeconds = int(duration.Int())
 	}
 	resolution := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "resolution").String()))
+	// Billing keeps the upstream group's existing 720p price key. Its native
+	// H3 wire tier is 768P; never use this billing alias as a pixel size.
 	if resolution == "" || (platform == PlatformMiniMax && resolution == "768p") {
 		resolution = "720p"
 	}
@@ -114,7 +116,11 @@ func prepareSiteVideoRelayBody(account *Account, endpoint GrokMediaEndpoint, bod
 	}
 	// Send explicit defaults so billing and the upstream cannot choose different
 	// durations or resolution tiers. Preserve native reference fields unchanged.
-	for key, value := range map[string]any{"duration": info.DurationSeconds, "resolution": strings.ToUpper(info.Resolution), "ratio": info.AspectRatio} {
+	wireResolution := strings.ToUpper(info.Resolution)
+	if account.Platform == PlatformMiniMax {
+		wireResolution = "768P"
+	}
+	for key, value := range map[string]any{"duration": info.DurationSeconds, "resolution": wireResolution, "ratio": info.AspectRatio} {
 		body, err = sjson.SetBytes(body, key, value)
 		if err != nil {
 			return nil, "", err

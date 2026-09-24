@@ -62,7 +62,11 @@ func TestSiteVideoRelayPriceGateUsesVideoResolution(t *testing.T) {
 		account.Type = AccountTypeAPIKey
 		account.Credentials["base_url"] = "https://relay.example"
 		ctx := context.WithValue(context.Background(), sitePricingKey{}, pricing)
-		for _, resolution := range []string{"", "720p", "1080p"} {
+		resolutions := []string{"", "720p", "1080p"}
+		if tc.platform == PlatformMiniMax {
+			resolutions = append(resolutions, "768p")
+		}
+		for _, resolution := range resolutions {
 			request := WithSitePriceRequest(ctx, []byte(`{"model":"`+tc.model+`","resolution":"`+resolution+`","duration":6}`))
 			veto, reason := SitePriceVeto(request, account)
 			require.Equal(t, resolution == "1080p", veto, "%s %s: %s", tc.model, resolution, reason)
@@ -99,7 +103,11 @@ func TestSiteVideoRelayContractsAndBilling(t *testing.T) {
 			require.Equal(t, "unique-task", upstream.lastReq.Header.Get("Idempotency-Key"))
 			require.Equal(t, tc.model, gjson.GetBytes(upstream.lastBody, "model").String())
 			require.Equal(t, int64(tc.duration), gjson.GetBytes(upstream.lastBody, "duration").Int())
-			require.Equal(t, "720P", gjson.GetBytes(upstream.lastBody, "resolution").String())
+			wantResolution := "720P"
+			if tc.platform == PlatformMiniMax {
+				wantResolution = "768P"
+			}
+			require.Equal(t, wantResolution, gjson.GetBytes(upstream.lastBody, "resolution").String())
 			require.Equal(t, "task", result.ResponseID)
 			require.Zero(t, result.VideoCount)
 			require.Equal(t, tc.duration, result.VideoDurationSeconds)
@@ -125,6 +133,27 @@ func TestSiteVideoRelayContractsAndBilling(t *testing.T) {
 			cost := svc.calculateOpenAIVideoCost(context.Background(), "local-video", key, result, 1)
 			require.InDelta(t, price*float64(tc.duration), cost.ActualCost, 1e-12)
 		})
+	}
+}
+
+func TestH3RelayPreservesNativeResolutionAndLegacyBilling(t *testing.T) {
+	account := &Account{Platform: PlatformMiniMax, Type: AccountTypeAPIKey, Credentials: map[string]any{
+		"api_key": "test-key", "base_url": "https://relay.example", GrokMediaAPIFormatCredentialKey: SiteVideoFormatH3,
+	}}
+	for _, resolution := range []string{"", "720p", "768p", "768P"} {
+		body := []byte(`{"model":"minimax-h3","prompt":"waves","resolution":"` + resolution + `","ratio":"9:16","duration":4,"first_frame":"https://assets.example/ref.png"}`)
+		upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"task_id":"h3-task","status":"queued"}`))}}
+		svc := &OpenAIGatewayService{httpUpstream: upstream}
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", bytes.NewReader(body))
+		result, err := svc.ForwardGrokMedia(context.Background(), c, account, GrokMediaEndpointVideosGenerations, "", body, "application/json")
+		require.NoError(t, err, resolution)
+		require.Equal(t, "768P", gjson.GetBytes(upstream.lastBody, "resolution").String(), resolution)
+		require.Equal(t, "9:16", gjson.GetBytes(upstream.lastBody, "ratio").String())
+		require.Equal(t, "https://assets.example/ref.png", gjson.GetBytes(upstream.lastBody, "first_frame").String())
+		require.False(t, gjson.GetBytes(upstream.lastBody, "size").Exists())
+		require.Equal(t, "720p", result.VideoResolution, "existing group prices must still apply")
+		require.Equal(t, 4, result.VideoDurationSeconds)
 	}
 }
 
