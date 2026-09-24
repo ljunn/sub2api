@@ -53,7 +53,7 @@ export interface SiteAccountScheduling {
 export interface SiteManualPrice {
   group_id: string
   model: string
-  billing_mode: 'image' | 'per_request' | 'token'
+  billing_mode: 'image' | 'video' | 'per_request' | 'token'
   prices: Record<string, number>
 }
 export interface SiteModel {

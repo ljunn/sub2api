@@ -70,7 +70,7 @@
         />
       </div>
 
-      <div v-if="isOpenAIAccount" class="space-y-1.5">
+      <div v-if="isOpenAIAccount && !openAIGrokMediaMode" class="space-y-1.5">
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.openai.testMode') }}
         </label>
@@ -451,8 +451,12 @@ const supportsOpenAIImageTest = computed(() => {
   return props.account?.platform === 'openai'
 })
 
+const mappedModelID = (id: string) => {
+  const mapping = props.account?.credentials?.model_mapping as Record<string, string> | undefined
+  return (mapping?.[id] || id).toLowerCase().replace(/^(?:xai|x-ai|grok)\//, '')
+}
 const isGrokImageModel = (id: string) => {
-  const modelID = id.toLowerCase()
+  const modelID = mappedModelID(id)
   return (
     modelID === 'grok-imagine' ||
     modelID === 'grok-imagine-edit' ||
@@ -460,16 +464,22 @@ const isGrokImageModel = (id: string) => {
   )
 }
 const isGrokVideoModel = (id: string) => {
-  const modelID = id.toLowerCase()
+  const modelID = mappedModelID(id)
   return modelID.startsWith('grok-imagine-video') || modelID.startsWith('grok-video')
 }
 const isGrokTextModel = (id: string) => !isGrokImageModel(id) && !isGrokVideoModel(id)
 
+const openAIGrokMediaMode = computed(() => {
+  if (!isOpenAIAccount.value || props.account?.type !== 'apikey') return ''
+  if (isGrokVideoModel(selectedModelId.value)) return 'video'
+  if (isGrokImageModel(selectedModelId.value)) return 'image'
+  return ''
+})
 const supportsGrokImageTest = computed(
-  () => isGrokAccount.value && grokTestMode.value === 'image'
+  () => (isGrokAccount.value && grokTestMode.value === 'image') || openAIGrokMediaMode.value === 'image'
 )
 const supportsGrokVideoTest = computed(
-  () => isGrokAccount.value && grokTestMode.value === 'video'
+  () => (isGrokAccount.value && grokTestMode.value === 'video') || openAIGrokMediaMode.value === 'video'
 )
 
 const supportsImageTest = computed(
@@ -498,7 +508,7 @@ const modelOptionsForMode = computed(() => {
 
 const supportsPromptInput = computed(() => {
   if (!isGrokAccount.value) {
-    return supportsImageTest.value
+    return supportsImageTest.value || supportsGrokVideoTest.value
   }
   return (
     grokTestMode.value === 'image' ||
@@ -509,17 +519,17 @@ const supportsPromptInput = computed(() => {
 })
 
 const supportsImageUpload = computed(
-  () => isGrokAccount.value && (grokTestMode.value === 'image' || grokTestMode.value === 'video')
+  () => supportsGrokImageTest.value || supportsGrokVideoTest.value
 )
 const supportsAudioUpload = computed(() => isGrokAccount.value && grokTestMode.value === 'stt')
 const imageUploadLabel = computed(() =>
-  grokTestMode.value === 'video'
+  supportsGrokVideoTest.value
     ? t('admin.accounts.grok.videoFirstFrameLabel')
     : t('admin.accounts.grok.imageUploadLabel')
 )
 
 const imageUploadHint = computed(() =>
-  grokTestMode.value === 'video'
+  supportsGrokVideoTest.value
     ? t('admin.accounts.grok.videoFirstFrameHint')
     : t('admin.accounts.grok.imageUploadHint')
 )
@@ -613,7 +623,7 @@ const promptInputLabel = computed(() => {
 })
 
 const promptInputPlaceholder = computed(() => {
-  if (grokTestMode.value === 'video') {
+  if (supportsGrokVideoTest.value) {
     return t('admin.accounts.videoPromptPlaceholder')
   }
   if (grokTestMode.value === 'image' || supportsImageTest.value) {
@@ -629,7 +639,7 @@ const promptInputPlaceholder = computed(() => {
 })
 
 const promptInputHint = computed(() => {
-  if (grokTestMode.value === 'video') {
+  if (supportsGrokVideoTest.value) {
     return t('admin.accounts.videoTestHint')
   }
   if (grokTestMode.value === 'image' || supportsImageTest.value) {
@@ -669,6 +679,7 @@ const testModeSummary = computed(() => {
         return t('admin.accounts.grok.textTestMode')
     }
   }
+  if (supportsGrokVideoTest.value) return t('admin.accounts.videoTestMode')
   if (supportsImageTest.value) return t('admin.accounts.imageTestMode')
   return t('admin.accounts.testPrompt')
 })
@@ -704,7 +715,7 @@ const sortTestModels = (models: ClaudeModel[]) => {
 const applyDefaultPromptForMode = () => {
   if (!supportsPromptInput.value) return
   if (testPrompt.value.trim()) return
-  if (grokTestMode.value === 'video') {
+  if (supportsGrokVideoTest.value) {
     testPrompt.value = t('admin.accounts.videoPromptDefault')
   } else if (grokTestMode.value === 'image' || supportsImageTest.value) {
     testPrompt.value = t('admin.accounts.imagePromptDefault')
@@ -743,6 +754,9 @@ watch(
       resetState()
       await loadAvailableModels()
       if (isGrokAccount.value) {
+        if (!availableModels.value.some(m => isGrokTextModel(m.id))) {
+          grokTestMode.value = availableModels.value.some(m => isGrokVideoModel(m.id)) ? 'video' : 'image'
+        }
         pickDefaultModelForMode()
         applyDefaultPromptForMode()
       }
@@ -751,6 +765,12 @@ watch(
     }
   }
 )
+
+watch(openAIGrokMediaMode, () => {
+  testPrompt.value = ''
+  clearMediaUploads()
+  applyDefaultPromptForMode()
+})
 
 watch(grokTestMode, () => {
   if (!isGrokAccount.value) return
@@ -855,7 +875,10 @@ const startTest = async () => {
       prompt: supportsPromptInput.value ? testPrompt.value.trim() : ''
     }
     if (isOpenAIAccount.value) {
-      requestBody.mode = testMode.value
+      requestBody.mode = openAIGrokMediaMode.value || testMode.value
+      if (openAIGrokMediaMode.value && uploadImageDataURL.value) {
+        requestBody.image_data_url = uploadImageDataURL.value
+      }
     }
     if (isGrokAccount.value) {
       // Always send explicit Grok mode. search/tts/stt/realtime are standalone

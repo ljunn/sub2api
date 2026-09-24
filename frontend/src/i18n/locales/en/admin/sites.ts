@@ -30,6 +30,8 @@ export default {
       "hint": "Enter the actual USD unit price you pay upstream. Scheduling uses this price; automatic sync will not overwrite it.",
       "mode": "Billing method",
       "image": "Per image (USD / image)",
+      "video": "Per video second (USD / second)",
+      "videoHint": "Enter the actual per-second price for each resolution. Choose per request for fixed task prices. Blank resolutions stay paused.",
       "request": "Per request (USD / request)",
       "token": "Per token (USD / million tokens)",
       "imageHint": "Enter the resolutions you use. Blank resolutions stay paused.",

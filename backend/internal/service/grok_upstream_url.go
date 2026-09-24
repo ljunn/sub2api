@@ -112,11 +112,21 @@ func buildGrokBillingURL(account *Account, cfg *config.Config, weekly bool) (str
 }
 
 func buildGrokMediaURL(account *Account, cfg *config.Config, endpoint GrokMediaEndpoint, requestID string) (string, error) {
-	validator, err := grokBaseURLValidator(account, cfg)
-	if err != nil {
-		return "", err
+	var validator xai.BaseURLValidator
+	var baseURL string
+	if account != nil && account.IsOpenAI() && account.Type == AccountTypeAPIKey {
+		// OpenAI-compatible relays may expose Grok media. Keep their configured
+		// host and the operator's URL policy; never default their keys to xAI.
+		validator = redactedGrokBaseURLValidator(grokOperatorPolicyValidator(cfg))
+		baseURL = account.GetOpenAIBaseURL()
+	} else {
+		var err error
+		validator, err = grokBaseURLValidator(account, cfg)
+		if err != nil {
+			return "", err
+		}
+		baseURL = account.GetGrokMediaBaseURL()
 	}
-	baseURL := account.GetGrokMediaBaseURL()
 	switch endpoint {
 	case GrokMediaEndpointImagesGenerations:
 		return xai.BuildImagesGenerationsURLWithValidator(baseURL, validator)

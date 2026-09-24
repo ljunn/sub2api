@@ -844,10 +844,11 @@ const chosenModel = computed(() =>
 const compatibleGroups = computed(() =>
   groups.value.filter(
     (g) =>
-      ['openai', 'anthropic', 'gemini'].includes(g.platform) &&
+      ['openai', 'anthropic', 'gemini', 'grok'].includes(g.platform) &&
       (!['sub2api', 'kongfang', 'vividai', 'wuzu'].includes(selected.value?.kind || '') ||
         !chosenModel.value?.platform ||
-        chosenModel.value.platform === g.platform),
+        chosenModel.value.platform === g.platform ||
+        (selected.value?.kind === 'sub2api' && chosenModel.value.platform === 'openai' && g.platform === 'grok' && chosenModel.value.model.toLowerCase().startsWith('grok-'))),
   ),
 )
 function clearUpstreamModel() {

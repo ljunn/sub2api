@@ -1580,6 +1580,25 @@ func TestForwardGrokMediaVideoGenerationReturnsUsageAndResponseID(t *testing.T) 
 	require.Equal(t, 10, result.VideoDurationSeconds)
 }
 
+func TestForwardGrokMediaManagedVideoChecksPriceBeforeSending(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	pricing, _ := siteTestPricing()
+	p := SiteAccountPolicy{BindingID: "video", LocalGroupID: 9, LocalModel: "grok-imagine-video", UpstreamModel: "grok-imagine-video", Enabled: true, ManualPrice: true,
+		Tiers: []SitePriceTier{{Key: "480p", Unit: "USD/second", Prices: map[string]float64{"second": 9}}}}
+	account := siteAutomaticAccount(p)
+	account.Platform, account.Type = PlatformGrok, AccountTypeAPIKey
+	account.Credentials["base_url"], account.Credentials["api_key"] = "https://relay.example/v1", "test-key"
+	body := []byte(`{"model":"grok-imagine-video","prompt":"waves","duration":6,"resolution":"480p"}`)
+	ctx := WithSitePriceRequest(context.WithValue(context.Background(), sitePricingKey{}, pricing), body)
+	upstream := &httpUpstreamRecorder{}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/generations", bytes.NewReader(body))
+	_, err := svc.ForwardGrokMedia(ctx, c, account, GrokMediaEndpointVideosGenerations, "", body, "application/json")
+	require.Error(t, err)
+	require.Nil(t, upstream.lastReq, "a queued request must not bypass current purchase limits")
+}
+
 func TestForwardGrokMediaVideoGenerationReturnsTaskIDAsResponseID(t *testing.T) {
 	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
 	gin.SetMode(gin.TestMode)

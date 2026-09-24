@@ -119,6 +119,25 @@ describe('AccountTestModal', () => {
     vi.restoreAllMocks()
   })
 
+  it.each(['openai', 'grok'])('%s video-only accounts test the mapped video model and render video', async platform => {
+    getAvailableModels.mockResolvedValue([{ id: 'local-video', display_name: 'Video' }])
+    global.fetch = vi.fn().mockResolvedValue(createStreamResponse([
+      'data: {"type":"video","video_url":"https://example.com/video.mp4","mime_type":"video/mp4"}\n',
+      'data: {"type":"test_complete","success":true}\n'
+    ])) as any
+    const wrapper = mountModal({ id: 42, platform, type: 'apikey', credentials: { model_mapping: { 'local-video': 'grok-imagine-video' } } })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    expect(wrapper.text()).toContain('admin.accounts.videoTestMode')
+    await wrapper.get('textarea.textarea-stub').setValue('waves on a beach')
+    await wrapper.findAll('button').find(button => button.text().includes('admin.accounts.startTest'))!.trigger('click')
+    await flushPromises()
+    const [, request] = (global.fetch as any).mock.calls[0]
+    expect(JSON.parse(request.body)).toEqual({ model_id: 'local-video', mode: 'video', prompt: 'waves on a beach' })
+    expect(wrapper.get('video').attributes('src')).toBe('https://example.com/video.mp4')
+    wrapper.unmount()
+  })
+
   it('gemini 图片模型测试会携带提示词并渲染图片预览', async () => {
     const wrapper = mountModal()
     await wrapper.setProps({ show: true })

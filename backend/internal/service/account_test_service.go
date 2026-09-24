@@ -111,8 +111,12 @@ func isOpenAIImageModel(model string) bool {
 }
 
 func isGrokVideoGenerationModel(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	for _, prefix := range []string{"xai/", "x-ai/", "grok/"} {
+		model = strings.TrimPrefix(model, prefix)
+	}
 	return isGrokVideoBillingModel(model) ||
-		strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "grok-video")
+		strings.HasPrefix(model, "grok-video")
 }
 
 func normalizeGrokAccountTestMode(mode string) string {
@@ -370,6 +374,10 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	}
 
 	if account.IsOpenAI() {
+		mapped := account.GetMappedModel(strings.TrimSpace(modelID))
+		if account.Type == AccountTypeAPIKey && (isGrokImageGenerationModel(mapped) || isGrokVideoGenerationModel(mapped)) {
+			return s.testGrokAccountConnection(c, account, modelID, prompt, "default", testOpts)
+		}
 		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
 	}
 
@@ -1116,7 +1124,7 @@ func (s *AccountTestService) applyGrokTestRequestHeaders(req *http.Request, acco
 }
 
 func (s *AccountTestService) observeGrokTestResponse(ctx context.Context, account *Account, resp *http.Response) {
-	if resp == nil {
+	if resp == nil || account == nil || !account.IsGrok() {
 		return
 	}
 	now := time.Now()

@@ -16,6 +16,8 @@ import (
 
 type siteRequestKey struct{}
 type SitePriceRequest struct {
+	VideoResolution                 string
+	VideoDuration                   int
 	LongXiaVideo                    bool
 	LongXiaResolution               string
 	LongXiaDuration                 int64
@@ -32,6 +34,8 @@ type SitePriceRequest struct {
 
 func WithSitePriceRequest(ctx context.Context, body []byte) context.Context {
 	request := SitePriceRequest{Model: gjson.GetBytes(body, "model").String()}
+	request.VideoResolution = strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "resolution").String()))
+	request.VideoDuration = int(gjson.GetBytes(body, "duration").Int())
 	if gjson.GetBytes(body, "content").IsArray() {
 		request.VividAITier = gjson.GetBytes(body, "resolution").String()
 		duration := gjson.GetBytes(body, "duration")
@@ -218,6 +222,20 @@ func SitePriceVeto(ctx context.Context, a *Account) (bool, string) {
 	}
 	if p.LongXia != nil {
 		return longXiaSitePriceVeto(p, request)
+	}
+	if isGrokVideoGenerationModel(p.UpstreamModel) || isGrokVideoGenerationModel(p.LocalModel) {
+		resolution := request.VideoResolution
+		if resolution == "" {
+			resolution = VideoBillingResolution480P
+		}
+		for _, tier := range p.Tiers {
+			if tier.Key == "default" && tier.Unit == "USD/request" {
+				resolution = "default"
+				break
+			}
+		}
+		reason := siteTierReason(p, resolution, time.Now())
+		return reason != "", reason
 	}
 	for _, tier := range p.Tiers {
 		if tier.Key == "default" {

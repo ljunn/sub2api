@@ -50,6 +50,15 @@ func siteComparisonTiers(image bool, tiers []SitePriceTier) []SitePriceTier {
 func (s *UpstreamSitePricing) apply(ctx context.Context, p SiteAccountPolicy, request bool) SiteAccountPolicy {
 	p.Tiers = vividAIPerSecondTiers(p.VividAI, p.Tiers)
 	p.Tiers = siteComparisonTiers(p.Image, p.Tiers)
+	grokVideo := p.VividAI == nil && p.LongXia == nil && (isGrokVideoGenerationModel(p.UpstreamModel) || isGrokVideoGenerationModel(p.LocalModel))
+	if grokVideo && len(p.Tiers) == 1 && p.Tiers[0].Key == "default" && p.Tiers[0].Unit == "USD/request" {
+		tier := p.Tiers[0]
+		p.Tiers = nil
+		for _, resolution := range []string{"480p", "720p", "1080p"} {
+			tier.Key = resolution
+			p.Tiers = append(p.Tiers, tier)
+		}
+	}
 	old := p.Limits
 	p.Limits = make([]SiteTierLimit, 0, len(p.Tiers))
 	var group *Group
@@ -73,11 +82,11 @@ func (s *UpstreamSitePricing) apply(ctx context.Context, p SiteAccountPolicy, re
 		if req, ok := ctx.Value(siteRequestKey{}).(SitePriceRequest); request && ok && req.Model != "" {
 			model = req.Model
 		}
-		selling, err = s.selling(ctx, billingGroup, model, p.Image, p.Tiers, request)
+		selling, err = s.selling(ctx, billingGroup, model, p.Image, grokVideo, p.Tiers, request)
 		// Billing can still carry an authentication snapshot during a concurrent edit.
 		// Use the lower price until that snapshot also sees the new configuration.
 		if err == nil && authGroup != nil {
-			previous, e := s.selling(ctx, authGroup, model, p.Image, p.Tiers, request)
+			previous, e := s.selling(ctx, authGroup, model, p.Image, grokVideo, p.Tiers, request)
 			if e != nil {
 				err = e
 			} else {
@@ -149,7 +158,7 @@ func siteMinPrices(prices, other map[string]map[string]float64) {
 		}
 	}
 }
-func (s *UpstreamSitePricing) selling(ctx context.Context, group *Group, model string, image bool, tiers []SitePriceTier, request bool) (map[string]map[string]float64, error) {
+func (s *UpstreamSitePricing) selling(ctx context.Context, group *Group, model string, image, grokVideo bool, tiers []SitePriceTier, request bool) (map[string]map[string]float64, error) {
 	if s.billing == nil || s.resolver == nil {
 		return nil, ErrModelPricingUnavailable
 	}
@@ -169,7 +178,7 @@ func (s *UpstreamSitePricing) selling(ctx context.Context, group *Group, model s
 		}
 	}
 	resolved := s.resolver.Resolve(ctx, PricingInput{Model: model, GroupID: &group.ID, Group: group})
-	perVideo := false
+	perVideo := grokVideo
 	for _, tier := range tiers {
 		perVideo = perVideo || (tier.Unit == "USD/second" && resolved != nil && resolved.Mode == BillingModeVideo)
 	}
@@ -204,6 +213,25 @@ func (s *UpstreamSitePricing) selling(ctx context.Context, group *Group, model s
 	for _, tier := range tiers {
 		prices := map[string]float64{}
 		out[tier.Key] = prices
+		if grokVideo && (tier.Unit == "USD/second" || tier.Unit == "USD/request") {
+			seconds := 1
+			component := "second"
+			if tier.Unit == "USD/request" {
+				component = "request"
+				if req, ok := ctx.Value(siteRequestKey{}).(SitePriceRequest); request && ok {
+					seconds = NormalizeVideoBillingDurationSecondsOrDefault(req.VideoDuration)
+				}
+			} else if resolved != nil && resolved.Source == PricingSourceChannel && (resolved.Mode == BillingModeImage || resolved.Mode == BillingModePerRequest) && group.GetVideoPriceForModel(model, tier.Key) == nil {
+				continue // A fixed local task price cannot bound an arbitrary video duration.
+			}
+			// Reuse the charging path, including group/model overrides and video defaults.
+			gateway := &OpenAIGatewayService{billingService: s.billing, resolver: s.resolver}
+			cost := gateway.calculateOpenAIVideoCost(ctx, model, &APIKey{Group: group, GroupID: &group.ID}, &OpenAIForwardResult{VideoCount: 1, VideoDurationSeconds: seconds, VideoResolution: tier.Key}, rate)
+			if cost != nil {
+				prices[component] = cost.ActualCost
+			}
+			continue
+		}
 		if tier.Unit == "USD/second" {
 			if resolved == nil || (resolved.Source != PricingSourceGroup && resolved.Source != PricingSourceChannel) {
 				continue

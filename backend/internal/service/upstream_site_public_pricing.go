@@ -87,6 +87,8 @@ func parsePublicPricingSiteCatalog(data, available, rates gjson.Result) ([]SiteM
 			m.Reason = "公开价格未提供完整的高峰或分时计费上限"
 		default:
 			switch mode {
+			case "video":
+				m.Tiers = siteVideoPriceTiers(p, 1)
 			case "image":
 				m.Tiers = sitePublicImageTiers(p)
 			case "per_request":

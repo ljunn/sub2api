@@ -86,7 +86,7 @@ func TestUpstreamSitePublicPricingUnknownPricesStayBlocked(t *testing.T) {
 	for _, tc := range []struct{ name, model, reason string }{
 		{"unpublished", `"billing_mode":"token","price_available":false`, "尚未公布"},
 		{"missing output", `"billing_mode":"token","price_available":true,"input_price":0`, "缺少输出"},
-		{"unknown billing", `"billing_mode":"video","price_available":true`, "计费方式"},
+		{"unknown billing", `"billing_mode":"unknown","price_available":true`, "计费方式"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			data := gjson.Parse(fmt.Sprintf(`{"groups":[{"id":4}],"models":[{"group_id":4,"name":"model",%s}]}`, tc.model))

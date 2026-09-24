@@ -28,7 +28,7 @@ vi.mock('@/api/admin/upstreamSites', async () => ({
   upstreamSitesApi: mocks,
 }))
 vi.mock('@/api/admin/groups', () => ({
-  getAll: async () => [{ id: 9, name: 'Local', platform: 'openai' }],
+  getAll: async () => [{ id: 9, name: 'Local', platform: 'openai' }, { id: 12, name: 'Grok Video', platform: 'grok' }],
   getModelAllowlistCandidates: async () => ['local-image'],
 }))
 vi.mock('@/stores/app', () => ({
@@ -101,6 +101,26 @@ async function click(text: string) {
 }
 
 describe('upstream sites', () => {
+  it.each(['sub2api', 'newapi'] as const)('allows Grok groups for %s Grok models', async kind => {
+    site.kind = kind
+    site.models[0]!.model = 'grok-imagine-video'
+    wrapper = mountView()
+    await flushPromises()
+    await click('admin.sites.models')
+    wrapper.findComponent(SiteModelCatalogue).vm.$emit('bind', site.models[0])
+    await flushPromises()
+    expect(wrapper.findAll('option').some(option => option.text().includes('Grok Video'))).toBe(true)
+  })
+
+  it('keeps unrelated Sub2API platform bindings restricted', async () => {
+    wrapper = mountView()
+    await flushPromises()
+    await click('admin.sites.models')
+    wrapper.findComponent(SiteModelCatalogue).vm.$emit('bind', site.models[0])
+    await flushPromises()
+    expect(wrapper.findAll('option').some(option => option.text().includes('Grok Video'))).toBe(false)
+  })
+
   it('creates WUZU with console credentials and its credit conversion', async () => {
     mocks.routeQuery = {}
     wrapper = mountView()

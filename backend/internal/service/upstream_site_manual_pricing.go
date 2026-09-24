@@ -29,6 +29,10 @@ func (p SiteManualPrice) tiers() ([]SitePriceTier, error) {
 		for _, k := range []string{"1K", "2K", "4K"} {
 			allowed[k] = true
 		}
+	case "video":
+		for _, k := range []string{"480p", "720p", "1080p"} {
+			allowed[k] = true
+		}
 	case "per_request":
 		allowed["request"] = true
 		required = []string{"request"}
@@ -53,12 +57,16 @@ func (p SiteManualPrice) tiers() ([]SitePriceTier, error) {
 			return nil, errors.New("请填写完整的采购价")
 		}
 	}
-	if p.BillingMode == "image" {
+	if p.BillingMode == "image" || p.BillingMode == "video" {
 		out := []SitePriceTier{}
-		for _, k := range []string{"1K", "2K", "4K"} {
-			t := SitePriceTier{Key: k, Unit: "USD/image", Prices: map[string]float64{}, Note: "手动采购价"}
+		keys, unit, component := []string{"1K", "2K", "4K"}, "USD/image", "request"
+		if p.BillingMode == "video" {
+			keys, unit, component = []string{"480p", "720p", "1080p"}, "USD/second", "second"
+		}
+		for _, k := range keys {
+			t := SitePriceTier{Key: k, Unit: unit, Prices: map[string]float64{}, Note: "手动采购价"}
 			if v, ok := p.Prices[k]; ok {
-				t.Prices["request"] = v
+				t.Prices[component] = v
 			} else {
 				t.Reason = "未填写此分辨率采购价"
 			}
@@ -102,9 +110,7 @@ func siteModelWithPrice(site *UpstreamSite, model SiteModel) SiteModel {
 		model.ManualPrice = price
 		model.Tiers = tiers
 		model.Reason = ""
-		if price.BillingMode == "image" {
-			model.Image = true
-		}
+		model.Image = price.BillingMode == "image" || (price.BillingMode != "video" && model.Image)
 		break
 	}
 	return model
@@ -137,6 +143,9 @@ func (s *UpstreamSiteService) SaveManualPrice(ctx context.Context, id string, in
 	}
 	if findSiteModel(site, input.GroupID, input.Model) == nil {
 		return nil, errors.New("模型不在同步目录中，请先同步站点")
+	}
+	if !input.Automatic && input.BillingMode == "image" && isGrokVideoGenerationModel(input.Model) {
+		return nil, errors.New("Grok 视频不能按图片计价，请选择按视频时长或按次")
 	}
 	if !input.Automatic && findSiteModel(site, input.GroupID, input.Model).LongXia != nil {
 		return nil, errors.New("LongXia 视频请使用自动同步的 SKU 单价和计费单位")

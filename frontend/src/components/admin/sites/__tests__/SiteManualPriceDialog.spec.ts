@@ -12,6 +12,22 @@ const mountDialog = (item = model) => mount(SiteManualPriceDialog, {
 })
 beforeEach(() => { vi.clearAllMocks(); saveModelPrice.mockResolvedValue({ id: 'site' }) })
 describe('manual purchase prices', () => {
+  it('edits video seconds without converting fixed request prices', async () => {
+    const video = { ...model, model: 'grok-imagine-video', image: false, tiers: [] }
+    const wrapper = mountDialog(video)
+    expect((wrapper.get('[data-testid=manual-price-mode]').element as HTMLSelectElement).value).toBe('video')
+    expect(wrapper.find('[data-testid=manual-price-1K]').exists()).toBe(false)
+    await wrapper.get('[data-testid=manual-price-480p]').setValue('0')
+    await wrapper.get('[data-testid=manual-price-720p]').setValue('0.02')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(saveModelPrice).toHaveBeenCalledWith('site', expect.objectContaining({ billing_mode: 'video', prices: { '480p': 0, '720p': .02 } }))
+    wrapper.unmount()
+    const fixed = mountDialog({ ...video, tiers: [{ key: 'default', unit: 'USD/request', prices: { request: .35 } }] })
+    expect((fixed.get('[data-testid=manual-price-mode]').element as HTMLSelectElement).value).toBe('per_request')
+    fixed.unmount()
+  })
+
   it('requires explicit prices and keeps blank resolutions distinct from free ones', async () => {
     const wrapper = mountDialog()
     expect((wrapper.get('[data-testid=manual-price-1K]').element as HTMLInputElement).value).toBe('')

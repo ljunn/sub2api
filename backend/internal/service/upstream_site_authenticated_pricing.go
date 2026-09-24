@@ -117,13 +117,24 @@ func siteAuthenticatedChannelModel(group, model, rates gjson.Result) (SiteModel,
 	if model.Get("platform").String() == "" {
 		m["platform"] = group.Get("platform").String()
 	}
-	if model.Get("pricing.billing_mode").String() == "image" {
-		// Channel prices are base prices. Group image overrides take precedence;
+	mode := model.Get("pricing.billing_mode").String()
+	if mode == "image" || mode == "video" {
+		// Channel prices are base prices. Group media overrides take precedence;
 		// the shared parser then applies personal/independent/peak multipliers.
 		p := m["pricing"].(map[string]any)
 		intervals := []map[string]any{}
-		for _, tier := range []string{"1K", "2K", "4K"} {
-			price := group.Get("image_price_" + strings.ToLower(tier))
+		keys, prefix := []string{"1K", "2K", "4K"}, "image_price_"
+		if mode == "video" {
+			keys, prefix = []string{"480p", "720p", "1080p"}, "video_price_"
+		}
+		for _, tier := range keys {
+			price := group.Get(prefix + strings.ToLower(tier))
+			if mode == "video" {
+				family := group.Get("video_model_prices").Map()[CanonicalGrokImagineVideoPriceFamily(name)]
+				if value := family.Get(tier); value.Exists() && value.Type != gjson.Null {
+					price = value
+				}
+			}
 			if !price.Exists() || price.Type == gjson.Null {
 				price = model.Get("pricing.per_request_price")
 				for _, interval := range model.Get("pricing.intervals").Array() {
@@ -147,7 +158,7 @@ func siteAuthenticatedChannelModel(group, model, rates gjson.Result) (SiteModel,
 		return SiteModel{}, err
 	}
 	out := parsed[0]
-	if out.Reason == "" && siteAuthenticatedMultiplierRedacted(group, rates, model.Get("pricing.billing_mode").String() == "image") {
+	if out.Reason == "" && siteAuthenticatedMultiplierRedacted(group, rates, mode) {
 		out.Reason = "上游倍率为零，无法确认是免费还是隐藏价格"
 	}
 	for i := range out.Tiers {
@@ -156,10 +167,12 @@ func siteAuthenticatedChannelModel(group, model, rates gjson.Result) (SiteModel,
 	return out, nil
 }
 
-func siteAuthenticatedMultiplierRedacted(group, rates gjson.Result, image bool) bool {
+func siteAuthenticatedMultiplierRedacted(group, rates gjson.Result, mode string) bool {
 	rate := group.Get("rate_multiplier")
-	if image && group.Get("image_rate_independent").Bool() {
+	if mode == "image" && group.Get("image_rate_independent").Bool() {
 		rate = group.Get("image_rate_multiplier")
+	} else if mode == "video" && group.Get("video_rate_independent").Bool() {
+		rate = group.Get("video_rate_multiplier")
 	} else if personal := rates.Map()[group.Get("id").String()]; personal.Exists() {
 		return false // An explicit personal override is not a redacted public rate.
 	}
@@ -188,7 +201,7 @@ func siteAuthenticatedUnpricedModel(group gjson.Result, name string, rates gjson
 	if group.Get("image_rate_independent").Bool() {
 		rate, known = siteNumber(group.Get("image_rate_multiplier"))
 	}
-	if !known || siteAuthenticatedMultiplierRedacted(group, rates, true) {
+	if !known || siteAuthenticatedMultiplierRedacted(group, rates, "image") {
 		return m
 	}
 	m.Tiers = sitePublicImageTiers(group)

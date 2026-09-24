@@ -330,8 +330,34 @@ func siteIntervalTokenPrices(base, interval gjson.Result, rate float64) (map[str
 // model sold per request still needs local resolution pricing for comparison;
 // its upstream price unit and billing multipliers must remain per-request.
 func siteImagePriceModel(name, mode string) bool {
-	return mode == "image" || (mode == "per_request" &&
-		(isOpenAIImageGenerationModel(name) || isImageGenerationModel(name)))
+	return !isGrokVideoGenerationModel(name) && (mode == "image" || (mode == "per_request" &&
+		(isOpenAIImageGenerationModel(name) || isImageGenerationModel(name))))
+}
+
+// Video cards use per_request_price as the USD/second rate, with resolution
+// overrides in intervals. Keep the unit distinct from fixed per-request cards.
+func siteVideoPriceTiers(pricing gjson.Result, multiplier float64) []SitePriceTier {
+	tiers := make([]SitePriceTier, 0, 3)
+	for _, key := range []string{"480p", "720p", "1080p"} {
+		price, ok := siteNumber(pricing.Get("per_request_price"))
+		if explicit := pricing.Get("video_price_" + key); explicit.Exists() {
+			price, ok = siteNumber(explicit)
+		}
+		for _, interval := range pricing.Get("intervals").Array() {
+			if strings.EqualFold(interval.Get("tier_label").String(), key) {
+				price, ok = siteNumber(interval.Get("per_request_price"))
+				break
+			}
+		}
+		tier := SitePriceTier{Key: key, Unit: "USD/second", Prices: map[string]float64{}}
+		if ok {
+			tier.Prices["second"] = price * multiplier
+		} else {
+			tier.Reason = "上游未提供此分辨率每秒价格"
+		}
+		tiers = append(tiers, tier)
+	}
+	return tiers
 }
 
 func parseSub2APISiteCatalog(groups, rates gjson.Result) ([]SiteModel, error) {
@@ -364,6 +390,9 @@ func parseSub2APISiteCatalog(groups, rates gjson.Result) ([]SiteModel, error) {
 				multiplier, ok = siteNumber(group.Get("image_rate_multiplier"))
 				modelKnown = ok
 			}
+			if mode == "video" && group.Get("video_rate_independent").Bool() {
+				multiplier, modelKnown = siteNumber(group.Get("video_rate_multiplier"))
+			}
 			timeFactor := 1.0
 			if tp := model.Get("time_pricing"); tp.IsObject() {
 				for _, period := range tp.Get("periods").Array() {
@@ -379,6 +408,8 @@ func parseSub2APISiteCatalog(groups, rates gjson.Result) ([]SiteModel, error) {
 				continue
 			}
 			switch mode {
+			case "video":
+				m.Tiers = siteVideoPriceTiers(p, multiplier)
 			case "image":
 				for _, tier := range []string{"1K", "2K", "4K"} {
 					price, ok := siteNumber(p.Get("per_request_price"))

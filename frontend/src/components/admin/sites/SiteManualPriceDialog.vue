@@ -6,15 +6,17 @@
       <label class="block text-sm">{{ t('admin.sites.manualPrice.mode') }}
         <select v-model="mode" class="input mt-1" data-testid="manual-price-mode" @change="values = {}">
           <option value="image">{{ t('admin.sites.manualPrice.image') }}</option>
+          <option value="video">{{ t('admin.sites.manualPrice.video') }}</option>
           <option value="per_request">{{ t('admin.sites.manualPrice.request') }}</option>
           <option value="token">{{ t('admin.sites.manualPrice.token') }}</option>
         </select>
       </label>
       <p v-if="mode === 'image'" class="text-xs text-gray-500">{{ t('admin.sites.manualPrice.imageHint') }}</p>
+      <p v-if="mode === 'video'" class="text-xs text-gray-500">{{ t('admin.sites.manualPrice.videoHint') }}</p>
       <div class="grid gap-3 sm:grid-cols-3">
         <label v-for="key in fields" :key="key" class="block text-sm">
-          {{ mode === 'image' ? key : t(`admin.sites.components.${key}`) }}
-          <input v-model="values[key]" class="input mt-1" type="number" min="0" step="any" :required="mode !== 'image'"
+          {{ resolutionPricing ? key : t(`admin.sites.components.${key}`) }}
+          <input v-model="values[key]" class="input mt-1" type="number" min="0" step="any" :required="!resolutionPricing"
             :data-testid="`manual-price-${key}`" :placeholder="reference(key)" />
         </label>
       </div>
@@ -44,14 +46,15 @@ import { upstreamSitesApi, type SiteModel, type SiteManualPrice, type UpstreamSi
 const props = defineProps<{ siteId: string; model: SiteModel }>()
 const emit = defineEmits<{ close: []; saved: [site: UpstreamSite] }>()
 const { t } = useI18n()
-const mode = ref<SiteManualPrice['billing_mode']>(props.model.manual_price?.billing_mode || (props.model.image || props.model.tiers.some(t => t.unit === 'USD/image') ? 'image' : props.model.tiers.some(t => t.unit === 'USD/request') ? 'per_request' : 'token'))
+const mode = ref<SiteManualPrice['billing_mode']>(props.model.manual_price?.billing_mode || (props.model.tiers.some(t => t.unit === 'USD/second') ? 'video' : props.model.tiers.some(t => t.unit === 'USD/request') ? 'per_request' : /^(?:(?:xai|x-ai|grok)\/)?grok-(?:imagine-)?video/i.test(props.model.model) ? 'video' : props.model.image || props.model.tiers.some(t => t.unit === 'USD/image') ? 'image' : 'token'))
 const values = ref<Record<string, number | string>>({ ...props.model.manual_price?.prices })
-const fields = computed(() => mode.value === 'image' ? ['1K', '2K', '4K'] : mode.value === 'per_request' ? ['request'] : ['input_price', 'output_price'])
+const resolutionPricing = computed(() => mode.value === 'image' || mode.value === 'video')
+const fields = computed(() => mode.value === 'image' ? ['1K', '2K', '4K'] : mode.value === 'video' ? ['480p', '720p', '1080p'] : mode.value === 'per_request' ? ['request'] : ['input_price', 'output_price'])
 const optionalFields = ['cache_read_price', 'cache_write_price', 'cache_write_1h_price', 'image_input_price', 'image_output_price']
 const saving = ref(false)
 const error = ref('')
 function reference(key: string) {
-  const value = mode.value === 'image' ? props.model.tiers.find(t => t.key === key)?.prices.request : props.model.tiers.find(t => t.key === 'default')?.prices[key]
+  const value = resolutionPricing.value ? props.model.tiers.find(t => t.key === key)?.prices[mode.value === 'video' ? 'second' : 'request'] : props.model.tiers.find(t => t.key === 'default')?.prices[key]
   return value === undefined ? '' : t('admin.sites.manualPrice.reference', { price: value })
 }
 async function save(automatic: boolean) {
@@ -65,7 +68,7 @@ async function save(automatic: boolean) {
       if (!Number.isFinite(number) || number < 0) { error.value = t('admin.sites.manualPrice.invalid'); return }
       prices[key] = number
     }
-    if (!Object.keys(prices).length || (mode.value !== 'image' && fields.value.some(key => prices[key] === undefined))) {
+    if (!Object.keys(prices).length || (!resolutionPricing.value && fields.value.some(key => prices[key] === undefined))) {
       error.value = t('admin.sites.manualPrice.required'); return
     }
   }

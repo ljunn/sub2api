@@ -539,6 +539,48 @@ func TestAccountTestService_GrokVideoUpstreamErrorIsNotMaskedAsSuccess(t *testin
 	require.NotContains(t, rec.Body.String(), `"success":true`)
 }
 
+func TestAccountTestService_OpenAIGrokVideoUsesVideoEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	account := &Account{ID: 22, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{
+		"api_key": "upstream-test-key", "base_url": "https://relay.example/v1",
+		"model_mapping": map[string]any{"local-video": "grok-imagine-video"},
+	}}
+	upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: http.StatusBadRequest, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"error":"video unavailable"}`))}}
+	svc := &AccountTestService{accountRepo: &mockAccountRepoForGemini{accountsByID: map[int64]*Account{account.ID: account}}, httpUpstream: upstream}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/test", nil)
+	err := svc.TestAccountConnection(c, account.ID, "local-video", "waves", "default")
+	require.Error(t, err)
+	require.NotNil(t, upstream.lastReq)
+	require.Equal(t, "https://relay.example/v1/videos/generations", upstream.lastReq.URL.String())
+	require.Equal(t, "grok-imagine-video", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, "waves", gjson.GetBytes(upstream.lastBody, "prompt").String())
+	require.Equal(t, int64(6), gjson.GetBytes(upstream.lastBody, "duration").Int())
+	require.NotContains(t, recorder.Body.String(), `"success":true`)
+}
+
+func TestAccountTestService_OpenAIGrokVideoReturnsCompletedVideo(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	account := &Account{ID: 22, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key", "base_url": "https://relay.example/v1"}}
+	upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
+		{StatusCode: http.StatusAccepted, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"request_id":"video-123"}`))},
+		{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"status":"done","video":{"url":"https://cdn.example/video.mp4"}}`))},
+	}}
+	svc := &AccountTestService{accountRepo: &mockAccountRepoForGemini{accountsByID: map[int64]*Account{account.ID: account}}, httpUpstream: upstream}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/test", nil)
+	require.NoError(t, svc.TestAccountConnection(c, account.ID, "grok-imagine-video", "waves", "video"))
+	require.Equal(t, 2, upstream.callCount)
+	require.Equal(t, http.MethodPost, upstream.reqs[0].Method)
+	require.Equal(t, "https://relay.example/v1/videos/generations", upstream.reqs[0].URL.String())
+	require.Equal(t, http.MethodGet, upstream.reqs[1].Method)
+	require.Equal(t, "https://relay.example/v1/videos/video-123", upstream.reqs[1].URL.String())
+	require.Contains(t, recorder.Body.String(), `"video_url":"https://cdn.example/video.mp4"`)
+	require.Contains(t, recorder.Body.String(), `"success":true`)
+}
+
 type grokRealtimeTestConn struct {
 	msg []byte
 }

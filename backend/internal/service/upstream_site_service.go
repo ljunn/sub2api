@@ -404,8 +404,8 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 	if err != nil {
 		return nil, err
 	}
-	if group.Platform != PlatformOpenAI && group.Platform != PlatformAnthropic && group.Platform != PlatformGemini {
-		return nil, errors.New("首版支持绑定到 OpenAI、Anthropic、Gemini 分组")
+	if group.Platform != PlatformOpenAI && group.Platform != PlatformAnthropic && group.Platform != PlatformGemini && group.Platform != PlatformGrok {
+		return nil, errors.New("支持绑定到 OpenAI、Anthropic、Gemini、Grok 分组")
 	}
 	if err = s.admin.ValidateAccountGroupBindings(ctx, []int64{group.ID}); err != nil {
 		return nil, err
@@ -417,7 +417,8 @@ func (s *UpstreamSiteService) Bind(ctx context.Context, id string, input SiteBin
 	if siteModelWithPrice(site, *model).ManualPrice == nil && (site.LastSuccess == nil || time.Since(*site.LastSuccess) > 10*time.Minute) {
 		return nil, errors.New("价格目录已过期，请先同步")
 	}
-	if model.Platform != "" && (site.Kind == "sub2api" || site.Kind == "kongfang" || site.Kind == "vividai" || site.Kind == "wuzu" || model.LongXia != nil) && model.Platform != group.Platform {
+	compatibleGrok := site.Kind == "sub2api" && model.Platform == PlatformOpenAI && group.Platform == PlatformGrok && strings.HasPrefix(strings.ToLower(model.Model), "grok-")
+	if model.Platform != "" && (site.Kind == "sub2api" || site.Kind == "kongfang" || site.Kind == "vividai" || site.Kind == "wuzu" || model.LongXia != nil) && model.Platform != group.Platform && !compatibleGrok {
 		return nil, errors.New("本地分组与上游模型的平台不匹配")
 	}
 	s.refreshBindingPrice(ctx, site, &input)

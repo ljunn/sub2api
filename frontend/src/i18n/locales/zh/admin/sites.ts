@@ -30,6 +30,8 @@ export default {
       "hint": "填写你在上游实际支付的单价（美元）。保存后用于调度判断，自动同步不会覆盖。",
       "mode": "计费方式",
       "image": "按图片（USD / 张）",
+      "video": "按视频时长（USD / 秒）",
+      "videoHint": "填写各分辨率每秒的实际采购价；按次收费请选按次，留空的档位暂停调度。",
       "request": "按次（USD / 次）",
       "token": "按 Token（USD / 百万 Token）",
       "imageHint": "填写需要使用的分辨率价格；留空的档位暂停调度。",
