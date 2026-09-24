@@ -25,7 +25,41 @@ describe('manual purchase prices', () => {
     wrapper.unmount()
     const fixed = mountDialog({ ...video, tiers: [{ key: 'default', unit: 'USD/request', prices: { request: .35 } }] })
     expect((fixed.get('[data-testid=manual-price-mode]').element as HTMLSelectElement).value).toBe('per_request')
+    expect(fixed.text()).toContain('admin.sites.manualPrice.videoRequestPrice')
+    expect(fixed.find('option[value=image]').exists()).toBe(false)
     fixed.unmount()
+  })
+
+  it.each(['grok-imagine-video', 'xai/grok-video-1.5'])('uses video prices for %s despite old image metadata', (name) => {
+    const wrapper = mountDialog({ ...model, model: name })
+    expect((wrapper.get('[data-testid=manual-price-mode]').element as HTMLSelectElement).value).toBe('video')
+    expect(wrapper.find('option[value=image]').exists()).toBe(false)
+    for (const key of ['1K', '2K', '4K']) expect(wrapper.find(`[data-testid=manual-price-${key}]`).exists()).toBe(false)
+    for (const key of ['480p', '720p', '1080p']) {
+      const input = wrapper.get(`[data-testid=manual-price-${key}]`)
+      expect((input.element as HTMLInputElement).value).toBe('')
+      expect(input.attributes('placeholder')).toBe('')
+    }
+    wrapper.unmount()
+  })
+
+  it('requires replacement video prices for a saved image override and supports restoring automatic prices', async () => {
+    const video = { ...model, model: 'grok-imagine-video', tiers: [], manual_price: { group_id: '17', model: 'grok-imagine-video', billing_mode: 'image' as const, prices: { '1K': .02 } } }
+    const wrapper = mountDialog(video)
+    expect(wrapper.get('[role=status]').text()).toBe('admin.sites.manualPrice.videoImagePriceInvalid')
+    expect(wrapper.find('option[value=image]').exists()).toBe(false)
+    await wrapper.get('form').trigger('submit')
+    expect(saveModelPrice).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid=manual-price-720p]').setValue('0.03')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(saveModelPrice).toHaveBeenCalledWith('site', expect.objectContaining({ billing_mode: 'video', prices: { '720p': .03 }, automatic: false }))
+    wrapper.unmount()
+    const automatic = mountDialog(video)
+    await automatic.findAll('button').find(b => b.text() === 'admin.sites.manualPrice.auto')!.trigger('click')
+    await flushPromises()
+    expect(saveModelPrice).toHaveBeenLastCalledWith('site', expect.objectContaining({ automatic: true, prices: {} }))
+    automatic.unmount()
   })
 
   it('requires explicit prices and keeps blank resolutions distinct from free ones', async () => {

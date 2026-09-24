@@ -537,7 +537,7 @@
         </button></template
       ></BaseDialog
     >
-    <SiteManualPriceDialog v-if="selected && priceModel" :site-id="selected.id" :model="priceModel"
+    <SiteManualPriceDialog v-if="selected && priceModel" :key="JSON.stringify([selected.id, priceModel.group_id, priceModel.model])" :site-id="selected.id" :model="priceModel"
       @close="priceModel = null" @saved="manualPriceSaved" />
   </AppLayout>
 </template>

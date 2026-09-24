@@ -103,6 +103,51 @@ func TestUpstreamSiteManualPriceValidatesUnitsAndMissingValues(t *testing.T) {
 	require.Equal(t, 0.0, tiers[0].Prices["cache_read_price"])
 }
 
+func TestUpstreamSiteManualPriceRejectsLegacyGrokVideoImageOverride(t *testing.T) {
+	ctx := context.Background()
+	svc, repo, accounts := siteTestService()
+	now := time.Now()
+	name := "grok-imagine-video"
+	legacy := SiteManualPrice{GroupID: "2", Model: name, BillingMode: "image", Prices: map[string]float64{"1K": .02}}
+	site := &UpstreamSite{ID: "legacy-video", Kind: "sub2api", Enabled: true, LastSuccess: &now,
+		Models:       []SiteModel{{GroupID: "2", Model: name, Tiers: []SitePriceTier{{Key: "default", Unit: "USD/request", Prices: map[string]float64{"request": .05}}}}},
+		Bindings:     []SiteBinding{{ID: "b", GroupID: "2", Model: name, LocalModel: name, LocalGroupID: 9, AccountID: 31, Enabled: true}},
+		ManualPrices: []SiteManualPrice{legacy}}
+	policy := BuildSiteAccountPolicy(site, &site.Bindings[0])
+	require.NotEmpty(t, policy.Reason)
+	require.Empty(t, policy.Tiers)
+	account := siteAutomaticAccount(policy)
+	require.False(t, account.siteHasEligibleTier())
+	accounts.accounts[31] = account
+	require.NoError(t, repo.Save(ctx, site))
+	ApplySiteManualPrices(site)
+	require.False(t, site.Models[0].Image)
+	require.NotNil(t, site.Models[0].Tiers, "the UI expects an empty array, not null")
+	require.Empty(t, site.Models[0].Tiers)
+	require.Equal(t, legacy, *site.Models[0].ManualPrice)
+	require.Contains(t, site.Models[0].Reason, "图片采购价")
+	stored, err := repo.Get(ctx, site.ID)
+	require.NoError(t, err)
+	require.Equal(t, "USD/request", stored.Models[0].Tiers[0].Unit, "projection must preserve the automatic price")
+	require.Equal(t, legacy, stored.ManualPrices[0], "old values remain until the user corrects or removes them")
+	_, err = svc.SaveManualPrice(ctx, site.ID, SiteManualPriceInput{SiteManualPrice: legacy})
+	require.ErrorContains(t, err, "视频不能按图片计价")
+	replacement := SiteManualPrice{GroupID: "2", Model: name, BillingMode: "video", Prices: map[string]float64{"720p": .03}}
+	updated, err := svc.SaveManualPrice(ctx, site.ID, SiteManualPriceInput{SiteManualPrice: replacement})
+	require.NoError(t, err)
+	ApplySiteManualPrices(updated)
+	require.Empty(t, updated.Models[0].Reason)
+	require.Equal(t, "USD/second", updated.Models[0].Tiers[1].Unit)
+	require.Equal(t, .03, updated.Models[0].Tiers[1].Prices["second"])
+	policy, _ = accounts.accounts[31].SitePolicy()
+	require.Empty(t, policy.Reason)
+	require.Equal(t, "USD/second", policy.Tiers[1].Unit)
+	restored, err := svc.SaveManualPrice(ctx, site.ID, SiteManualPriceInput{SiteManualPrice: replacement, Automatic: true})
+	require.NoError(t, err)
+	require.Empty(t, restored.ManualPrices)
+	require.Equal(t, "USD/request", restored.Models[0].Tiers[0].Unit)
+}
+
 func TestUpstreamSiteDiscoveryCreatesAndReusesGroupKey(t *testing.T) {
 	creates := 0
 	name := ""

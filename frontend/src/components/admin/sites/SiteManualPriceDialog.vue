@@ -3,11 +3,12 @@
     <form id="site-manual-price-form" class="space-y-4" @submit.prevent="save(false)">
       <div class="text-sm [overflow-wrap:anywhere]"><p class="font-medium">{{ model.model }}</p><p class="text-gray-500">{{ model.group_name }}</p></div>
       <p class="text-sm text-gray-500">{{ t('admin.sites.manualPrice.hint') }}</p>
+      <p v-if="invalidImagePrice" class="text-sm text-amber-700" role="status">{{ t('admin.sites.manualPrice.videoImagePriceInvalid') }}</p>
       <label class="block text-sm">{{ t('admin.sites.manualPrice.mode') }}
         <select v-model="mode" class="input mt-1" data-testid="manual-price-mode" @change="values = {}">
-          <option value="image">{{ t('admin.sites.manualPrice.image') }}</option>
+          <option v-if="!isVideoModel" value="image">{{ t('admin.sites.manualPrice.image') }}</option>
           <option value="video">{{ t('admin.sites.manualPrice.video') }}</option>
-          <option value="per_request">{{ t('admin.sites.manualPrice.request') }}</option>
+          <option value="per_request">{{ t(isVideoModel ? 'admin.sites.manualPrice.videoRequest' : 'admin.sites.manualPrice.request') }}</option>
           <option value="token">{{ t('admin.sites.manualPrice.token') }}</option>
         </select>
       </label>
@@ -15,7 +16,7 @@
       <p v-if="mode === 'video'" class="text-xs text-gray-500">{{ t('admin.sites.manualPrice.videoHint') }}</p>
       <div class="grid gap-3 sm:grid-cols-3">
         <label v-for="key in fields" :key="key" class="block text-sm">
-          {{ resolutionPricing ? key : t(`admin.sites.components.${key}`) }}
+          {{ fieldLabel(key) }}
           <input v-model="values[key]" class="input mt-1" type="number" min="0" step="any" :required="!resolutionPricing"
             :data-testid="`manual-price-${key}`" :placeholder="reference(key)" />
         </label>
@@ -46,13 +47,30 @@ import { upstreamSitesApi, type SiteModel, type SiteManualPrice, type UpstreamSi
 const props = defineProps<{ siteId: string; model: SiteModel }>()
 const emit = defineEmits<{ close: []; saved: [site: UpstreamSite] }>()
 const { t } = useI18n()
-const mode = ref<SiteManualPrice['billing_mode']>(props.model.manual_price?.billing_mode || (props.model.tiers.some(t => t.unit === 'USD/second') ? 'video' : props.model.tiers.some(t => t.unit === 'USD/request') ? 'per_request' : /^(?:(?:xai|x-ai|grok)\/)?grok-(?:imagine-)?video/i.test(props.model.model) ? 'video' : props.model.image || props.model.tiers.some(t => t.unit === 'USD/image') ? 'image' : 'token'))
-const values = ref<Record<string, number | string>>({ ...props.model.manual_price?.prices })
+const isVideoModel = computed(() => /^(?:(?:xai|x-ai|grok)\/)?grok-(?:imagine-)?video/i.test(props.model.model) || props.model.vividai?.kind === 'video' || props.model.tiers.some(t => t.unit === 'USD/second'))
+const invalidImagePrice = computed(() => isVideoModel.value && props.model.manual_price?.billing_mode === 'image')
+const savedPrice = invalidImagePrice.value ? undefined : props.model.manual_price
+function initialMode(): SiteManualPrice['billing_mode'] {
+  if (savedPrice) return savedPrice.billing_mode
+  if (invalidImagePrice.value || props.model.tiers.some(t => t.unit === 'USD/second')) return 'video'
+  if (props.model.tiers.some(t => t.unit === 'USD/request')) return 'per_request'
+  if (isVideoModel.value) return 'video'
+  if (props.model.image || props.model.tiers.some(t => t.unit === 'USD/image')) return 'image'
+  return 'token'
+}
+const mode = ref<SiteManualPrice['billing_mode']>(initialMode())
+const values = ref<Record<string, number | string>>({ ...savedPrice?.prices })
 const resolutionPricing = computed(() => mode.value === 'image' || mode.value === 'video')
 const fields = computed(() => mode.value === 'image' ? ['1K', '2K', '4K'] : mode.value === 'video' ? ['480p', '720p', '1080p'] : mode.value === 'per_request' ? ['request'] : ['input_price', 'output_price'])
 const optionalFields = ['cache_read_price', 'cache_write_price', 'cache_write_1h_price', 'image_input_price', 'image_output_price']
 const saving = ref(false)
 const error = ref('')
+function fieldLabel(key: string) {
+  if (mode.value === 'video') return t('admin.sites.manualPrice.videoResolutionPrice', { resolution: key })
+  if (resolutionPricing.value) return key
+  if (isVideoModel.value && key === 'request') return t('admin.sites.manualPrice.videoRequestPrice')
+  return t(`admin.sites.components.${key}`)
+}
 function reference(key: string) {
   const value = resolutionPricing.value ? props.model.tiers.find(t => t.key === key)?.prices[mode.value === 'video' ? 'second' : 'request'] : props.model.tiers.find(t => t.key === 'default')?.prices[key]
   return value === undefined ? '' : t('admin.sites.manualPrice.reference', { price: value })

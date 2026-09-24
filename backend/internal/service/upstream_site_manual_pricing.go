@@ -102,6 +102,13 @@ func siteModelWithPrice(site *UpstreamSite, model SiteModel) SiteModel {
 		if price.GroupID != model.GroupID || price.Model != model.Model {
 			continue
 		}
+		if price.BillingMode == "image" && isGrokVideoGenerationModel(model.Model) {
+			model.ManualPrice = price
+			model.Image = false
+			model.Tiers = []SitePriceTier{}
+			model.Reason = "视频模型保存了图片采购价，请重新填写视频价格或恢复自动价格"
+			return model
+		}
 		tiers, err := price.tiers()
 		if err != nil {
 			model.Reason = err.Error()
