@@ -9,7 +9,8 @@ import (
 	"github.com/expr-lang/expr/parser"
 )
 
-// Convert nonnegative affine token expressions into component-wise ceilings.
+// Convert nonnegative affine token expressions and fixed request prices into
+// component-wise ceilings.
 // Every conditional branch is included, so context/time/quality conditions can
 // never make a request more expensive than the advertised conservative bound.
 // Unsupported nonlinear/task expressions stay unknown and are never routed.
@@ -98,6 +99,24 @@ func siteExpressionBound(node ast.Node, depth int) (map[string]float64, error) {
 		return left, nil
 	case *ast.CallNode:
 		if name, ok := n.Callee.(*ast.IdentifierNode); ok && name.Value == "tier" && len(n.Arguments) == 2 {
+			if call, ok := n.Arguments[1].(*ast.CallNode); ok {
+				if name, ok := call.Callee.(*ast.IdentifierNode); ok && name.Value == "fixed" && len(call.Arguments) == 1 {
+					// New API permits fixed only as a complete tier price with a
+					// numeric literal in USD/request. Its v1 expression value is
+					// scaled by 1M, just like the constant term normalized above.
+					// Never treat the USD amount as a token price or divide it twice.
+					var amount float64
+					switch value := call.Arguments[0].(type) {
+					case *ast.IntegerNode:
+						amount = float64(value.Value)
+					case *ast.FloatNode:
+						amount = value.Value
+					default:
+						return nil, fail
+					}
+					return scalar(amount * 1e6)
+				}
+			}
 			return siteExpressionBound(n.Arguments[1], depth+1)
 		}
 	case *ast.BinaryNode:
