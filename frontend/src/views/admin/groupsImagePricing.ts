@@ -4,6 +4,7 @@ export const imagePricingPlatforms = new Set([
   "gemini",
   "grok",
   "openai",
+  "minimax",
 ]);
 
 export const supportsImagePricingPlatform = (platform: string): boolean =>
