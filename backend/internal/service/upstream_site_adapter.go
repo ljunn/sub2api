@@ -512,6 +512,9 @@ func parseNewAPISiteCatalog(result gjson.Result) ([]SiteModel, error) {
 				if endpoint.String() == "image-generation" {
 					m.Image = true
 				}
+				if endpoint.String() == "openai-videos" && isGrokVideoGenerationModel(m.Model) {
+					m.VideoAPIFormat = GrokMediaAPIFormatOpenAI
+				}
 			}
 			if schema := p.Get("billing_usage_schema"); schema.IsObject() && len(schema.Map()) > 0 {
 				m.Reason = "任务插件计费暂无法核价，已阻止调度"
@@ -543,6 +546,18 @@ func parseNewAPISiteCatalog(result gjson.Result) ([]SiteModel, error) {
 					tier := SitePriceTier{Key: "default", Unit: "USD/request", Prices: map[string]float64{"request": price * rate}}
 					if m.Image {
 						tier.Unit = "USD/image"
+					}
+					if p.Get("model_price_type").String() == "second" {
+						m.Image = false
+						tier.Unit = "USD/second"
+						tier.Prices = map[string]float64{"second": price * rate}
+						for _, label := range p.Get("billing_labels").Array() {
+							if label.String() == "按像素计费" {
+								m.Reason = "上游按分辨率计费，仅返回基准每秒价格，请填写各分辨率采购价"
+								tier.Reason = m.Reason
+								tier.Note = strings.TrimSpace(p.Get("description").String())
+							}
+						}
 					}
 					if strings.HasPrefix(m.Model, "dall-e") {
 						factor := 2.0

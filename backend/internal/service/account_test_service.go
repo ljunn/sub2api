@@ -1391,7 +1391,11 @@ func (s *AccountTestService) testGrokVideoGeneration(c *gin.Context, ctx context
 
 	s.prepareGrokTestSSE(c)
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: modelID})
-	s.sendEvent(c, TestEvent{Type: "status", Text: "Calling Grok /v1/videos/generations..."})
+	path := "/v1/videos/generations"
+	if accountGrokMediaAPIFormat(account) == GrokMediaAPIFormatOpenAI {
+		path = "/v1/videos"
+	}
+	s.sendEvent(c, TestEvent{Type: "status", Text: "Calling " + path + "..."})
 
 	payload := map[string]any{
 		"model":        modelID,
@@ -1410,6 +1414,10 @@ func (s *AccountTestService) testGrokVideoGeneration(c *gin.Context, ctx context
 		s.sendEvent(c, TestEvent{Type: "content", Text: "using uploaded first-frame / reference image\n"})
 	}
 	payloadBytes, _ := json.Marshal(payload)
+	payloadBytes, _, err = prepareAccountGrokMediaBody(account, GrokMediaEndpointVideosGenerations, payloadBytes, "application/json")
+	if err != nil {
+		return s.sendErrorAndEnd(c, err.Error())
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
@@ -1432,6 +1440,7 @@ func (s *AccountTestService) testGrokVideoGeneration(c *gin.Context, ctx context
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok videos API returned %d: %s", resp.StatusCode, string(body)))
 	}
 
+	body = normalizeAccountGrokVideoResponse(account, GrokMediaEndpointVideosGenerations, body)
 	requestID := strings.TrimSpace(gjson.GetBytes(body, "request_id").String())
 	if requestID == "" {
 		requestID = strings.TrimSpace(gjson.GetBytes(body, "id").String())
@@ -1467,6 +1476,7 @@ func (s *AccountTestService) testGrokVideoGeneration(c *gin.Context, ctx context
 		if statusResp.StatusCode != http.StatusOK && statusResp.StatusCode != http.StatusAccepted {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Grok video status returned %d: %s", statusResp.StatusCode, string(statusBody)))
 		}
+		statusBody = normalizeAccountGrokVideoResponse(account, GrokMediaEndpointVideoStatus, statusBody)
 		st := strings.ToLower(strings.TrimSpace(gjson.GetBytes(statusBody, "status").String()))
 		progress := gjson.GetBytes(statusBody, "progress")
 		if progress.Exists() {

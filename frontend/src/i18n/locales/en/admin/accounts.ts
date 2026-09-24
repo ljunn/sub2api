@@ -706,6 +706,11 @@ export default {
         modelRestrictionDisabledByPassthrough: 'Automatic passthrough is enabled: model whitelist/mapping will not take effect.',
       },
       grok: {
+        mediaFormat: 'Upstream media API format',
+        mediaFormatAuto: 'Automatic (site catalogue, otherwise native xAI)',
+        mediaFormatXAI: 'Native xAI (video /v1/videos/generations)',
+        mediaFormatOpenAI: 'OpenAI compatible (video /v1/videos)',
+        mediaFormatHint: 'The local account stays Grok. Both formats support /images/generations and /images/edits. Video submission and polling use the selected format. Choose OpenAI compatible for Qingfeng grok groups.',
         baseUrlHint: 'Grok OAuth accounts forward to the official xAI API base URL.',
         apiKeyHint: 'Grok subscription support uses OAuth refresh tokens; API keys are out of scope for this account type.',
         // Account connectivity test modal
@@ -714,7 +719,7 @@ export default {
           'Text / image / video use the selected model. Web search, TTS, STT and Realtime hit standalone endpoints (not free-form chat tools).',
         testModeText: 'Text (Responses)',
         testModeImage: 'Image (/images/generations)',
-        testModeVideo: 'Video (/videos/generations)',
+        testModeVideo: 'Video (account upstream format)',
         testModeSearch: 'Web search (/web_search)',
         testModeTTS: 'TTS (/tts)',
         testModeSTT: 'STT (/stt)',

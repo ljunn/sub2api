@@ -133,7 +133,8 @@ export default {
     unknown: '价格未知',
     components: {
       second: '每秒',
-      request: '按次 / 张',
+      request: '按次',
+      image: '每张',
       input_price: '输入',
       output_price: '输出',
       cache_read_price: '缓存读取',

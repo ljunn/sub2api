@@ -51,7 +51,7 @@ func (s *UpstreamSitePricing) apply(ctx context.Context, p SiteAccountPolicy, re
 	p.Tiers = vividAIPerSecondTiers(p.VividAI, p.Tiers)
 	p.Tiers = siteComparisonTiers(p.Image, p.Tiers)
 	grokVideo := p.VividAI == nil && p.LongXia == nil && (isGrokVideoGenerationModel(p.UpstreamModel) || isGrokVideoGenerationModel(p.LocalModel))
-	if grokVideo && len(p.Tiers) == 1 && p.Tiers[0].Key == "default" && p.Tiers[0].Unit == "USD/request" {
+	if grokVideo && len(p.Tiers) == 1 && p.Tiers[0].Key == "default" && (p.Tiers[0].Unit == "USD/request" || p.Tiers[0].Unit == "USD/second") {
 		tier := p.Tiers[0]
 		p.Tiers = nil
 		for _, resolution := range []string{"480p", "720p", "1080p"} {

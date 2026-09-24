@@ -192,13 +192,13 @@
               <div class="mt-1 text-xs text-gray-500">
                 {{
                   change.before
-                    .map((p) => `${p.key}: ${prices(p.prices)}`)
+                    .map((p) => `${p.key}: ${prices(p.prices, p.unit)}`)
                     .join(' / ')
                 }}
                 →
                 {{
                   change.after
-                    .map((p) => `${p.key}: ${prices(p.prices)}`)
+                    .map((p) => `${p.key}: ${prices(p.prices, p.unit)}`)
                     .join(' / ')
                 }}
               </div>
@@ -461,15 +461,15 @@
           <div class="mt-3 grid gap-3 sm:grid-cols-3 text-xs">
             <div>
               <span class="text-gray-500">{{ t('admin.sites.price') }}</span>
-              <p class="mt-1">{{ prices(bindingForm.price_tiers?.find((p) => p.key === limit.key)?.prices || {}) }}</p>
+              <p class="mt-1" data-testid="purchase-price">{{ prices(bindingForm.price_tiers?.find((p) => p.key === limit.key)?.prices || {}, limit.unit) }}</p>
             </div>
             <div>
               <span class="text-gray-500">{{ t('admin.sites.selling') }}</span>
-              <p class="mt-1">{{ prices(limit.selling || {}) }}</p>
+              <p class="mt-1">{{ prices(limit.selling || {}, limit.unit) }}</p>
             </div>
             <div>
               <span class="text-gray-500">{{ t('admin.sites.limit') }}</span>
-              <p class="mt-1 font-medium" data-testid="auto-limit">{{ prices(limit.limits) }}</p>
+              <p class="mt-1 font-medium" data-testid="auto-limit">{{ prices(limit.limits, limit.unit) }}</p>
             </div>
           </div>
         </div>
@@ -551,6 +551,7 @@ import SitePriceSummary from '@/components/admin/sites/SitePriceSummary.vue'
 import SiteOverview from '@/components/admin/sites/SiteOverview.vue'
 import SiteTrafficSupportForm from '@/components/admin/sites/SiteTrafficSupportForm.vue'
 import SiteManualPriceDialog from '@/components/admin/sites/SiteManualPriceDialog.vue'
+import { sitePriceComponent } from '@/components/admin/sites/sitePriceFormat'
 import SiteModelCatalogue from '@/components/admin/sites/SiteModelCatalogue.vue'
 import { upstreamSiteBalanceApi, type SiteBalanceSettings } from '@/api/admin/upstreamSiteBalance'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -636,11 +637,11 @@ function applyReadState(site: UpstreamSite) {
 }
 const date = (value?: string) =>
   value ? new Date(value).toLocaleString() : '—'
-const prices = (values: Record<string, number>) =>
+const prices = (values: Record<string, number>, unit?: string) =>
   Object.entries(values)
     .map(
       ([k, v]) =>
-        `${t(`admin.sites.components.${k}`)} $${Number(v.toPrecision(8))}`,
+        `${t(`admin.sites.components.${sitePriceComponent(k, unit)}`)} $${Number(v.toPrecision(8))}`,
     )
     .join(' / ') || '—'
 const groupName = (id: number) =>

@@ -530,6 +530,7 @@ func BuildSiteAccountPolicy(site *UpstreamSite, b *SiteBinding) SiteAccountPolic
 	}
 	if m := findSiteModel(site, b.GroupID, b.Model); m != nil {
 		effective := siteModelWithPrice(site, *m)
+		p.VideoAPIFormat = effective.VideoAPIFormat
 		p.Wuzu = effective.Wuzu
 		p.ManualPrice = effective.ManualPrice != nil
 		p.Image = effective.Image

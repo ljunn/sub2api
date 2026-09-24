@@ -5,6 +5,11 @@ import SitePriceSummary from '../SitePriceSummary.vue'
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
 describe('video site prices', () => {
+  it.each([['USD/request', 'request'], ['USD/image', 'image']])('labels %s separately', (unit, component) => {
+    const wrapper = mount(SitePriceSummary, { props: { tiers: [{ key: 'default', unit, prices: { request: .05 }, status: 'ready' }] } })
+    expect(wrapper.get('[title]').attributes('title')).toContain(`components.${component} $0.05`)
+    wrapper.unmount()
+  })
   it('shows the second unit and includes configured selling and purchase limits', () => {
     const wrapper = mount(SitePriceSummary, { props: { tiers: [{
       key: '720p', unit: 'USD/second', prices: { second: .14 },

@@ -27,20 +27,21 @@ type SitePriceTier struct {
 }
 
 type SiteModel struct {
-	LongXia      *SiteLongXiaModel `json:"longxia,omitempty"`
-	Wuzu         *WuzuModelConfig  `json:"wuzu,omitempty"`
-	VividAI      *SiteVividAIModel `json:"vividai,omitempty"`
-	ManualPrice  *SiteManualPrice  `json:"manual_price,omitempty"`
-	DiscoveryID  string            `json:"discovery_id,omitempty"`
-	DiscoveredAt *time.Time        `json:"discovered_at,omitempty"`
-	Unread       bool              `json:"unread,omitempty"`
-	Image        bool              `json:"image"`
-	GroupID      string            `json:"group_id"`
-	GroupName    string            `json:"group_name"`
-	Model        string            `json:"model"`
-	Platform     string            `json:"platform"`
-	Tiers        []SitePriceTier   `json:"tiers"`
-	Reason       string            `json:"reason,omitempty"`
+	VideoAPIFormat string            `json:"video_api_format,omitempty"`
+	LongXia        *SiteLongXiaModel `json:"longxia,omitempty"`
+	Wuzu           *WuzuModelConfig  `json:"wuzu,omitempty"`
+	VividAI        *SiteVividAIModel `json:"vividai,omitempty"`
+	ManualPrice    *SiteManualPrice  `json:"manual_price,omitempty"`
+	DiscoveryID    string            `json:"discovery_id,omitempty"`
+	DiscoveredAt   *time.Time        `json:"discovered_at,omitempty"`
+	Unread         bool              `json:"unread,omitempty"`
+	Image          bool              `json:"image"`
+	GroupID        string            `json:"group_id"`
+	GroupName      string            `json:"group_name"`
+	Model          string            `json:"model"`
+	Platform       string            `json:"platform"`
+	Tiers          []SitePriceTier   `json:"tiers"`
+	Reason         string            `json:"reason,omitempty"`
 }
 
 type SiteTierLimit struct {
@@ -129,23 +130,24 @@ type SiteInput struct {
 }
 
 type SiteAccountPolicy struct {
-	LongXia       *SiteLongXiaModel `json:"longxia,omitempty"`
-	Wuzu          *WuzuModelConfig  `json:"wuzu,omitempty"`
-	VividAI       *SiteVividAIModel `json:"vividai,omitempty"`
-	ManualPrice   bool              `json:"manual_price,omitempty"`
-	SiteKind      string            `json:"site_kind,omitempty"`
-	LocalGroupID  int64             `json:"local_group_id"`
-	Image         bool              `json:"image"`
-	SiteID        string            `json:"site_id"`
-	SiteName      string            `json:"site_name"`
-	BindingID     string            `json:"binding_id"`
-	LocalModel    string            `json:"local_model"`
-	UpstreamModel string            `json:"upstream_model"`
-	Enabled       bool              `json:"enabled"`
-	FreshUntil    time.Time         `json:"fresh_until"`
-	Tiers         []SitePriceTier   `json:"tiers"`
-	Limits        []SiteTierLimit   `json:"limits"`
-	Reason        string            `json:"reason,omitempty"`
+	VideoAPIFormat string            `json:"video_api_format,omitempty"`
+	LongXia        *SiteLongXiaModel `json:"longxia,omitempty"`
+	Wuzu           *WuzuModelConfig  `json:"wuzu,omitempty"`
+	VividAI        *SiteVividAIModel `json:"vividai,omitempty"`
+	ManualPrice    bool              `json:"manual_price,omitempty"`
+	SiteKind       string            `json:"site_kind,omitempty"`
+	LocalGroupID   int64             `json:"local_group_id"`
+	Image          bool              `json:"image"`
+	SiteID         string            `json:"site_id"`
+	SiteName       string            `json:"site_name"`
+	BindingID      string            `json:"binding_id"`
+	LocalModel     string            `json:"local_model"`
+	UpstreamModel  string            `json:"upstream_model"`
+	Enabled        bool              `json:"enabled"`
+	FreshUntil     time.Time         `json:"fresh_until"`
+	Tiers          []SitePriceTier   `json:"tiers"`
+	Limits         []SiteTierLimit   `json:"limits"`
+	Reason         string            `json:"reason,omitempty"`
 }
 
 type UpstreamSiteRepository interface {

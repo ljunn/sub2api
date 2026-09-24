@@ -20,7 +20,7 @@
           </div>
           <p v-for="note in notes(model)" :key="note"
             class="mt-1 text-xs text-gray-500 [overflow-wrap:anywhere]">{{ note }}</p>
-          <p v-if="model.reason" class="mt-1 text-xs text-amber-700">{{ t('admin.sites.manualPrice.missing') }}</p>
+          <p v-if="model.reason" class="mt-1 text-xs text-amber-700">{{ model.reason }}</p>
         </div>
         <div class="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-100 pt-2 text-xs dark:border-dark-700 lg:justify-end lg:border-0 lg:pt-0">
           <button v-if="!model.longxia && model.vividai?.kind !== 'video'" class="min-h-11 text-primary-600 lg:min-h-0" :disabled="busy" data-testid="edit-model-price" @click="$emit('price', model)">{{ t(model.manual_price ? 'admin.sites.manualPrice.edit' : 'admin.sites.manualPrice.fill') }}</button>
@@ -36,6 +36,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { upstreamSitesApi, type UpstreamSite, type SiteModel, type SitePriceTier } from '@/api/admin/upstreamSites'
+import { sitePriceComponent } from './sitePriceFormat'
 const props = defineProps<{ site: UpstreamSite; busy: boolean; initialOnlyNew: boolean }>()
 const emit = defineEmits<{ price: [model: SiteModel]; bind: [model: SiteModel]; read: [siteId: string, ids: string[]] }>()
 const { t } = useI18n()
@@ -60,7 +61,7 @@ const filteredModels = computed(() => props.site.models.filter(model =>
   `${model.model} ${model.group_name}`.toLowerCase().includes(search.value.trim().toLowerCase()),
 ).slice().sort((a, b) => Number(visitDiscoveries.value.has(b.discovery_id || '')) - Number(visitDiscoveries.value.has(a.discovery_id || ''))))
 const isBound = (model: SiteModel) => props.site.bindings.some(binding => binding.group_id === model.group_id && binding.model === model.model)
-const prices = (tier: SitePriceTier) => Object.entries(tier.prices).map(([key, value]) => `${['request', 'second'].includes(key) ? '' : t(`admin.sites.components.${key}`) + ' '}$${Number(value.toPrecision(6))}${tier.unit === 'USD/second' ? '/s' : ''}`).join(' / ') || '—'
+const prices = (tier: SitePriceTier) => Object.entries(tier.prices).map(([key, value]) => `${t(`admin.sites.components.${sitePriceComponent(key, tier.unit)}`)} $${Number(value.toPrecision(6))}`).join(' / ') || '—'
 const notes = (model: SiteModel) => [...new Set(model.tiers.flatMap(tier => tier.note ? [tier.note] : []))]
 
 async function flushRead() {

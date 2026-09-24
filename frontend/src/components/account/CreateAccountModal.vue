@@ -1373,6 +1373,7 @@
             class="mt-2"
             @select="apiKeyBaseUrl = $event"
           />
+          <GrokMediaFormatSelect v-if="form.platform === 'grok'" v-model="grokMediaFormat" />
           <CnBaseUrlPresets
             v-if="isCNPlatform && !isOpenCodeGoPlatform"
             class="mt-2"
@@ -3952,6 +3953,7 @@ import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import GrokBaseUrlPresets from '@/components/account/GrokBaseUrlPresets.vue'
+import GrokMediaFormatSelect from '@/components/account/GrokMediaFormatSelect.vue'
 import CnBaseUrlPresets from '@/components/account/CnBaseUrlPresets.vue'
 import OpenCodeGoProtocolRulesEditor from '@/components/account/OpenCodeGoProtocolRulesEditor.vue'
 import HeaderOverrideEditor from '@/components/account/HeaderOverrideEditor.vue'
@@ -4166,6 +4168,7 @@ const submitting = ref(false)
 const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_account'>('oauth-based') // UI selection for account category
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'
 const apiKeyBaseUrl = ref('https://api.anthropic.com')
+const grokMediaFormat = ref('auto')
 const apiKeyValue = ref('')
 const upstreamBillingAutoProbeEnabled = ref(true)
 
@@ -5321,6 +5324,7 @@ const resetForm = () => {
   form.platform = 'anthropic'
   form.type = 'oauth'
   form.credentials = {}
+  grokMediaFormat.value = 'auto'
   form.proxy_id = null
   form.concurrency = 10
   form.load_factor = null
@@ -5815,6 +5819,7 @@ const handleSubmit = async () => {
     base_url: apiKeyBaseUrl.value.trim() || defaultBaseUrl,
     api_key: apiKeyValue.value.trim()
   }
+  if (form.platform === 'grok') credentials.grok_media_api_format = grokMediaFormat.value
   if (form.platform === 'gemini') {
     credentials.tier_id = geminiTierAIStudio.value
   }

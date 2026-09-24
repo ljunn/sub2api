@@ -784,6 +784,11 @@ export default {
         modelRestrictionDisabledByPassthrough: '已开启自动透传：模型白名单/映射不会生效。',
       },
       grok: {
+        mediaFormat: '上游媒体接口格式',
+        mediaFormatAuto: '自动（站点目录优先，默认 xAI 原生）',
+        mediaFormatXAI: 'xAI 原生（视频 /v1/videos/generations）',
+        mediaFormatOpenAI: 'OpenAI 兼容（视频 /v1/videos）',
+        mediaFormatHint: '本地仍为 Grok 类型。两种格式都支持图片 /images/generations 和 /images/edits；视频按所选格式提交和查询。清风 grok 分组请选择 OpenAI 兼容。',
         baseUrlHint: 'Grok OAuth 账号会转发到官方 xAI API Base URL。',
         apiKeyHint: 'Grok 订阅支持使用 OAuth refresh token；API Key 账号不在本次范围内。',
         // 账号连通性测试弹窗
@@ -792,7 +797,7 @@ export default {
           '文本 / 图片 / 视频使用所选模型。网页搜索、TTS、STT、Realtime 走独立接口探测（不是对话里的 tools）。',
         testModeText: '文本（Responses）',
         testModeImage: '图片（/images/generations）',
-        testModeVideo: '视频（/videos/generations）',
+        testModeVideo: '视频（使用账号的上游格式）',
         testModeSearch: '网页搜索（/web_search）',
         testModeTTS: '语音合成 TTS（/tts）',
         testModeSTT: '语音识别 STT（/stt）',

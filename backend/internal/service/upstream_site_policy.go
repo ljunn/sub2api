@@ -36,6 +36,9 @@ func WithSitePriceRequest(ctx context.Context, body []byte) context.Context {
 	request := SitePriceRequest{Model: gjson.GetBytes(body, "model").String()}
 	request.VideoResolution = strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "resolution").String()))
 	request.VideoDuration = int(gjson.GetBytes(body, "duration").Int())
+	if !gjson.GetBytes(body, "duration").Exists() {
+		request.VideoDuration = int(gjson.GetBytes(body, "seconds").Int())
+	}
 	if gjson.GetBytes(body, "content").IsArray() {
 		request.VividAITier = gjson.GetBytes(body, "resolution").String()
 		duration := gjson.GetBytes(body, "duration")
@@ -229,7 +232,7 @@ func SitePriceVeto(ctx context.Context, a *Account) (bool, string) {
 			resolution = VideoBillingResolution480P
 		}
 		for _, tier := range p.Tiers {
-			if tier.Key == "default" && tier.Unit == "USD/request" {
+			if tier.Key == "default" && (tier.Unit == "USD/request" || tier.Unit == "USD/second") {
 				resolution = "default"
 				break
 			}

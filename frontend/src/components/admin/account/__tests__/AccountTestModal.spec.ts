@@ -77,7 +77,11 @@ function mountModal(account: Record<string, unknown> = {
     global: {
       stubs: {
         BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' },
-        Select: { template: '<div class="select-stub"></div>' },
+        Select: {
+          props: ['modelValue', 'options', 'valueKey', 'labelKey'],
+          emits: ['update:modelValue'],
+          template: '<select class="select-stub" :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="option in options" :key="option[valueKey || \'value\']" :value="option[valueKey || \'value\']">{{ option[labelKey || \'label\'] }}</option></select>'
+        },
         TextArea: {
           props: ['modelValue'],
           emits: ['update:modelValue'],
@@ -117,6 +121,32 @@ describe('AccountTestModal', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('lets a Grok account select the corresponding image and video models for an OpenAI upstream', async () => {
+    getAvailableModels.mockResolvedValue([
+      { id: 'image-one', display_name: 'Image One' }, { id: 'image-two', display_name: 'Image Two' },
+      { id: 'video-one', display_name: 'Video One' }, { id: 'video-two', display_name: 'Video Two' },
+    ])
+    const wrapper = mountModal({ id: 42, platform: 'grok', type: 'apikey', credentials: {
+      grok_media_api_format: 'openai', model_mapping: { 'image-one': 'grok-imagine-image', 'image-two': 'grok-imagine-image-quality', 'video-one': 'grok-imagine-video', 'video-two': 'grok-imagine-video-1.5' },
+    } })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    await wrapper.findAll('select')[0]!.setValue('image')
+    expect(wrapper.findAll('select')[1]!.findAll('option').map(option => option.attributes('value'))).toEqual(['image-one', 'image-two'])
+    await wrapper.findAll('select')[1]!.setValue('image-two')
+    await wrapper.findAll('button').find(button => button.text().includes('admin.accounts.startTest'))!.trigger('click')
+    await flushPromises()
+    expect(JSON.parse((global.fetch as any).mock.calls[0][1].body)).toMatchObject({ model_id: 'image-two', mode: 'image' })
+    global.fetch = vi.fn().mockResolvedValue(createStreamResponse(['data: {"type":"test_complete","success":true}\n'])) as any
+    await wrapper.findAll('select')[0]!.setValue('video')
+    expect(wrapper.findAll('select')[1]!.findAll('option').map(option => option.attributes('value'))).toEqual(['video-one', 'video-two'])
+    await wrapper.findAll('select')[1]!.setValue('video-two')
+    await wrapper.findAll('button').find(button => button.text().includes('admin.accounts.retry'))!.trigger('click')
+    await flushPromises()
+    expect(JSON.parse((global.fetch as any).mock.calls[0][1].body)).toMatchObject({ model_id: 'video-two', mode: 'video' })
+    wrapper.unmount()
   })
 
   it.each(['openai', 'grok'])('%s video-only accounts test the mapped video model and render video', async platform => {

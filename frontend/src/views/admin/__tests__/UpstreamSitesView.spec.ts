@@ -101,6 +101,20 @@ async function click(text: string) {
 }
 
 describe('upstream sites', () => {
+  it('shows video purchase prices per second in the binding dialog', async () => {
+    site.models[0]!.model = 'grok-imagine-video'
+    site.models[0]!.tiers = [{ key: '480p', unit: 'USD/second', prices: { second: .05 } }]
+    wrapper = mountView()
+    await flushPromises()
+    await click('admin.sites.models')
+    wrapper.findComponent(SiteModelCatalogue).vm.$emit('bind', site.models[0])
+    await flushPromises()
+    await wrapper.findAll('#binding-form select')[2]!.setValue('12')
+    await wrapper.get('#binding-form input[list=site-local-models]').setValue('grok-imagine-video')
+    await flushPromises()
+    expect(wrapper.get('[data-testid=purchase-price]').text()).toBe('admin.sites.components.second $0.05')
+    expect(wrapper.get('[data-testid=purchase-price]').text()).not.toContain('request')
+  })
   it.each(['sub2api', 'newapi'] as const)('allows Grok groups for %s Grok models', async kind => {
     site.kind = kind
     site.models[0]!.model = 'grok-imagine-video'

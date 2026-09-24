@@ -131,7 +131,8 @@ export default {
     unknown: 'Unknown price',
     components: {
       second: 'Per second',
-      request: 'Request / image',
+      request: 'Per request',
+      image: 'Per image',
       input_price: 'Input',
       output_price: 'Output',
       cache_read_price: 'Cache read',

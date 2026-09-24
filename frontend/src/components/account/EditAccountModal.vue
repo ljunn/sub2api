@@ -52,6 +52,7 @@
             class="mt-2"
             @select="editBaseUrl = $event"
           />
+          <GrokMediaFormatSelect v-if="account.platform === 'grok'" v-model="grokMediaFormat" />
           <CnBaseUrlPresets
             v-if="isCNApiKeyAccount && account.platform !== 'opencode_go'"
             class="mt-2"
@@ -3067,6 +3068,7 @@ import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import GrokBaseUrlPresets from '@/components/account/GrokBaseUrlPresets.vue'
+import GrokMediaFormatSelect from '@/components/account/GrokMediaFormatSelect.vue'
 import CnBaseUrlPresets from '@/components/account/CnBaseUrlPresets.vue'
 import OpenCodeGoProtocolRulesEditor from '@/components/account/OpenCodeGoProtocolRulesEditor.vue'
 import HeaderOverrideEditor from '@/components/account/HeaderOverrideEditor.vue'
@@ -3197,6 +3199,7 @@ interface TempUnschedRuleForm {
 // State
 const submitting = ref(false)
 const editBaseUrl = ref('https://api.anthropic.com')
+const grokMediaFormat = ref('auto')
 const editApiKey = ref('')
 
 // ── 国产供应商（Kimi / Zhipu / DeepSeek）account_mode / api_protocol 编辑 ──
@@ -4285,6 +4288,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
           cloneOpenCodeGoProtocolRules(defaultOpenCodeProtocolRules(editOpenCodeAccountMode.value))
       }
     }
+    grokMediaFormat.value = typeof credentials.grok_media_api_format === 'string' ? credentials.grok_media_api_format : 'auto'
     const platformDefaultUrl =
       newAccount.platform === 'openai'
         ? 'https://api.openai.com'
@@ -5026,6 +5030,7 @@ const handleSubmit = async () => {
         ...currentCredentials,
         base_url: newBaseUrl
       }
+      if (props.account.platform === 'grok') newCredentials.grok_media_api_format = grokMediaFormat.value
 
       // 国产供应商：模式与协议写入凭据（决定额度/余额探测与转发端点/格式）。
       if (isCNApiKeyAccount.value) {

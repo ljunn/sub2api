@@ -13,6 +13,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import type { SiteSchedulingTier } from '@/api/admin/upstreamSites'
+import { sitePriceComponent } from './sitePriceFormat'
 defineProps<{ tiers: SiteSchedulingTier[] }>()
 const { t } = useI18n()
 const amount = (prices?: Record<string, number>) => {
@@ -21,7 +22,7 @@ const amount = (prices?: Record<string, number>) => {
   if (entries.length === 1 && ['request', 'second'].includes(entries[0]![0])) return `$${Number(entries[0]![1].toPrecision(6))}`
   return t('admin.sites.tokenPricing')
 }
-const components = (prices?: Record<string, number>) => Object.entries(prices || {})
-  .map(([key, value]) => `${t(`admin.sites.components.${key}`)} $${Number(value.toPrecision(8))}`).join(' / ') || '—'
-const details = (tier: SiteSchedulingTier) => `${t('admin.sites.price')}: ${components(tier.prices)} ${tier.unit}\n${t('admin.sites.selling')}: ${components(tier.selling)}\n${t('admin.sites.limit')}: ${components(tier.ceiling)}\n${t(`admin.sites.status.${tier.status}`)}${tier.reason ? ` · ${tier.reason}` : ''}`
+const components = (prices: Record<string, number> | undefined, unit: string) => Object.entries(prices || {})
+  .map(([key, value]) => `${t(`admin.sites.components.${sitePriceComponent(key, unit)}`)} $${Number(value.toPrecision(8))}`).join(' / ') || '—'
+const details = (tier: SiteSchedulingTier) => `${t('admin.sites.price')}: ${components(tier.prices, tier.unit)} ${tier.unit}\n${t('admin.sites.selling')}: ${components(tier.selling, tier.unit)}\n${t('admin.sites.limit')}: ${components(tier.ceiling, tier.unit)}\n${t(`admin.sites.status.${tier.status}`)}${tier.reason ? ` · ${tier.reason}` : ''}`
 </script>

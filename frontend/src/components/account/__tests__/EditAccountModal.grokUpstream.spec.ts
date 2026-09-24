@@ -124,6 +124,21 @@ describe('EditAccountModal Grok OAuth upstream config', () => {
     checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
   })
 
+  it('preserves the Grok platform while saving an OpenAI compatible media format', async () => {
+    const account = { ...buildGrokOAuthAccount({ base_url: 'https://relay.example', grok_media_api_format: 'openai' }), type: 'apikey', credentials_status: { has_api_key: true }  }
+    updateAccountMock.mockResolvedValue(account)
+    const wrapper = mountModal(account)
+    const select = wrapper.get<HTMLSelectElement>('[data-testid=grok-media-format]')
+    expect(select.element.value).toBe('openai')
+    await select.setValue('xai')
+    await select.setValue('openai')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await vi.waitFor(() => expect(updateAccountMock).toHaveBeenCalledTimes(1))
+    expect(updateAccountMock.mock.calls[0]?.[1].credentials).toMatchObject({ base_url: 'https://relay.example', grok_media_api_format: 'openai' })
+    expect(account.platform).toBe('grok')
+    wrapper.unmount()
+  })
+
   it('enabling the custom base URL toggle and saving persists base_url', async () => {
     const account = buildGrokOAuthAccount({ base_url: 'https://cli-chat-proxy.grok.com/v1' })
     updateAccountMock.mockResolvedValue(account)
